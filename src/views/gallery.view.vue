@@ -149,27 +149,9 @@ import {
 	onIonViewWillLeave,
 	useBackButton,
 } from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import dayjs from "dayjs";
-
-import { isNative, sortDates, svg } from "@/helper/general.helper";
-import { FRONTEND_ROUTES } from "@/types/router.types";
 import { mdiClose } from "@mdi/js";
-
-import TopBar from "@/components/general/TopBar.vue";
-import GalleryActionSheet from "@/components/gallery/GalleryActionSheet.vue";
-import NoMessages from "@/components/gallery/NoMessages.vue";
-import Thumbnail from "@/components/gallery/Thumbnail.vue";
-import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
-import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
-
-import noMessagesImg from "@/assets/illustrations/no_messages.webp";
-
-import { useAuthStore } from "@/store/auth.store";
-import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
-import { useGalleryData } from "@/composables/gallery/useGalleryData";
-import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import dayjs from "dayjs";
+import { storeToRefs } from "pinia";
 import {
 	type ComponentPublicInstance,
 	computed,
@@ -178,6 +160,21 @@ import {
 	ref,
 	watch,
 } from "vue";
+import noMessagesImg from "@/assets/illustrations/no_messages.webp";
+import GalleryActionSheet from "@/components/gallery/GalleryActionSheet.vue";
+import NoMessages from "@/components/gallery/NoMessages.vue";
+import Thumbnail from "@/components/gallery/Thumbnail.vue";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import TopBar from "@/components/general/TopBar.vue";
+import { useGalleryData } from "@/composables/gallery/useGalleryData";
+import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { sortDates, svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useAuthStore } from "@/store/auth.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const { user } = storeToRefs(useAuthStore());
 

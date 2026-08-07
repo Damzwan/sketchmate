@@ -1,10 +1,10 @@
 import type { FabricObject } from "fabric";
-import { Canvas, StaticCanvas } from "fabric";
-import { compressImg } from "@/helper/general.helper";
+import { type Canvas, StaticCanvas } from "fabric";
 import { CANVAS_SIZE } from "@/draw/config/canvas.config";
-import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
 import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
 import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
+import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
+import { compressImg } from "@/helper/image.helper";
 
 /**
  * Canvas order is NOT paint order once layers exist — the renderer ranks by
@@ -188,8 +188,7 @@ async function exportWithMainThreadChunking(
 	mathYielder.reset();
 	for (let i = 0; i < objects.length; i++) {
 		if (signal?.aborted) return null;
-		// @ts-ignore
-		const bound = objects[i].getBoundingRect(true);
+		const bound = objects[i].getBoundingRect();
 		if (bound.left < minX) minX = bound.left;
 		if (bound.top < minY) minY = bound.top;
 		if (bound.left + bound.width > maxX) maxX = bound.left + bound.width;
@@ -316,7 +315,7 @@ export function computeBounds(objects: any[], padding: number = 50) {
 		maxY = -Infinity;
 
 	for (const obj of objects) {
-		const { left, top, width, height } = obj.getBoundingRect(true); // use true for absolute
+		const { left, top, width, height } = obj.getBoundingRect(); // use true for absolute
 		minX = Math.min(minX, left);
 		minY = Math.min(minY, top);
 		maxX = Math.max(maxX, left + width);
@@ -436,8 +435,7 @@ export async function exportCroppedJson(
 	const absCrop = relativeToAbsolute(totalBounds, relativeRect);
 
 	const keepObjects = objects.filter((obj) => {
-		// @ts-ignore
-		const b = obj.getBoundingRect(true);
+		const b = obj.getBoundingRect();
 
 		const xOverlap = Math.max(
 			0,

@@ -4,9 +4,9 @@ import {
 	buildWatercolorPathData,
 	decodeWatercolorTrace,
 	encodeWatercolorTrace,
+	simplifyWatercolorPoints,
 	traceWatercolorPath,
 	watercolorComplexity,
-	simplifyWatercolorPoints,
 	watercolorSimplifyTolerance,
 } from "./watercolorGeometry";
 

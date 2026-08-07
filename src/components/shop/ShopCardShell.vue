@@ -56,9 +56,9 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { ShopSku } from "@/config/catalog.config";
 
 defineProps<{

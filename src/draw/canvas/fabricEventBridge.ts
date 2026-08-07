@@ -1,15 +1,15 @@
 import type { FabricObject } from "fabric";
-import type { RenderEngine } from "../rendering/renderEngine";
+import type { ExplicitZIndex } from "../objects/indexing/zIndex";
+import { markObjectMutated } from "../objects/objectSerialization";
 import {
 	bakeryClear,
 	bakeryClipSet,
 	bakeryMarkDirty,
 } from "../rendering/bakery/tileBakeryClient";
 import type { WorldRect } from "../rendering/committedLayer";
+import type { RenderEngine } from "../rendering/renderEngine";
 import * as transformLayer from "../transform/transformController";
-import type { ExplicitZIndex } from "../objects/indexing/zIndex";
 import type { FabricEvent } from "./fabricEvent.types";
-import { markObjectMutated } from "../objects/objectSerialization";
 
 interface FabricEventBridgeOptions {
 	getEngine: () => RenderEngine<FabricObject> | null;

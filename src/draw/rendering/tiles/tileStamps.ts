@@ -1,8 +1,8 @@
+import { minimumTiledZoom, minimumViewportZoomFor } from "../zoomLevels";
 import { TileBaker } from "./tileBaker";
+import { type TileKey, tileKey } from "./tileKey";
 import type { Bounded, WorldRect } from "./tileLayerBase";
 import { isCanvasSurface } from "./tileStore";
-import { tileKey, type TileKey } from "./tileKey";
-import { minimumTiledZoom, minimumViewportZoomFor } from "../zoomLevels";
 
 export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	/**

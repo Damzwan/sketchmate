@@ -1,19 +1,18 @@
-import * as fabric from "fabric";
-import { Canvas, FabricObject, Point } from "fabric";
-import { isMobile } from "@/helper/general.helper";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { type Canvas, type FabricObject, Point } from "fabric";
 import { storeToRefs } from "pinia";
-import { DrawTool } from "@/draw/tools/tool.types";
-import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import { useSelect } from "@/draw/tools/select.store";
-import { gestureDetector } from "@/draw/utils/gestureDetector";
-import { cancelPreviousAction } from "@/draw/tools/cancelTools";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import { cancelPreviousAction } from "@/draw/tools/cancelTools";
 import { useGestureStore } from "@/draw/tools/gesture.store";
-import * as transform from "@/draw/transform/transformController";
+import { useSelect } from "@/draw/tools/select.store";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
+import * as transform from "@/draw/transform/transformController";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { gestureDetector } from "@/draw/utils/gestureDetector";
+import { isMobile } from "@/helper/platform.helper";
 
 function zoomLimits() {
 	return useDrawObjectManager().getZoomLimits();
@@ -48,7 +47,7 @@ function cancelPendingSettle() {
 	clearTimeout(visibilityTimeout);
 }
 
-function syncVisuals(c: Canvas) {
+function syncVisuals(_c: Canvas) {
 	// renderViewportNow, NOT renderViewport. We are already inside a RAF callback
 	// here, and renderViewport() only *schedules* another one — so the composite
 	// for this gesture frame landed on the NEXT frame, putting every pan and zoom
@@ -106,7 +105,7 @@ export function enablePCGestures(c: Canvas) {
 				}
 
 				const rawZoomFactor = Math.exp(-e.deltaY / 300);
-				let newZoom = Math.max(
+				const newZoom = Math.max(
 					limits.min,
 					Math.min(c.getZoom() * rawZoomFactor, limits.max),
 				);
@@ -314,7 +313,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			if (!isCanvasZooming) return;
 
 			const rawZoomFactor = scale / previousScale;
-			let newZoom = Math.max(
+			const newZoom = Math.max(
 				limits.min,
 				Math.min(c.getZoom() * rawZoomFactor, limits.max),
 			);

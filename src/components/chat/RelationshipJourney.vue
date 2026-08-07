@@ -64,15 +64,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed, ref } from "vue";
 import {
 	JOURNEY_STEPS,
 	RELATIONSHIP_ACCENT,
 	RelationshipAccent,
 } from "@/config/relationship.config";
+import { svg } from "@/helper/general.helper";
 
 const props = withDefaults(
 	defineProps<{
@@ -164,9 +164,7 @@ const labelStyle = (i: number) => {
 	if (!props.dark) return {};
 	const color = i === activeIdx.value ? props.nameColor : props.descColor;
 	// Opacity carries the done/upcoming distinction that the black tints used to.
-	return color
-		? { color, opacity: i <= activeIdx.value ? 1 : 0.6 }
-		: {};
+	return color ? { color, opacity: i <= activeIdx.value ? 1 : 0.6 } : {};
 };
 
 const connectorClass = (i: number) => {

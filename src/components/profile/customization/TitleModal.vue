@@ -77,15 +77,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck, mdiLockOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { TITLES, type Title } from "@/config/profile_options.config";
-import { buildItemId } from "@/config/catalog.config";
-import { useInventoryStore } from "@/store/inventory.store";
-import { useToast } from "@/service/toast.service";
+import { computed, ref, watch } from "vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { buildItemId } from "@/config/catalog.config";
+import { TITLES, type Title } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
+import { useToast } from "@/service/toast.service";
+import { useInventoryStore } from "@/store/inventory.store";
 
 const props = defineProps<{
 	isOpen: boolean;

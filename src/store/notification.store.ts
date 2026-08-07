@@ -1,15 +1,17 @@
 // store/notification.store.ts
+
+import { Device } from "@capacitor/device";
+import { Preferences } from "@capacitor/preferences";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref } from "vue";
-import { Preferences } from "@capacitor/preferences";
-import { Device } from "@capacitor/device";
-import { PushNotifications } from "@capacitor/push-notifications";
-import { NotificationSubscription, User } from "@/types/server.types";
-import { LocalStorage } from "@/types/storage.types";
-import { generateDeviceFingerprint, isNative } from "@/helper/general.helper";
-import { useAuthStore } from "@/store/auth.store";
+import { generateDeviceFingerprint } from "@/helper/general.helper";
 import { disableNotifications } from "@/helper/notification.helper";
+import { isNative } from "@/helper/platform.helper";
 import { subscribe, unsubscribe } from "@/service/api/user.api";
+import { useAuthStore } from "@/store/auth.store";
+import type { NotificationSubscription, User } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
 
 export const useNotificationStore = defineStore("notification", () => {
 	const localSubscription = ref<string | undefined>(undefined);
@@ -24,6 +26,16 @@ export const useNotificationStore = defineStore("notification", () => {
 		mutationQueue = next.catch(() => {});
 		return next;
 	};
+
+	/**
+	 * `localSubscription` deliberately survives: the push token identifies this
+	 * install, not the user, and keeping it lets `init()` silently re-activate
+	 * push on the next login without re-prompting for permission. Explicit
+	 * "disable notifications" still drops it via `setNotifications(undefined)`.
+	 */
+	function resetRuntimeState() {
+		showEnableNotificationsAfterLogin.value = false;
+	}
 
 	const deviceNotificationsAllowed = computed(() => {
 		const auth = useAuthStore();
@@ -245,5 +257,6 @@ export const useNotificationStore = defineStore("notification", () => {
 		setNotifications,
 		init,
 		handleTokenRefresh,
+		resetRuntimeState,
 	};
 });

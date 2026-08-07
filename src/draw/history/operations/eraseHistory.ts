@@ -1,13 +1,13 @@
 import * as fabric from "fabric";
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { HistoryContext } from "@/draw/history/historyActions";
-import { eraseObject } from "@/draw/utils/brushes/CustomEraserBrush";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useEraser } from "@/draw/tools/eraser.store";
-import { WorldRect } from "@/draw/rendering/committedLayer";
-import { createYielder } from "@/draw/scheduling/yielder";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import type { HistoryContext } from "@/draw/history/historyActions";
 import { stripClipStrokes } from "@/draw/history/operations/eraseClip";
+import type { WorldRect } from "@/draw/rendering/committedLayer";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { createYielder } from "@/draw/scheduling/yielder";
+import { useEraser } from "@/draw/tools/eraser.store";
+import { eraseObject } from "@/draw/utils/brushes/CustomEraserBrush";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -36,8 +36,8 @@ function unionBounds(
 	for (const obj of objects) {
 		if (!obj) continue;
 		try {
-			const b = (obj as any).getBoundingRect(true, true);
-			if (!b || !isFinite(b.left) || !isFinite(b.top)) continue;
+			const b = (obj as any).getBoundingRect();
+			if (!b || !Number.isFinite(b.left) || !Number.isFinite(b.top)) continue;
 			minX = Math.min(minX, b.left);
 			minY = Math.min(minY, b.top);
 			maxX = Math.max(maxX, b.left + b.width);
@@ -364,8 +364,8 @@ function strokeFootprint(
 ): WorldRect | null {
 	if (!stroke) return null;
 	try {
-		const b = (stroke as any).getBoundingRect(true, true);
-		if (!isFinite(b.left)) return null;
+		const b = (stroke as any).getBoundingRect();
+		if (!Number.isFinite(b.left)) return null;
 		const PAD = ((stroke as any).strokeWidth ?? 0) * 1.5 + 4;
 		return {
 			x: b.left - PAD,

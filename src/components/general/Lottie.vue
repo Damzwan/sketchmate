@@ -9,8 +9,8 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
-import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const loaded = ref(false);

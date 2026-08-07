@@ -1,16 +1,16 @@
-import * as fabric from "fabric";
 import type { FabricObject } from "fabric";
-import { v4 as uuidv4 } from "uuid";
-import {
-	enlivenObjectsTimeSlivered,
-	migrateLegacyOrigin,
-} from "@/draw/document/serialization";
-import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
-import { FLATTENED_IMAGE_MAX_DIMENSION } from "@/draw/tools/imageDownsampling";
+import * as fabric from "fabric";
 import {
 	IS_LOW_END_DEVICE,
 	MAX_RENDER_SCALE,
 } from "@/draw/config/renderQuality.config";
+import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
+import {
+	enlivenObjectsTimeSlivered,
+	migrateLegacyOrigin,
+} from "@/draw/document/serialization";
+import { FLATTENED_IMAGE_MAX_DIMENSION } from "@/draw/tools/imageDownsampling";
+import { uuidv4 } from "@/utils/uuid";
 
 /**
  * Resolution of a flattened saved object.
@@ -60,7 +60,10 @@ const flattenProductionCeiling = () =>
  * the honest trade for staying ONE object, and what the flatten confirmation
  * warns about.
  */
-export function flattenRasterSize(extent: number, maxDimension: number): number {
+export function flattenRasterSize(
+	extent: number,
+	maxDimension: number,
+): number {
 	return Math.min(
 		maxDimension,
 		flattenProductionCeiling(),

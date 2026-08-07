@@ -140,7 +140,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiHeart,
@@ -148,15 +147,23 @@ import {
 	mdiHeartPlusOutline,
 	mdiPalette,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
 import { useNow } from "@vueuse/core";
-import { needsDecision, resolveRelationship } from "@/config/relationship.config";
-import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
-import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { computed } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
+import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import {
+	needsDecision,
+	resolveRelationship,
+} from "@/config/relationship.config";
+import { svg } from "@/helper/general.helper";
 
-const props = defineProps<{ chat: any; partner: any; currentUserId?: string }>();
+const props = defineProps<{
+	chat: any;
+	partner: any;
+	currentUserId?: string;
+}>();
 defineEmits(["open-info"]);
 
 const actions = useRelationshipActions(() => props.chat);
@@ -169,9 +176,7 @@ const openPartner = () => {
 // The glyph badged onto the partner's avatar says WHAT is being asked: a
 // palette for a draw invite, a heart for a mate request.
 const badgeIcon = computed(() =>
-	rel.value.kind === "incoming_invite"
-		? mdiPalette
-		: mdiHeart,
+	rel.value.kind === "incoming_invite" ? mdiPalette : mdiHeart,
 );
 
 const rel = computed(() =>
@@ -197,7 +202,9 @@ const containerStyle = computed(() => ({
 const nameStyle = { color: "var(--chat-widget-name, #18181b)" };
 const descStyle = { color: "var(--chat-widget-desc, rgba(0,0,0,.72))" };
 const utilityStyle = { color: "var(--chat-widget-utility, rgba(0,0,0,.72))" };
-const accentStyle = { color: "var(--chat-widget-accent, var(--ion-color-secondary))" };
+const accentStyle = {
+	color: "var(--chat-widget-accent, var(--ion-color-secondary))",
+};
 const badgeStyle = {
 	background: "var(--chat-widget-accent, var(--ion-color-secondary))",
 	borderColor: "var(--chat-widget-control-bg, rgba(255,255,255,.72))",
@@ -218,9 +225,11 @@ const { canRequest, longReason } = useMateRequestGate(() => props.chat, now);
  * re-branched in three near-identical template blocks. Null means the
  * anti-pestering gate currently withholds a new outbound request.
  */
-const secondaryChoice = computed<
-	{ label: string; run: () => void; icon?: string } | null
->(() => {
+const secondaryChoice = computed<{
+	label: string;
+	run: () => void;
+	icon?: string;
+} | null>(() => {
 	switch (rel.value.kind) {
 		// Accepting is always allowed — the ladder gates ASKING, never answering.
 		case "incoming_mate":

@@ -1,6 +1,7 @@
 .DS_Store
 node_modules
 /dist
+/dev-dist
 
 
 # local env files
@@ -21,3 +22,6 @@ pnpm-debug.log*
 *.sln
 *.sw?
 stats.html
+
+# generated build artifacts
+/src/generated

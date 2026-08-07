@@ -35,13 +35,13 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon } from '@ionic/vue';
-import { mdiChevronRight, mdiEarth } from '@mdi/js';
-import { svg } from '@/helper/general.helper';
+import { IonIcon } from "@ionic/vue";
+import { mdiChevronRight, mdiEarth } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
-  unreadCount: number;
-  memberCount: number;
-  lastMessage?: string;
+	unreadCount: number;
+	memberCount: number;
+	lastMessage?: string;
 }>();
 </script>

@@ -1,32 +1,32 @@
-import { BACKGROUND } from "@/draw/config/canvas.config";
-import { getRenderDpr } from "@/draw/config/renderQuality.config";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { useClaimArea } from "@/draw/claims/claimArea.store";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
-import { useAuthStore } from "@/store/auth.store";
-import { activeLayerId } from "@/draw/layers/layerRegistry";
 import {
 	Canvas,
 	type CanvasOptions,
 	classRegistry,
 	config,
 	FabricObject,
-	IText,
 	InteractiveFabricObject,
+	IText,
 	util,
 } from "fabric";
-import { v4 as uuidv4 } from "uuid";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { BACKGROUND } from "@/draw/config/canvas.config";
+import { getRenderDpr } from "@/draw/config/renderQuality.config";
+import { activeLayerId } from "@/draw/layers/layerRegistry";
+import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
+import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
+import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
+import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
+import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
+import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
+import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
+import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
+import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
+import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { useAuthStore } from "@/store/auth.store";
+import { uuidv4 } from "@/utils/uuid";
 
 const customProperties = [
 	"id",

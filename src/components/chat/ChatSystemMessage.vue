@@ -39,20 +39,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { mdiBalloon } from "@mdi/js";
 import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useSenderStyle } from "@/composables/chat/useSenderStyle";
 import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
-import { useSenderStyle } from "@/composables/chat/useSenderStyle";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 const props = defineProps<{ msg: any; partner: any }>();
 
-defineEmits<{
-	(event: "inspect-profile", pointerEvent: Event, user: any): void;
-}>();
+defineEmits<
+	(event: "inspect-profile", pointerEvent: Event, user: any) => void
+>();
 
 const { user: me } = storeToRefs(useAuthStore());
 const sender = computed(() => props.msg.member || props.partner);

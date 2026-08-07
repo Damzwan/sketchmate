@@ -1,10 +1,9 @@
-import * as fabric from "fabric";
 import type { FabricObject } from "fabric";
-import type { HistoryAction } from "@/draw/history/history.types";
-import { HistoryEvent } from "@/draw/history/history.types";
+import * as fabric from "fabric";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
 import type { HistoryContext } from "@/draw/history/historyActions";
 import { useLayersStore } from "@/draw/layers/layers.store";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 
 /**
  * Undo/redo for the layer DOCUMENT (solo drawing only).

@@ -62,34 +62,34 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonButton, IonIcon } from '@ionic/vue'
-import { App } from '@capacitor/app'
-import { AppUpdate } from '@capawesome/capacitor-app-update'
-import { mdiCreation, mdiPalette } from '@mdi/js'
-import { useMenuStore } from '@/store/menu.store'
-import { storeToRefs } from 'pinia'
-import { svg } from '@/helper/general.helper'
+import { App } from "@capacitor/app";
+import { AppUpdate } from "@capawesome/capacitor-app-update";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { mdiCreation, mdiPalette } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
-const menuStore = useMenuStore()
-const { isOnlineUpgradeMenuOpen } = storeToRefs(menuStore)
+const menuStore = useMenuStore();
+const { isOnlineUpgradeMenuOpen } = storeToRefs(menuStore);
 
 async function onBtnClick() {
-  try {
-    const info = await AppUpdate.getAppUpdateInfo();
-    if (info.immediateUpdateAllowed) {
-      await AppUpdate.performImmediateUpdate();
-    } else {
-      await AppUpdate.openAppStore();
-      await App.exitApp();
-    }
-  } catch (error) {
-    console.error("Failed to trigger update flow:", error);
-  }
+	try {
+		const info = await AppUpdate.getAppUpdateInfo();
+		if (info.immediateUpdateAllowed) {
+			await AppUpdate.performImmediateUpdate();
+		} else {
+			await AppUpdate.openAppStore();
+			await App.exitApp();
+		}
+	} catch (error) {
+		console.error("Failed to trigger update flow:", error);
+	}
 }
 
 const handleDismiss = () => {
-  isOnlineUpgradeMenuOpen.value = false
-}
+	isOnlineUpgradeMenuOpen.value = false;
+};
 </script>
 
 <style scoped>

@@ -20,32 +20,32 @@
 //   • Rendering matches CommittedLayer.rebuildTile exactly: same overscan
 //     translate, same pad+clip, objects drawn in the id order provided.
 
-import { classRegistry, util } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
+import { classRegistry, util } from "fabric";
+import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
 import type {
 	BakeryRequest,
 	BakeryResponse,
 } from "@/draw/rendering/bakery/bakery.types";
 import {
-	SceneCommitAssembler,
-	ObjectRevisionLedger,
-	SceneRevisionGate,
 	type AssembledSceneCommit,
+	ObjectRevisionLedger,
+	SceneCommitAssembler,
 	type SceneDelta,
+	SceneRevisionGate,
 	type WorkerTiming,
 } from "@/draw/rendering/bakery/protocol";
-import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
+import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
+import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
+import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
+import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
+import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
+import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
+import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
+import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
+import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
+import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
 
 // --- fonts -------------------------------------------------------------------
 // A worker has no CSS, so text used to be refused per-tile (wrong metrics in a
@@ -947,7 +947,7 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 async function overview(
 	req: Extract<BakeryRequest, { t: "overview" }>,
 ): Promise<void> {
-	const { msgId, ids, bounds, width, height, scale } = req;
+	const { msgId, ids, bounds, width, height } = req;
 	const timing: WorkerTiming = {
 		queueWaitMs: Math.max(
 			0,

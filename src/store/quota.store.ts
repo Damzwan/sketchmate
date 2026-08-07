@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { fetchQuotaSummary } from "@/service/api/quota.api";
-import { QuotaState, QuotaSummary } from "@/types/server.types";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import type { QuotaState, QuotaSummary } from "@/types/server.types";
 
 const EMPTY_STATE: QuotaState = {
 	used: 0,
@@ -90,6 +90,12 @@ export const useQuotaStore = defineStore("quota", () => {
 		return posts.value;
 	}
 
+	function resetRuntimeState() {
+		summary.value = null;
+		isLoading.value = false;
+		lastFetchedAt.value = 0;
+	}
+
 	return {
 		summary,
 		isPro,
@@ -103,5 +109,6 @@ export const useQuotaStore = defineStore("quota", () => {
 		decrementPost,
 		syncPostQuota,
 		incrementBalloon,
+		resetRuntimeState,
 	};
 });

@@ -54,20 +54,20 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon } from '@ionic/vue'
-import { mdiCrownOutline, mdiPalette } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
+import { IonButton, IonIcon } from "@ionic/vue";
+import { mdiCrownOutline, mdiPalette } from "@mdi/js";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { svg } from "@/helper/general.helper";
 
-defineProps<{ isOpen: boolean }>()
-const emit = defineEmits(['close', 'upgrade'])
+defineProps<{ isOpen: boolean }>();
+const emit = defineEmits(["close", "upgrade"]);
 
 const confirmUpgrade = () => {
-  emit('upgrade')
-  emit('close')
-}
+	emit("upgrade");
+	emit("close");
+};
 
 const handleDismiss = () => {
-  emit('close')
-}
+	emit("close");
+};
 </script>

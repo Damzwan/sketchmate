@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { onBeforeRouteLeave } from "vue-router";
 import { modalController, useBackButton, useIonRouter } from "@ionic/vue";
+import * as Sentry from "@sentry/capacitor";
+import { onUnmounted, ref, watch } from "vue";
+import { onBeforeRouteLeave } from "vue-router";
+import DrawExitModal from "@/components/draw/DrawExitModal.vue";
 import { useDocumentStore } from "@/draw/document/document.store";
 import { useDrawStore } from "@/draw/session/draw.store";
-import { onUnmounted, ref, watch } from "vue";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { slideTransition } from "@/helper/animation.helper";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import DrawExitModal from "@/components/draw/DrawExitModal.vue";
-import { useSessionStore } from "@/store/session.store";
+import { slideTransition } from "@/helper/animation.helper";
 import { useToast } from "@/service/toast.service";
-import * as Sentry from "@sentry/capacitor";
+import { useSessionStore } from "@/store/session.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const props = defineProps<{
 	draftId: string;

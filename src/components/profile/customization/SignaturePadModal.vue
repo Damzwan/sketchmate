@@ -136,8 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from "vue";
-import { IonModal, IonButton, IonIcon } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiCheck,
 	mdiClose,
@@ -145,6 +144,7 @@ import {
 	mdiLock,
 	mdiUndoVariant,
 } from "@mdi/js";
+import { computed, nextTick, ref } from "vue";
 import { svg } from "@/helper/general.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
 
@@ -327,9 +327,7 @@ const save = () => {
 	const isClearing = strokes.value.length === 0;
 	if (!isPro.value && !isClearing) return;
 
-	const combinedPath = isClearing
-		? ""
-		: strokes.value.map(buildPath).join(" ");
+	const combinedPath = isClearing ? "" : strokes.value.map(buildPath).join(" ");
 	const viewBox = isClearing ? "" : `0 0 ${padWidth.value} ${padHeight.value}`;
 
 	emit("save", {

@@ -1,10 +1,10 @@
-import { onScopeDispose, watch } from "vue";
 import { storeToRefs } from "pinia";
+import { onScopeDispose, watch } from "vue";
 import { useRoute } from "vue-router";
 import { compareVersions } from "@/helper/general.helper";
+import { updateUser } from "@/service/api/user.api";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
-import { updateUser } from "@/service/api/user.api";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 
 /**

@@ -16,16 +16,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
+import { computed, defineAsyncComponent, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { useRoute } from "vue-router";
 
 // The listener/controller stays tiny at login. Cosmetic worlds/effects load
 // only when the first visible toast actually needs rendering.

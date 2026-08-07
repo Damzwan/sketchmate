@@ -1,16 +1,15 @@
-import { Canvas, FabricObject } from "fabric";
+import type { Canvas, FabricObject } from "fabric";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { getViewportRect } from "@/draw/utils/QuadTree";
+import { createFabricEventBridge } from "@/draw/canvas/fabricEventBridge";
+import {
+	getDrawRenderBackend,
+	installDrawRenderBackendDebugApi,
+} from "@/draw/config/renderBackend.config";
 import {
 	getRenderDpr,
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
 } from "@/draw/config/renderQuality.config";
-import {
-	getDrawRenderBackend,
-	installDrawRenderBackendDebugApi,
-} from "@/draw/config/renderBackend.config";
-import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
 import {
 	installDrawDiagnostics,
 	uninstallDrawDiagnostics,
@@ -19,20 +18,7 @@ import {
 	installDrawMemoryPressure,
 	uninstallDrawMemoryPressure,
 } from "@/draw/diagnostics/drawMemoryPressure";
-import { createYielder } from "@/draw/scheduling/yielder";
-import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
-import { serializeOnce } from "@/draw/objects/objectSerialization";
-import { useFriendStore } from "@/store/friend.store";
-import { rerenderActiveObjectControls } from "@/draw/rendering/fabricRenderState";
-import * as localTransform from "@/draw/transform/transformController";
-import { RenderEngine, type Surface } from "@/draw/rendering/renderEngine";
-import { ExplicitZIndex } from "@/draw/objects/indexing/zIndex";
-import { createDrawingSpatialIndex } from "@/draw/objects/indexing/spatialIndex";
-import { createFabricEventBridge } from "@/draw/canvas/fabricEventBridge";
-import { createLiveObjectRenderer } from "@/draw/rendering/liveObjectRenderer";
 import { createGestureController } from "@/draw/input/gestureController";
-import { createEngineOptions } from "@/draw/rendering/engineOptions";
-import type { WorldRect } from "@/draw/rendering/committedLayer";
 import {
 	isLayerHidden,
 	isOnActiveLayer,
@@ -40,22 +26,35 @@ import {
 	layerCount,
 	layerOrderOf,
 } from "@/draw/layers/layerRegistry";
+import { createDrawingSpatialIndex } from "@/draw/objects/indexing/spatialIndex";
+import { ExplicitZIndex } from "@/draw/objects/indexing/zIndex";
+import { serializeOnce } from "@/draw/objects/objectSerialization";
 import {
 	bakeryBakeTile,
 	bakeryBeginSceneBatch,
 	bakeryCancel,
 	bakeryClear,
-	bakeryClipSet,
 	bakeryEndSceneBatch,
 	bakeryFlushSoon,
 	bakeryMarkDirty,
 	bakeryRemove,
 	bakeryRenderOverview,
 	bakerySeed,
-	shutdownTileBakerySession,
 	configureTileBakery,
 	initTileBakery,
+	shutdownTileBakerySession,
 } from "@/draw/rendering/bakery/tileBakeryClient";
+import type { WorldRect } from "@/draw/rendering/committedLayer";
+import { createEngineOptions } from "@/draw/rendering/engineOptions";
+import { rerenderActiveObjectControls } from "@/draw/rendering/fabricRenderState";
+import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
+import { createLiveObjectRenderer } from "@/draw/rendering/liveObjectRenderer";
+import { RenderEngine, type Surface } from "@/draw/rendering/renderEngine";
+import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
+import { createYielder } from "@/draw/scheduling/yielder";
+import * as localTransform from "@/draw/transform/transformController";
+import { getViewportRect } from "@/draw/utils/QuadTree";
+import { useFriendStore } from "@/store/friend.store";
 
 const IS_LOW_END = IS_LOW_END_DEVICE;
 /**
@@ -196,7 +195,10 @@ export function createDrawObjectManager() {
 		}
 	}
 
-	function rectsIntersect(list: readonly WorldRect[], rect: WorldRect): boolean {
+	function rectsIntersect(
+		list: readonly WorldRect[],
+		rect: WorldRect,
+	): boolean {
 		for (const r of list) {
 			if (
 				r.x < rect.x + rect.w &&

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { summarizeFrameTimes } from "@/draw/benchmark/frameSampler";
+import { runHeadlessBenchmark } from "@/draw/benchmark/headlessBenchmark";
 import { evaluateDrawMetrics } from "@/draw/benchmark/metricCatalog";
 import { createBenchmarkScene } from "@/draw/benchmark/sceneFactory";
-import { runHeadlessBenchmark } from "@/draw/benchmark/headlessBenchmark";
 import type { DrawMetricsSnapshot } from "@/draw/rendering/renderMetrics";
 
 function emptyEngineMetrics(): DrawMetricsSnapshot {

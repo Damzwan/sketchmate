@@ -25,27 +25,29 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref } from "vue";
 
-const props = defineProps<{
-  drawings: string[]
-  direction?: 'left' | 'right'
-}>()
+// `direction` is defaulted on the prop itself. A local `const direction` used to
+// shadow the prop of the same name in the template, and read it only once.
+const props = withDefaults(
+	defineProps<{
+		drawings: string[];
+		direction?: "left" | "right";
+	}>(),
+	{ direction: "left" },
+);
 
-const direction = props.direction ?? 'left' // default to 'left'
+const imageWidth = 160;
+const gap = 16;
+const totalWidth = props.drawings.length * (imageWidth + gap) * 2;
 
-const imageWidth = 160
-const gap = 16
-const totalWidth = (props.drawings.length * (imageWidth + gap)) * 2
-
-const screenHeight = ref(window.innerHeight)
-const isShortScreen = ref(false)
+const screenHeight = ref(window.innerHeight);
+const isShortScreen = ref(false);
 
 onMounted(() => {
-  screenHeight.value = window.innerHeight
-  isShortScreen.value = screenHeight.value < 800
-})
-
+	screenHeight.value = window.innerHeight;
+	isShortScreen.value = screenHeight.value < 800;
+});
 </script>
 
 <style>

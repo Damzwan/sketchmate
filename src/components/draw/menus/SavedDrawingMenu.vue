@@ -70,27 +70,24 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, watch } from "vue";
-import { IonButton, IonIcon, IonSpinner, alertController } from "@ionic/vue";
-import { storeToRefs } from "pinia";
+import { alertController, IonButton, IonIcon, IonSpinner } from "@ionic/vue";
 import { mdiCancel, mdiDeleteOutline, mdiDrawPen } from "@mdi/js";
-
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import * as Sentry from "@sentry/capacitor";
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
 import StickerEmblemSavedItem from "@/components/draw/menus/stickersEmblemsSavedMenu/StickerEmblemSavedItem.vue";
-
-import { useAuthStore } from "@/store/auth.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useToast } from "@/service/toast.service";
-
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { svg } from "@/helper/general.helper";
 import {
-	fetchSavedDrawings,
-	deleteSavedDrawing,
 	deleteLegacySavedDrawing,
+	deleteSavedDrawing,
+	fetchSavedDrawings,
 } from "@/service/api/savedDrawing.api";
-import * as Sentry from "@sentry/capacitor";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
 
 // Stores
 const { user } = storeToRefs(useAuthStore());

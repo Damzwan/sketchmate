@@ -183,9 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { storeToRefs } from "pinia";
-import { IonButton, IonIcon, alertController } from "@ionic/vue";
+import { alertController, IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiChevronDown,
 	mdiChevronUp,
@@ -200,13 +198,15 @@ import {
 	mdiStar,
 	mdiTrashCanOutline,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { storeToRefs } from "pinia";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
-import { useLayersStore } from "@/draw/layers/layers.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { BASE_LAYER_ID, MAX_SOLO_LAYERS } from "@/draw/layers/layer.types";
+import { useLayersStore } from "@/draw/layers/layers.store";
 import { useSelect } from "@/draw/tools/select.store";
+import { svg } from "@/helper/general.helper";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 const layers = useLayersStore();
 const {

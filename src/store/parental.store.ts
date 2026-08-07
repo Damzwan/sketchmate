@@ -1,11 +1,11 @@
+import { alertController } from "@ionic/vue";
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref } from "vue";
-import { alertController } from "@ionic/vue";
-import type { ParentalControls } from "@/types/server.types";
-import { useAuthStore } from "@/store/auth.store";
+import { presentAdultGate } from "@/helper/adultGate.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
-import { presentAdultGate } from "@/helper/adultGate.helper";
+import { useAuthStore } from "@/store/auth.store";
+import type { ParentalControls } from "@/types/server.types";
 
 /**
  * Peer-to-peer features that let a child exchange freeform media or personal
@@ -71,6 +71,13 @@ export const useParentalStore = defineStore("parental", () => {
 	/** True when this account is subject to the child restrictions. */
 	const isChildAccount = computed(() => isUnderAge.value);
 
+	// `controls` is derived from the auth store's user, so it empties on its own
+	// once auth resets. Only the sheet's own UI state is owned here.
+	function resetRuntimeState() {
+		controlsOpen.value = false;
+		savingFeature.value = null;
+	}
+
 	function isAllowed(feature: ChildFeature): boolean {
 		if (!isChildAccount.value) return true;
 		return controls.value[FEATURE_FLAG[feature]] === true;
@@ -88,7 +95,7 @@ export const useParentalStore = defineStore("parental", () => {
 		try {
 			await updateUser({ _id: user.value._id, parental: next });
 			return true;
-		} catch (e) {
+		} catch (_e) {
 			if (user.value) user.value.parental = previous;
 			toast("Could not save the parental setting", { color: "danger" });
 			return false;
@@ -228,5 +235,6 @@ export const useParentalStore = defineStore("parental", () => {
 		closeControls,
 		setFeature,
 		ensureCanExchange,
+		resetRuntimeState,
 	};
 });

@@ -23,14 +23,14 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon } from '@ionic/vue'
-import { svg } from '@/helper/general.helper'
+import { IonIcon } from "@ionic/vue";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
-  icon: string;
-  label: string;
-  value: string;
-}>()
+	icon: string;
+	label: string;
+	value: string;
+}>();
 
-defineEmits(['click'])
+defineEmits(["click"]);
 </script>

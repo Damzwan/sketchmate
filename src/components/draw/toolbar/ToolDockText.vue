@@ -19,18 +19,18 @@
 </template>
 
 <script setup lang="ts">
-import { useDrawStore } from '@/draw/session/draw.store'
-import ToolButton from './ToolButton.vue'
-import { mdiClose } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { mdiClose } from "@mdi/js";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { svg } from "@/helper/general.helper";
+import ToolButton from "./ToolButton.vue";
 
-const { selectAction } = useDrawStore()
+const { selectAction } = useDrawStore();
 
 const exitTextMode = () => {
-  // Cleans up the "Add Text" state and returns to the default tool
-  selectAction(DrawAction.ExitTextAddingMode, undefined)
-}
+	// Cleans up the "Add Text" state and returns to the default tool
+	selectAction(DrawAction.ExitTextAddingMode, undefined);
+};
 </script>
 
 <style scoped>

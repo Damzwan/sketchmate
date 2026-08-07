@@ -1,6 +1,6 @@
-import { CustomFloodFill } from "@/draw/utils/CustomFloodFill";
-// @ts-ignore - d3-contour has no bundled types here
+// @ts-expect-error - d3-contour has no bundled types here
 import { contours } from "d3-contour";
+import { CustomFloodFill } from "@/draw/utils/CustomFloodFill";
 
 export interface FloodFillRequest {
 	buffer: ArrayBuffer;

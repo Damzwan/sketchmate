@@ -1,20 +1,20 @@
+import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import {
 	recordLocalFallback,
 	recordPhase,
 	recordSyncRepairDeclined,
 	recordWorkerDeferral,
 } from "@/draw/rendering/renderMetrics";
-import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import { TileCompositor } from "./tileCompositor";
-import { tileKey, type TileKey } from "./tileKey";
+import { type TileKey, tileKey } from "./tileKey";
 import {
 	type Bounded,
 	isRemoteBakeFailure,
-	type RemoteBakeResult,
-	type Yieldable,
-	type WorldRect,
 	MAX_SYNC_OVERLAY_CHILDREN,
 	MAX_SYNC_OVERLAY_OBJECTS,
+	type RemoteBakeResult,
+	type WorldRect,
+	type Yieldable,
 } from "./tileLayerBase";
 
 /** Relative cost of a full tile rebuild vs a sub-rect repair. Used to budget

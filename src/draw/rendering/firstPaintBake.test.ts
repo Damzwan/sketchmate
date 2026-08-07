@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { RenderEngine, type Surface } from "./renderEngine";
 import type { Bounded, SpatialIndex } from "./committedLayer";
+import { RenderEngine, type Surface } from "./renderEngine";
 
 interface TestObject extends Bounded {}
 

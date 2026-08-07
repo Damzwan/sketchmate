@@ -63,70 +63,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonPopover } from '@ionic/vue'
-import { useFriendStore } from '@/store/friend.store'
-import { useDrawSyncer } from '@/draw/sync/session.store'
-import { inviteFriendToRoom } from '@/service/api/socket/drawSyncing.socket'
-import { useToast } from '@/service/toast.service'
+import { IonPopover } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { inviteFriendToRoom } from "@/service/api/socket/drawSyncing.socket";
+import { useToast } from "@/service/toast.service";
+import { useFriendStore } from "@/store/friend.store";
 
 const props = defineProps<{
-  isOpen: boolean;
-  event: Event | null;
-}>()
+	isOpen: boolean;
+	event: Event | null;
+}>();
 
-defineEmits(['close'])
+defineEmits(["close"]);
 
-const friendStore = useFriendStore()
-const { allConnectedPartners } = storeToRefs(friendStore)
-const { roomMembers, roomId } = storeToRefs(useDrawSyncer())
+const friendStore = useFriendStore();
+const { allConnectedPartners } = storeToRefs(friendStore);
+const { roomMembers, roomId } = storeToRefs(useDrawSyncer());
 
-const { toast } = useToast()
+const { toast } = useToast();
 
-const inviteTimestamps = ref<Record<string, number>>({})
-const INVITE_COOLDOWN_MS = 30000
+const inviteTimestamps = ref<Record<string, number>>({});
+const INVITE_COOLDOWN_MS = 30000;
 
-const isOnline = (id: string) => friendStore.isFriendOnline(id)
+const isOnline = (id: string) => friendStore.isFriendOnline(id);
 
 const eligibleToInvite = computed(() => {
-  return allConnectedPartners.value
-    .filter((f) => !roomMembers.value.some((rm) => rm._id === f._id))
-    .sort((a, b) => {
-      const aOnline = isOnline(a._id) ? 1 : 0
-      const bOnline = isOnline(b._id) ? 1 : 0
-      return bOnline - aOnline
-    })
-})
+	return allConnectedPartners.value
+		.filter((f) => !roomMembers.value.some((rm) => rm._id === f._id))
+		.sort((a, b) => {
+			const aOnline = isOnline(a._id) ? 1 : 0;
+			const bOnline = isOnline(b._id) ? 1 : 0;
+			return bOnline - aOnline;
+		});
+});
 
 const canInvite = (friendId: string) => {
-  const last = inviteTimestamps.value[friendId] || 0
-  return Date.now() - last > INVITE_COOLDOWN_MS
-}
+	const last = inviteTimestamps.value[friendId] || 0;
+	return Date.now() - last > INVITE_COOLDOWN_MS;
+};
 
 const handleInvite = (friend: any) => {
-  if (!roomId.value) return
+	if (!roomId.value) return;
 
-  const firstName = friend.name.split(' ')[0]
+	const firstName = friend.name.split(" ")[0];
 
-  if (!canInvite(friend._id)) {
-    const last = inviteTimestamps.value[friend._id] || 0
-    const remainingSecs = Math.ceil((INVITE_COOLDOWN_MS - (Date.now() - last)) / 1000)
+	if (!canInvite(friend._id)) {
+		const last = inviteTimestamps.value[friend._id] || 0;
+		const remainingSecs = Math.ceil(
+			(INVITE_COOLDOWN_MS - (Date.now() - last)) / 1000,
+		);
 
-    toast(`Wait ${remainingSecs}s before inviting ${firstName} again.`, { color: 'warning' })
-    return
-  }
+		toast(`Wait ${remainingSecs}s before inviting ${firstName} again.`, {
+			color: "warning",
+		});
+		return;
+	}
 
-  if (!isOnline(friend._id)) {
-    toast(`${firstName} is offline, but we'll try sending it!`, { color: 'warning' })
-  } else {
-    toast(`Invite sent to ${firstName}!`, { color: 'success' })
-  }
+	if (!isOnline(friend._id)) {
+		toast(`${firstName} is offline, but we'll try sending it!`, {
+			color: "warning",
+		});
+	} else {
+		toast(`Invite sent to ${firstName}!`, { color: "success" });
+	}
 
-  // 3. Process Invitation
-  inviteTimestamps.value[friend._id] = Date.now()
-  inviteFriendToRoom(friend._id, roomId.value)
-}
+	// 3. Process Invitation
+	inviteTimestamps.value[friend._id] = Date.now();
+	inviteFriendToRoom(friend._id, roomId.value);
+};
 </script>
 
 <style scoped>

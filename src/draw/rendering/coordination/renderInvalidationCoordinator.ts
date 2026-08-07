@@ -1,11 +1,11 @@
 import type { Bounded, WorldRect } from "../committedLayer";
 import type { LiveMode } from "../liveLayer";
+import { RenderBakeCoordinator } from "./renderBakeCoordinator";
 import {
 	DISCRETE_REPAIR_BUDGET_MS,
 	DISCRETE_REPAIR_TILES,
 	MAX_SYNC_REPAIR_TILES,
 } from "./renderEngineBase";
-import { RenderBakeCoordinator } from "./renderBakeCoordinator";
 
 export abstract class RenderInvalidationCoordinator<
 	T extends Bounded,

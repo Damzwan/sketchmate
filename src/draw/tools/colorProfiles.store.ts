@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
-import { usePen } from "@/draw/tools/pen.store";
 import { BLACK } from "@/draw/config/canvas.config";
+import { usePen } from "@/draw/tools/pen.store";
 
 const GRAY = "#808080FF";
 

@@ -1,11 +1,11 @@
-import { ref, computed, watch } from "vue";
-import { useRoute } from "vue-router";
-import { storeToRefs } from "pinia";
 import dayjs from "dayjs";
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { useAuthStore } from "@/store/auth.store";
 import { useInboxStore } from "@/store/inbox.store";
 import { useSessionStore } from "@/store/session.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 
 export function useGalleryData() {
 	const route = useRoute();

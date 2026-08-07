@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	CommittedLayer,
 	type Bounded,
+	CommittedLayer,
 	type SpatialIndex,
 	type WorldRect,
 } from "./committedLayer";
-import { NO_HOLE } from "./tiles/tileLayerBase";
 import { tileKey } from "./tiles/tileKey";
+import { NO_HOLE } from "./tiles/tileLayerBase";
 
 interface TestObject extends Bounded {}
 
@@ -284,11 +284,12 @@ describe("CommittedLayer safety bounds", () => {
 		layer.tiles.set(activeKey, tile(tier, 0, 0, vi.fn(), true).value);
 		layer.tiles.set(coarseKey, tile(tier - 1, 0, 0, vi.fn(), true).value);
 
-		layer.markDirtyWithSharpTransition(
-			{ x: 0, y: 0, w: 40, h: 40 },
-			tier,
-			{ x: 0, y: 0, w: 100, h: 100 },
-		);
+		layer.markDirtyWithSharpTransition({ x: 0, y: 0, w: 40, h: 40 }, tier, {
+			x: 0,
+			y: 0,
+			w: 100,
+			h: 100,
+		});
 
 		expect(layer.tiles.get(activeKey)).toMatchObject({
 			usable: true,
@@ -305,13 +306,7 @@ describe("CommittedLayer safety bounds", () => {
 		const overviewComposite = vi
 			.spyOn(layer.overview, "composite")
 			.mockImplementation(() => {});
-		layer.composite(
-			ctx,
-			[1, 0, 0, 1, 0, 0],
-			{ w: 100, h: 100 },
-			1,
-			"#ffffff",
-		);
+		layer.composite(ctx, [1, 0, 0, 1, 0, 0], { w: 100, h: 100 }, 1, "#ffffff");
 		expect(ctx.drawImage).toHaveBeenCalledOnce();
 		expect(overviewComposite).not.toHaveBeenCalled();
 	});
@@ -321,11 +316,12 @@ describe("CommittedLayer safety bounds", () => {
 		const tier = layer.pickActiveTier(1);
 		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
-		layer.markDirtyWithSharpTransition(
-			{ x: 0, y: 0, w: 40, h: 40 },
-			tier,
-			{ x: 0, y: 0, w: 100, h: 100 },
-		);
+		layer.markDirtyWithSharpTransition({ x: 0, y: 0, w: 40, h: 40 }, tier, {
+			x: 0,
+			y: 0,
+			w: 100,
+			h: 100,
+		});
 
 		layer.dropSharpTransitions();
 
@@ -438,7 +434,10 @@ describe("CommittedLayer safety bounds", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
 		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
-		layer.tiles.set(tileKey(tier - 1, 0, 0), tile(tier - 1, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(
+			tileKey(tier - 1, 0, 0),
+			tile(tier - 1, 0, 0, vi.fn(), true).value,
+		);
 		// Only the active tier is invalidated, so the coarser tile stays fresh.
 		layer.markTierDirty({ x: 0, y: 0, w: 10, h: 10 }, tier);
 

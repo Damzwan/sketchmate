@@ -1,10 +1,5 @@
 import { defineStore } from "pinia";
-import {
-	computed,
-	ref,
-	type InjectionKey,
-	type MaybeRefOrGetter,
-} from "vue";
+import { computed, type InjectionKey, type MaybeRefOrGetter, ref } from "vue";
 import { useMenuStore } from "@/store/menu.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 
@@ -58,5 +53,11 @@ export const useAmbientPause = defineStore("ambientPause", () => {
 			manualHolds.value > 0,
 	);
 
-	return { paused, hold, release };
+	// A logout mid-overlay would otherwise strand a hold and freeze every
+	// ambient animation for the rest of the process.
+	const resetRuntimeState = () => {
+		manualHolds.value = 0;
+	};
+
+	return { paused, hold, release, resetRuntimeState };
 });

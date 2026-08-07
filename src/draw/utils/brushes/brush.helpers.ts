@@ -1,5 +1,5 @@
+import type { TSimplePathData } from "fabric";
 import * as fabric from "fabric";
-import { TSimplePathData } from "fabric";
 import {
 	restoreStrokeDefaults,
 	stripStrokeDefaults,

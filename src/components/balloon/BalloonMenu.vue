@@ -157,34 +157,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from "vue";
 import { IonButton, IonIcon, IonSpinner, useIonRouter } from "@ionic/vue";
 import {
-	mdiChevronRight,
 	mdiAccount,
-	mdiHelp,
+	mdiChevronRight,
 	mdiHeart,
+	mdiHelp,
 	mdiHistory,
 	mdiStar,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { svg } from "@/helper/general.helper";
+import { computed, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
-
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import balloonLottie from "@/assets/lottie/balloon.lottie";
-import Lottie from "@/components/general/Lottie.vue";
 import drawingImg from "@/assets/login_images/1.webp";
-
-import { useAuthStore } from "@/store/auth.store";
-import { useQuotaStore } from "@/store/quota.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import Lottie from "@/components/general/Lottie.vue";
+import { masterAnimation } from "@/helper/animation.helper";
+import { svg } from "@/helper/general.helper";
 import { cancelBalloon, fetchMyBalloons } from "@/service/api/balloon.api";
-import type { Balloon } from "@/types/server.types";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
+import type { Balloon } from "@/types/server.types";
 
 const router = useIonRouter();
 const route = useRoute();
@@ -225,7 +223,11 @@ function stopTicker() {
 onUnmounted(stopTicker);
 
 const resetCountdown = computed(() => {
-	const resetMs = new Date(balloons.value.reset_at).getTime();
+	// `reset_at` is optional; new Date(undefined) is an Invalid Date and every
+	// downstream figure becomes NaN.
+	const resetAt = balloons.value.reset_at;
+	if (!resetAt) return "0m";
+	const resetMs = new Date(resetAt).getTime();
 	const diff = Math.max(0, resetMs - now.value);
 	const h = Math.floor(diff / 3_600_000);
 	const m = Math.floor((diff % 3_600_000) / 60_000);

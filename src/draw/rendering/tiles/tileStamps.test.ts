@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	CommittedLayer,
 	type Bounded,
+	CommittedLayer,
 	type SpatialIndex,
 	type WorldRect,
 } from "../committedLayer";
-import { isCanvasSurface } from "./tileStore";
 import { tileKey } from "./tileKey";
+import { isCanvasSurface } from "./tileStore";
 
 interface TestObject extends Bounded {}
 

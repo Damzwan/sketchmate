@@ -1,58 +1,54 @@
-import { defineStore, storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
 import { Preferences } from "@capacitor/preferences";
 import {
 	FirebaseAuthentication,
-	User as FirebaseUser,
+	type User as FirebaseUser,
 } from "@capacitor-firebase/authentication";
-import { UseIonRouterResult } from "@ionic/vue";
-import router from "@/router";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-
-import { User } from "@/types/server.types";
-import { LocalStorage } from "@/types/storage.types";
-import { useToast } from "@/service/toast.service";
-
+import type { UseIonRouterResult } from "@ionic/vue";
+import { Purchases } from "@revenuecat/purchases-capacitor";
+import { defineStore } from "pinia";
+import { computed, ref, watch } from "vue";
+import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
+import { getCurrentAuthUser } from "@/helper/firebase.helper";
 import {
 	compareVersions,
 	generateDeviceFingerprint,
-	getCurrentAuthUser,
-	isNative,
 	isOldEnough,
 } from "@/helper/general.helper";
-import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
-import { useNotificationStore } from "@/store/notification.store";
-import { useBalloonStore } from "@/store/balloon.store";
-import { useInboxStore } from "@/store/inbox.store";
+import { isNative } from "@/helper/platform.helper";
+import router from "@/router";
+import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
 import {
 	socketConnect,
 	socketDisconnect,
 	socketLogin,
 } from "@/service/api/socket/socket.service";
-import { useSessionStore } from "@/store/session.store";
-import {
-	mixpanelEvents,
-	mixpanelIdentify,
-	trackEvent,
-} from "@/service/mixpanel";
-import { useFriendStore } from "@/store/friend.store";
-import { useChatStore } from "@/store/chat.store";
-import { useModerationStore } from "@/store/moderation.store";
 import {
 	getUser,
 	onLoginEvent,
 	updateUserTimezone,
 } from "@/service/api/user.api";
-import { useQuotaStore } from "@/store/quota.store";
-import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
-import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
+import {
+	mixpanelEvents,
+	mixpanelIdentify,
+	trackEvent,
+} from "@/service/mixpanel";
+import { useToast } from "@/service/toast.service";
+import { useBalloonStore } from "@/store/balloon.store";
+import { useChatStore } from "@/store/chat.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { useInboxStore } from "@/store/inbox.store";
 import { useInventoryStore } from "@/store/inventory.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { useNotificationStore } from "@/store/notification.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { resetAllStores } from "@/store/resetStores";
+import { useSessionStore } from "@/store/session.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { usePostStore } from "@/store/post.store";
-import { useUserCacheStore } from "@/store/userCache.store";
-import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
-import { Purchases } from "@revenuecat/purchases-capacitor";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { User } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
 
 export const useAuthStore = defineStore("auth", () => {
 	// --- STATE ---
@@ -72,7 +68,7 @@ export const useAuthStore = defineStore("auth", () => {
 
 	const minimum_online_version = ref<string>("");
 
-	let ionRouter: UseIonRouterResult | undefined = undefined;
+	let ionRouter: UseIonRouterResult | undefined;
 
 	// --- DERIVED ---
 	const hasConfirmedAge = computed(() => !!user.value?.date_of_birth);
@@ -419,27 +415,10 @@ export const useAuthStore = defineStore("auth", () => {
 	}
 
 	async function logout() {
-		const { showEnableNotificationsAfterLogin } = storeToRefs(
-			useNotificationStore(),
-		);
-		showEnableNotificationsAfterLogin.value = false;
-
 		Preferences.remove({ key: LocalStorage.user_id });
 		// Tells the Android widget this is a real sign-out, not a cold start it
 		// happened to beat — it drops its cached drawing on seeing this.
 		Preferences.set({ key: LocalStorage.loggedOut, value: "1" });
-		// Keep the notification token: it identifies this install, not the user.
-		// Retaining it lets init() silently re-activate push on the next login
-		// without forcing the user to re-grant. Explicit "disable notifications"
-		// still removes it (via setNotifications(undefined)).
-		useModerationStore().reset();
-		useInAppNotificationStore().reset();
-		useInventoryStore().clear();
-		useSubscriptionStore().clearSubscriptionState();
-		useChatStore().clearRuntimeState();
-		usePostStore().clearRuntimeState();
-		useUserCacheStore().clear();
-		useOverlayRuntimeStore().reset();
 
 		// Deactivate this device's push server-side BEFORE signing out, so the
 		// authenticated request actually lands (previously it raced signOut()).
@@ -466,31 +445,53 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 
 		await FirebaseAuthentication.signOut();
-		isLoggedIn.value = false;
-		user.value = undefined;
-		lastHydratedAt.value = 0;
+
+		// Every instantiated store, this one included. Runs last so the calls
+		// above still see `user.value`. Previously 8 of 22 stores were reset by
+		// hand here and the rest carried the old account into the next login.
+		resetAllStores();
 	}
 
 	async function waitUntilInitialized(): Promise<User | undefined> {
 		if (!isAuthLoading.value) return user.value;
 
 		return new Promise((resolve) => {
+			// The bail-out timer must be cleared on the fast path. Every caller
+			// (each route entry, each socket reconnect) otherwise leaves a 10 s
+			// timer holding this closure — and `user` with it — alive.
+			let timer: ReturnType<typeof setTimeout> | undefined;
+
 			const unwatch = watch(
 				isAuthLoading,
 				(loading) => {
-					if (!loading) {
-						unwatch();
-						resolve(user.value);
-					}
+					if (loading) return;
+					unwatch();
+					clearTimeout(timer);
+					resolve(user.value);
 				},
 				{ immediate: true },
 			);
 
-			setTimeout(() => {
+			timer = setTimeout(() => {
 				unwatch();
 				resolve(undefined);
 			}, 10000);
 		});
+	}
+
+	/**
+	 * Account-scoped state only. `deviceFingerprint`, `localUserImg` and
+	 * `minimum_online_version` identify the install or the build, not the user,
+	 * and re-deriving them costs a round trip on the next login for no gain.
+	 */
+	function resetRuntimeState() {
+		user.value = undefined;
+		firebaseUser.value = undefined;
+		isLoggedIn.value = false;
+		isNewAccount.value = false;
+		showTutorial.value = false;
+		lastHydratedAt.value = 0;
+		isHydrating.value = false;
 	}
 
 	function onlineUpdateRequired() {
@@ -521,5 +522,6 @@ export const useAuthStore = defineStore("auth", () => {
 		refresh,
 		waitUntilInitialized,
 		onlineUpdateRequired,
+		resetRuntimeState,
 	};
 });

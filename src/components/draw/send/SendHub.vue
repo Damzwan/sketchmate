@@ -353,6 +353,29 @@
 
 <script setup lang="ts">
 import {
+	IonButton,
+	IonIcon,
+	IonSpinner,
+	IonToggle,
+	useIonRouter,
+} from "@ionic/vue";
+import {
+	mdiBalloon,
+	mdiCheck,
+	mdiChevronLeft,
+	mdiClose,
+	mdiEarth,
+	mdiMagnify,
+	mdiShareVariant, // Added icon import
+	mdiShieldLockOutline,
+	mdiSprout,
+	mdiStar,
+} from "@mdi/js";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import { imagesOutline } from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import {
 	computed,
 	onBeforeUnmount,
 	onMounted,
@@ -360,59 +383,34 @@ import {
 	ref,
 	watch,
 } from "vue";
-import {
-	IonButton,
-	IonIcon,
-	IonSpinner,
-	IonToggle,
-	useIonRouter,
-} from "@ionic/vue";
-import { imagesOutline } from "ionicons/icons";
-import {
-	mdiCheck,
-	mdiChevronLeft,
-	mdiStar,
-	mdiBalloon,
-	mdiSprout,
-	mdiEarth,
-	mdiMagnify,
-	mdiClose,
-	mdiShareVariant, // Added icon import
-	mdiShieldLockOutline,
-} from "@mdi/js";
-import { storeToRefs } from "pinia";
-import { svg } from "@/helper/general.helper";
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-
-import { useAuthStore } from "@/store/auth.store";
-import { useParentalStore } from "@/store/parental.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useUserCacheStore } from "@/store/userCache.store";
-import { MAX_SEND_MATES, useMateSelection } from "@/draw/sharing/mateSelection";
-import { useToast } from "@/service/toast.service";
-import { useDocumentStore } from "@/draw/document/document.store";
-import { useShareService } from "@/draw/sharing/shareService.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useQuotaStore } from "@/store/quota.store";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { useChatStore } from "@/store/chat.store";
-import { recentActivityForPartner } from "@/helper/chat.helper";
-
-// @ts-ignore
+// @ts-expect-error
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
-import { masterAnimation } from "@/helper/animation.helper";
-import { shareImg } from "@/helper/share.helper"; // Added share helper
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import {
 	hydrateCustomization,
 	resolveFontFamily,
 	resolveTheme,
 } from "@/config/profile_options.config";
+import { useDocumentStore } from "@/draw/document/document.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { MAX_SEND_MATES, useMateSelection } from "@/draw/sharing/mateSelection";
+import { useShareService } from "@/draw/sharing/shareService.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { masterAnimation } from "@/helper/animation.helper";
+import { recentActivityForPartner } from "@/helper/chat.helper";
+import { svg } from "@/helper/general.helper";
+import { shareImg } from "@/helper/share.helper"; // Added share helper
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useParentalStore } from "@/store/parental.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import { Menu } from "@/types/menu.types";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 dayjs.extend(duration);
 
@@ -633,7 +631,10 @@ onUnmounted(() => {
 	if (timer) clearInterval(timer);
 });
 
-function fmtCountdown(resetIso: string): string {
+function fmtCountdown(resetIso: string | undefined): string {
+	// `reset_at` is optional on the quota payload. Without this guard dayjs()
+	// falls back to "now", which renders a permanently stuck "0m 0s".
+	if (!resetIso) return "0m 0s";
 	const diff = dayjs(resetIso).diff(dayjs(now.value));
 	if (diff <= 0) return "0m 0s";
 
@@ -758,14 +759,14 @@ async function executeShares() {
 	const wantsBalloon = isBalloon.value && !isUnderAge.value;
 	const balloonSnapshot = balloonNote.value;
 
-	shareService.isSending = true;
+	shareService.setSending(true);
 
-	let processedData;
+	let processedData: Awaited<ReturnType<typeof getDataToSend>>;
 	try {
 		processedData = await getDataToSend();
 	} catch (error) {
 		console.error("Failed to prepare drawing to share:", error);
-		shareService.isSending = false;
+		shareService.setSending(false);
 		return;
 	}
 
@@ -822,7 +823,7 @@ async function executeShares() {
 		} catch (error) {
 			console.error("Background sharing failed:", error);
 		} finally {
-			shareService.isSending = false;
+			shareService.setSending(false);
 		}
 	};
 

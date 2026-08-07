@@ -85,100 +85,101 @@
 
 <script setup lang="ts">
 import {
-  IonButton,
-  IonContent,
-  IonIcon,
-  IonSpinner,
-  useIonRouter
-} from '@ionic/vue'
-import { computed, ref } from 'vue'
-import { storeToRefs } from 'pinia'
+	IonButton,
+	IonContent,
+	IonIcon,
+	IonSpinner,
+	useIonRouter,
+} from "@ionic/vue";
 import {
-  mdiCheck,
-  mdiHandshakeOutline,
-  mdiLockOutline,
-  mdiPalette,
-  mdiShieldAlertOutline
-} from '@mdi/js'
-import { useAuthStore } from '@/store/auth.store'
-import { svg, isOldEnough, isNative } from '@/helper/general.helper'
-import { updateUser } from '@/service/api/user.api'
-import { useToast } from '@/service/toast.service'
-import LoginNotificationPage from '@/components/login/LoginNotificationPage.vue'
-import SketchDatePicker from '@/components/general/SketchDatePicker.vue'
-import { FRONTEND_ROUTES } from '@/types/router.types' // Adjust path as needed
+	mdiCheck,
+	mdiHandshakeOutline,
+	mdiLockOutline,
+	mdiPalette,
+	mdiShieldAlertOutline,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import SketchDatePicker from "@/components/general/SketchDatePicker.vue";
+import LoginNotificationPage from "@/components/login/LoginNotificationPage.vue";
+import { isOldEnough, svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper"; // Adjust path as needed
+import { updateUser } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
-const { user } = storeToRefs(useAuthStore())
-const { toast } = useToast()
+const { user } = storeToRefs(useAuthStore());
+const { toast } = useToast();
 
-const dobValue = ref<string | undefined>()
-const agreed = ref(false)
-const isSubmitting = ref(false)
+const dobValue = ref<string | undefined>();
+const agreed = ref(false);
+const isSubmitting = ref(false);
 
-const isValidDob = computed(() => !!dobValue.value)
+const isValidDob = computed(() => !!dobValue.value);
 
 const WELCOME_RULES = [
-  {
-    icon: mdiPalette,
-    title: 'Make art freely',
-    body: 'Weird, personal, expressive — that\'s what we\'re here for.'
-  },
-  {
-    icon: mdiHandshakeOutline,
-    title: 'Respect artists',
-    body: 'No harassment, hate speech, or targeted drama.'
-  },
-  {
-    icon: mdiShieldAlertOutline,
-    title: 'Keep it safe',
-    body: 'No sexual, intense violence, or illegal elements.'
-  },
-  {
-    icon: mdiLockOutline,
-    title: 'Protect privacy',
-    body: 'Don\'t share real names, addresses, or phone lines.'
-  }
-]
+	{
+		icon: mdiPalette,
+		title: "Make art freely",
+		body: "Weird, personal, expressive — that's what we're here for.",
+	},
+	{
+		icon: mdiHandshakeOutline,
+		title: "Respect artists",
+		body: "No harassment, hate speech, or targeted drama.",
+	},
+	{
+		icon: mdiShieldAlertOutline,
+		title: "Keep it safe",
+		body: "No sexual, intense violence, or illegal elements.",
+	},
+	{
+		icon: mdiLockOutline,
+		title: "Protect privacy",
+		body: "Don't share real names, addresses, or phone lines.",
+	},
+];
 
-const ionRouter = useIonRouter()
+const ionRouter = useIonRouter();
 
 async function handleContinue() {
-  if (!isValidDob.value || !agreed.value || isSubmitting.value) return
-  if (!user.value || !dobValue.value) {
-    toast('Something went wrong, please try again', { color: 'danger' })
-    return
-  }
+	if (!isValidDob.value || !agreed.value || isSubmitting.value) return;
+	if (!user.value || !dobValue.value) {
+		toast("Something went wrong, please try again", { color: "danger" });
+		return;
+	}
 
-  isSubmitting.value = true
+	isSubmitting.value = true;
 
-  try {
-    await updateUser({
-      _id: user.value._id,
-      date_of_birth: dobValue.value
-    })
+	try {
+		await updateUser({
+			_id: user.value._id,
+			date_of_birth: dobValue.value,
+		});
 
-    user.value.date_of_birth = dobValue.value
+		user.value.date_of_birth = dobValue.value;
 
-    if (!isOldEnough(dobValue.value)) {
-      toast(
-        'Social features are hidden until you\'re older, you can still draw and save work locally.',
-        { color: 'warning', duration: 5000 }
-      )
-    }
+		if (!isOldEnough(dobValue.value)) {
+			toast(
+				"Social features are hidden until you're older, you can still draw and save work locally.",
+				{ color: "warning", duration: 5000 },
+			);
+		}
 
-    const navEl = document.querySelector('ion-nav')
-    if (navEl) {
-      if (isNative()) {
-        await (navEl as any).push(LoginNotificationPage)
-      } else {
-        ionRouter.push(FRONTEND_ROUTES.home)
-      }
-    }
-  } catch (e) {
-    toast('Couldn\'t save, please try again', { color: 'danger' })
-  } finally {
-    isSubmitting.value = false
-  }
+		const navEl = document.querySelector("ion-nav");
+		if (navEl) {
+			if (isNative()) {
+				await (navEl as any).push(LoginNotificationPage);
+			} else {
+				ionRouter.push(FRONTEND_ROUTES.home);
+			}
+		}
+	} catch (e) {
+		toast("Couldn't save, please try again", { color: "danger" });
+	} finally {
+		isSubmitting.value = false;
+	}
 }
 </script>
 

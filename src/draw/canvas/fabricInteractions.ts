@@ -1,15 +1,15 @@
-import { useClaimArea } from "@/draw/claims/claimArea.store";
+import * as fabric from "fabric";
+import { type Canvas, type IText, Point, type TPointerEvent } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
 import {
 	activeLayerId,
 	compareRenderOrder,
 	isLayerHidden,
 } from "@/draw/layers/layerRegistry";
 import { useGestureStore } from "@/draw/tools/gesture.store";
-import * as transform from "@/draw/transform/transformController";
 import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
-import * as fabric from "fabric";
-import { Canvas, IText, Point, type TPointerEvent } from "fabric";
+import * as transform from "@/draw/transform/transformController";
 
 const HIDDEN_STROKE_OPACITY = "__hiddenLayerStrokeOpacity";
 

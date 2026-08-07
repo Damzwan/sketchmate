@@ -27,35 +27,10 @@
 // docs/DRAW_ENGINE_PERF.md finding F3.
 
 import type { FabricObject } from "fabric";
-import type {
-	RemoteBakeFailure,
-	RemoteBakeResult,
-	WorldRect,
-} from "@/draw/rendering/committedLayer";
-import type { BakeryResponse } from "@/draw/rendering/bakery/bakery.types";
-import {
-	recordBakeHardError,
-	recordBakeMissingRetry,
-	recordBakeryDisabled,
-	recordBakeryPause,
-	recordBakeTimeout,
-	recordFlush,
-	recordPhase,
-	recordTileFailed,
-	recordTileHybrid,
-	recordBakeTiming,
-	recordTileRefused,
-	recordTileRemote,
-	recordWorkerCancelRequests,
-	recordWorkerCancelResult,
-	recordSceneCommit,
-	recordWorkerMessage,
-	recordWorkerQueueDepth,
-	recordWorkerTiming,
-	setWorkerProtocolVersion,
-	type RefusalReason,
-} from "@/draw/rendering/renderMetrics";
+import { getWorkerProtocolMode } from "@/draw/config/workerProtocol.config";
+import { serializeOnce } from "@/draw/objects/objectSerialization";
 import { BakeryAssets } from "@/draw/rendering/bakery/assets";
+import type { BakeryResponse } from "@/draw/rendering/bakery/bakery.types";
 import {
 	BAKERY_PAUSE_MS,
 	BakeryHealth,
@@ -64,12 +39,37 @@ import {
 import {
 	type PendingBake,
 	requestTimeoutMs,
-	SceneRevisionClock,
 	type SceneDelta,
+	SceneRevisionClock,
 	WORKER_PROTOCOL_VERSION,
 } from "@/draw/rendering/bakery/protocol";
-import { getWorkerProtocolMode } from "@/draw/config/workerProtocol.config";
-import { serializeOnce } from "@/draw/objects/objectSerialization";
+import type {
+	RemoteBakeFailure,
+	RemoteBakeResult,
+	WorldRect,
+} from "@/draw/rendering/committedLayer";
+import {
+	type RefusalReason,
+	recordBakeHardError,
+	recordBakeMissingRetry,
+	recordBakeryDisabled,
+	recordBakeryPause,
+	recordBakeTimeout,
+	recordBakeTiming,
+	recordFlush,
+	recordPhase,
+	recordSceneCommit,
+	recordTileFailed,
+	recordTileHybrid,
+	recordTileRefused,
+	recordTileRemote,
+	recordWorkerCancelRequests,
+	recordWorkerCancelResult,
+	recordWorkerMessage,
+	recordWorkerQueueDepth,
+	recordWorkerTiming,
+	setWorkerProtocolVersion,
+} from "@/draw/rendering/renderMetrics";
 
 // ─── health model ────────────────────────────────────────────────────────────
 //

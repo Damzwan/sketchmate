@@ -1,5 +1,5 @@
+import { type Canvas, Rect } from "fabric";
 import { describe, expect, it } from "vitest";
-import { Rect, type Canvas } from "fabric";
 import { fitAndCenterSavedObjects } from "./savedObjectPlacement";
 
 function canvas(width: number, height: number, zoom = 1): Canvas {

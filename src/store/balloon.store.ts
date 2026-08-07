@@ -1,166 +1,175 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { Balloon, Mate, SOCKET_ENDPONTS, User } from '@/types/server.types'
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { isOldEnough } from "@/helper/general.helper";
 import {
-  socket,
-  socketLoggedInPromise
-} from '@/service/api/socket/socket.service'
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
-import { ToastDuration } from '@/types/toast.types'
+	acceptBalloon as apiAcceptBalloon,
+	refuseBalloon as apiRefuseBalloon,
+	fetchMyBalloons,
+	triageBalloons,
+} from "@/service/api/balloon.api";
 import {
-  getDateOfBirthConfirmationResponse,
-  isOldEnough
-} from '@/helper/general.helper'
+	socket,
+	socketLoggedInPromise,
+} from "@/service/api/socket/socket.service";
+import { getPartialUsers } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 import {
-  acceptBalloon as apiAcceptBalloon,
-  fetchMyBalloons,
-  refuseBalloon as apiRefuseBalloon,
-  triageBalloons
-} from '@/service/api/balloon.api'
-import { getPartialUsers } from '@/service/api/user.api'
+	type Balloon,
+	type Mate,
+	SOCKET_ENDPONTS,
+	type User,
+} from "@/types/server.types";
+import { ToastDuration } from "@/types/toast.types";
 
-export const useBalloonStore = defineStore('balloon', () => {
-  const sentBalloon = ref<Balloon | null>(null)
-  const receivedBalloon = ref<Balloon | null>(null)
+export const useBalloonStore = defineStore("balloon", () => {
+	const sentBalloon = ref<Balloon | null>(null);
+	const receivedBalloon = ref<Balloon | null>(null);
 
-  const auth = useAuthStore()
-  const senderInfo = ref<Mate>()
+	const auth = useAuthStore();
+	const senderInfo = ref<Mate>();
 
-  const { toast } = useToast()
+	const { toast } = useToast();
 
-  async function init(_user: User) {
-    try {
-      const { balloons } = await fetchMyBalloons()
-      sentBalloon.value = balloons.length > 0 ? balloons[0] : null
-    } catch (e) {
-      console.error('Failed to recover sent balloons:', e)
-      sentBalloon.value = null
-    }
-  }
+	function resetRuntimeState() {
+		sentBalloon.value = null;
+		receivedBalloon.value = null;
+		senderInfo.value = undefined;
+	}
 
-  function setupSocketListeners() {
-    if (!socket) return
+	async function init(_user: User) {
+		try {
+			const { balloons } = await fetchMyBalloons();
+			sentBalloon.value = balloons.length > 0 ? balloons[0] : null;
+		} catch (e) {
+			console.error("Failed to recover sent balloons:", e);
+			sentBalloon.value = null;
+		}
+	}
 
-    // Deferred triage after login. We still wait on the socket-logged-in
-    // promise because the server only delivers via socket emit — no
-    // point asking for a balloon before the socket is ready to receive
-    // `receive_new_balloon`. The actual ask is an HTTP call now.
-    socketLoggedInPromise.then(() => {
-      if (auth.isNewAccount) return
-      const randomDelay = Math.floor(Math.random() * (30000 - 5000 + 1) + 5000)
-      setTimeout(async () => {
-        if (
-          !auth.user?._id ||
-          auth.user.balloon?.disabled ||
-          receivedBalloon.value
-        )
-          return
-        const oldEnough = auth.user.date_of_birth
-          ? isOldEnough(auth.user.date_of_birth)
-          : true
-        if (!oldEnough) return
+	function setupSocketListeners() {
+		if (!socket) return;
 
-        try {
-          await triageBalloons()
-        } catch (e) {
-          console.error('Balloon triage failed:', e)
-        }
-      }, randomDelay)
-    })
+		// Deferred triage after login. We still wait on the socket-logged-in
+		// promise because the server only delivers via socket emit — no
+		// point asking for a balloon before the socket is ready to receive
+		// `receive_new_balloon`. The actual ask is an HTTP call now.
+		socketLoggedInPromise.then(() => {
+			if (auth.isNewAccount) return;
+			const randomDelay = Math.floor(Math.random() * (30000 - 5000 + 1) + 5000);
+			setTimeout(async () => {
+				if (
+					!auth.user?._id ||
+					auth.user.balloon?.disabled ||
+					receivedBalloon.value
+				)
+					return;
+				const oldEnough = auth.user.date_of_birth
+					? isOldEnough(auth.user.date_of_birth)
+					: true;
+				if (!oldEnough) return;
 
-    // Server → client push: a balloon has arrived
-    socket.on(SOCKET_ENDPONTS.receive_new_balloon_v3, async ({ balloon }) => {
-      if (!balloon) return
-      try {
-        const mates = await getPartialUsers([balloon.sender])
-        if (mates && mates.length > 0) {
-          senderInfo.value = mates[0]
-          receivedBalloon.value = balloon
-        } else {
-          console.error('Sender not found')
-        }
-      } catch (e) {
-        console.error('Failed to fetch balloon sender info', e)
-      }
-    })
+				try {
+					await triageBalloons();
+				} catch (e) {
+					console.error("Balloon triage failed:", e);
+				}
+			}, randomDelay);
+		});
 
-    // Server → client push: timeout dismissal
-    socket.on(SOCKET_ENDPONTS.balloon_missed, ({ balloonId }: any) => {
-      if (receivedBalloon.value?._id === balloonId) {
-        toast('You reacted too late, a new balloon will arrive later', {
-          color: 'warning',
-          duration: ToastDuration.long
-        })
-        receivedBalloon.value = null
-      }
-    })
-  }
+		// Server → client push: a balloon has arrived
+		socket.on(SOCKET_ENDPONTS.receive_new_balloon_v3, async ({ balloon }) => {
+			if (!balloon) return;
+			try {
+				const mates = await getPartialUsers([balloon.sender]);
+				if (mates && mates.length > 0) {
+					senderInfo.value = mates[0];
+					receivedBalloon.value = balloon;
+				} else {
+					console.error("Sender not found");
+				}
+			} catch (e) {
+				console.error("Failed to fetch balloon sender info", e);
+			}
+		});
 
-  async function acceptReceived() {
-    if (!receivedBalloon.value || !auth.user?._id) return
+		// Server → client push: timeout dismissal
+		socket.on(SOCKET_ENDPONTS.balloon_missed, ({ balloonId }: any) => {
+			if (receivedBalloon.value?._id === balloonId) {
+				toast("You reacted too late, a new balloon will arrive later", {
+					color: "warning",
+					duration: ToastDuration.long,
+				});
+				receivedBalloon.value = null;
+			}
+		});
+	}
 
-    const { isUnderAge } = useAuthStore()
-    if (isUnderAge) {
-      refuseReceived() // TODO test
-      return
-    }
+	async function acceptReceived() {
+		if (!receivedBalloon.value || !auth.user?._id) return;
 
-    const balloonId = receivedBalloon.value._id
-    const senderId = receivedBalloon.value.sender
+		const { isUnderAge } = useAuthStore();
+		if (isUnderAge) {
+			refuseReceived(); // TODO test
+			return;
+		}
 
-    receivedBalloon.value = null
+		const balloonId = receivedBalloon.value._id;
+		const senderId = receivedBalloon.value.sender;
 
-    try {
-      await apiAcceptBalloon({ balloonId, senderId })
-    } catch (e) {
-      console.error('Accept balloon failed:', e)
-      toast('Couldn\'t accept the balloon, try again', {
-        color: 'danger',
-        duration: ToastDuration.long
-      })
-    }
-  }
+		receivedBalloon.value = null;
 
-  async function refuseReceived() {
-    if (!receivedBalloon.value || !auth.user?._id) return
+		try {
+			await apiAcceptBalloon({ balloonId, senderId });
+		} catch (e) {
+			console.error("Accept balloon failed:", e);
+			toast("Couldn't accept the balloon, try again", {
+				color: "danger",
+				duration: ToastDuration.long,
+			});
+		}
+	}
 
-    const balloonId = receivedBalloon.value._id
-    const senderId = receivedBalloon.value.sender
+	async function refuseReceived() {
+		if (!receivedBalloon.value || !auth.user?._id) return;
 
-    receivedBalloon.value = null
+		const balloonId = receivedBalloon.value._id;
+		const senderId = receivedBalloon.value.sender;
 
-    try {
-      await apiRefuseBalloon({ balloonId, senderId })
-    } catch (e) {
-      console.error('Refuse balloon failed:', e)
-    }
-  }
+		receivedBalloon.value = null;
 
-  async function disableBalloons() {
-    if (!receivedBalloon.value || !auth.user?._id) return
+		try {
+			await apiRefuseBalloon({ balloonId, senderId });
+		} catch (e) {
+			console.error("Refuse balloon failed:", e);
+		}
+	}
 
-    const balloonId = receivedBalloon.value._id
-    const senderId = receivedBalloon.value.sender
+	async function disableBalloons() {
+		if (!receivedBalloon.value || !auth.user?._id) return;
 
-    receivedBalloon.value = null
-    auth.user.balloon!.disabled = true
+		const balloonId = receivedBalloon.value._id;
+		const senderId = receivedBalloon.value.sender;
 
-    try {
-      await apiRefuseBalloon({ balloonId, senderId, disable: true })
-    } catch (e) {
-      console.error('Disable balloons failed:', e)
-    }
-  }
+		receivedBalloon.value = null;
+		auth.user.balloon!.disabled = true;
 
-  return {
-    sentBalloon,
-    receivedBalloon,
-    init,
-    acceptReceived,
-    refuseReceived,
-    setupSocketListeners,
-    disableBalloons,
-    senderInfo
-  }
-})
+		try {
+			await apiRefuseBalloon({ balloonId, senderId, disable: true });
+		} catch (e) {
+			console.error("Disable balloons failed:", e);
+		}
+	}
+
+	return {
+		sentBalloon,
+		receivedBalloon,
+		init,
+		acceptReceived,
+		refuseReceived,
+		setupSocketListeners,
+		disableBalloons,
+		senderInfo,
+		resetRuntimeState,
+	};
+});

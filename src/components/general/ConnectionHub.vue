@@ -197,7 +197,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import {
 	IonAvatar,
 	IonButton,
@@ -209,7 +208,6 @@ import {
 	modalController,
 	useIonRouter,
 } from "@ionic/vue";
-import QrcodeVue from "qrcode.vue";
 import {
 	mdiAccountGroupOutline,
 	mdiChevronRight,
@@ -219,21 +217,23 @@ import {
 	mdiShieldAlertOutline,
 	mdiShieldLockOutline,
 } from "@mdi/js";
-
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import { useAuthStore } from "@/store/auth.store";
-import { useToast } from "@/service/toast.service";
-import { useScanner } from "@/service/scanner.service";
-import { createPersonalShareLink, shareUrl } from "@/helper/share.helper";
-import { isNative, svg } from "@/helper/general.helper";
 import { storeToRefs } from "pinia";
+import QrcodeVue from "qrcode.vue";
+import { computed, ref, watch } from "vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { masterAnimation } from "@/helper/animation.helper";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
+import { createPersonalShareLink, shareUrl } from "@/helper/share.helper";
+import { searchMate } from "@/service/api/user.api";
+import { useScanner } from "@/service/scanner.service";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useParentalStore } from "@/store/parental.store";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { searchMate } from "@/service/api/user.api";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
 
 // State
 const isScanning = ref(false);

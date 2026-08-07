@@ -277,33 +277,32 @@ import {
 	toValue,
 	watch,
 } from "vue";
+import logo from "@/assets/logo.webp";
+import astronaut from "@/assets/lottie/avatar/astronaut.lottie";
+import autumn_leaves from "@/assets/lottie/avatar/autumn_leaves.lottie";
+import catLottie from "@/assets/lottie/avatar/cat.lottie";
+import dragon from "@/assets/lottie/avatar/dragon.lottie";
+import fire from "@/assets/lottie/avatar/fire.lottie";
+import fishLottie from "@/assets/lottie/avatar/fish.lottie";
+import jellyFishLottie from "@/assets/lottie/avatar/jellyfish.lottie";
+import meteor from "@/assets/lottie/avatar/meteor.lottie";
+import moon from "@/assets/lottie/avatar/moon.lottie";
+import mushroom_walking from "@/assets/lottie/avatar/mushroom.lottie";
+import plantLottie from "@/assets/lottie/avatar/plant.lottie";
+import rocket from "@/assets/lottie/avatar/rocket.lottie";
+import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
+import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import {
 	acquireSprite,
-	SPRITE_DPR,
 	prefetchSprite,
-	warmFrozenFrame,
+	SPRITE_DPR,
 	type SpriteHandle,
+	warmFrozenFrame,
 } from "@/helper/lottie_sprite.helper";
-import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import {
 	AMBIENT_FOREGROUND,
 	useAmbientPause,
 } from "@/store/ambientPause.store";
-
-import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
-import fishLottie from "@/assets/lottie/avatar/fish.lottie";
-import jellyFishLottie from "@/assets/lottie/avatar/jellyfish.lottie";
-import catLottie from "@/assets/lottie/avatar/cat.lottie";
-import plantLottie from "@/assets/lottie/avatar/plant.lottie";
-import mushroom_walking from "@/assets/lottie/avatar/mushroom.lottie";
-import autumn_leaves from "@/assets/lottie/avatar/autumn_leaves.lottie";
-import logo from "@/assets/logo.webp";
-import meteor from "@/assets/lottie/avatar/meteor.lottie";
-import astronaut from "@/assets/lottie/avatar/astronaut.lottie";
-import moon from "@/assets/lottie/avatar/moon.lottie";
-import rocket from "@/assets/lottie/avatar/rocket.lottie";
-import dragon from "@/assets/lottie/avatar/dragon.lottie";
-import fire from "@/assets/lottie/avatar/fire.lottie";
 
 const props = withDefaults(
 	defineProps<{
@@ -400,9 +399,16 @@ const SPRITES = {
 // always-frozen snapshots (shop tiles/previews then stamp instantly instead of
 // popping in after a load+decode round-trip) and prime the HTTP cache for the
 // animated ones so their players load from cache when a preview mounts.
+//
+// Skipped entirely on low-end devices. The 2000 ms idle TIMEOUT means the kick
+// fires whether or not the device ever went idle, so on the phones that can
+// least afford it this decoded EVERY sprite type — the full set, not the ones
+// on screen — while the first profile view was still laying out. Those devices
+// render a single frozen frame anyway (`freezeFrame`) and show a reduced sprite
+// count (`cap`), so most of what the warm produced was never used.
 let spritesWarmed = false;
 function warmSprites() {
-	if (spritesWarmed) return;
+	if (spritesWarmed || lowEnd) return;
 	spritesWarmed = true;
 	const kick = () => {
 		Object.values(SPRITES).forEach((spec: SpriteSpec) => {
@@ -410,8 +416,9 @@ function warmSprites() {
 			else prefetchSprite(spec.src);
 		});
 	};
+	// No timeout: on a device that never goes idle this should never run.
 	"requestIdleCallback" in window
-		? requestIdleCallback(kick, { timeout: 2000 })
+		? requestIdleCallback(kick)
 		: setTimeout(kick, 300);
 }
 

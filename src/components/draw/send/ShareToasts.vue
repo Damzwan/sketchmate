@@ -91,26 +91,25 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
 import { IonIcon, IonSpinner } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import { useRoute } from "vue-router";
 import balloonLottie from "@/assets/lottie/balloon.lottie";
+import Lottie from "@/components/general/Lottie.vue";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import {
 	ShareToast,
 	ShareToastKind,
 	useShareToastStore,
 } from "@/draw/sharing/shareToast.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
-import { usePostSwiper } from "@/composables/home/usePostSwiper";
-import Lottie from "@/components/general/Lottie.vue";
-import { useMenuStore } from "@/store/menu.store";
+import { svg } from "@/helper/general.helper";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { useRoute } from "vue-router";
-import { computed } from "vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const shareToastStore = useShareToastStore();

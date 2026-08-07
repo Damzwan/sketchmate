@@ -1,13 +1,13 @@
+import type { BenchmarkReport } from "@/draw/benchmark/benchmark.types";
+import {
+	type FrameSampler,
+	startFrameSampler,
+} from "@/draw/benchmark/frameSampler";
+import { evaluateDrawMetrics } from "@/draw/benchmark/metricCatalog";
 import {
 	resetDrawMetrics,
 	snapshotDrawMetrics,
 } from "@/draw/rendering/renderMetrics";
-import {
-	startFrameSampler,
-	type FrameSampler,
-} from "@/draw/benchmark/frameSampler";
-import { evaluateDrawMetrics } from "@/draw/benchmark/metricCatalog";
-import type { BenchmarkReport } from "@/draw/benchmark/benchmark.types";
 
 export interface BenchmarkSession {
 	startedAt: number;

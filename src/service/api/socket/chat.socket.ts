@@ -1,19 +1,19 @@
-import { Socket } from "socket.io-client";
-import { useFriendStore } from "@/store/friend.store";
-import { useChatStore } from "@/store/chat.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useAuthStore } from "@/store/auth.store";
-import {
-	BaseMessage,
-	PopulatedConversation,
-	ChatStatus,
-} from "@/types/server.types";
-import { useUserCacheStore } from "@/store/userCache.store";
-import { getPartialUsers } from "@/service/api/user.api";
+import type { Socket } from "socket.io-client";
 import {
 	hydrateCustomization,
 	resolveTitle,
 } from "@/config/profile_options.config";
+import { getPartialUsers } from "@/service/api/user.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import type {
+	BaseMessage,
+	ChatStatus,
+	PopulatedConversation,
+} from "@/types/server.types";
 
 /**
  * registerChatHandlers

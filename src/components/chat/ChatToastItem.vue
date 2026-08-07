@@ -104,20 +104,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { mdiClockOutline, mdiHeart } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
+import { type CSSProperties, computed } from "vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue"; // <-- Imported UserAvatar
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import { resolveSenderStyle } from "@/composables/chat/useSenderStyle";
-import { useUserCacheStore } from "@/store/userCache.store";
 import {
 	resolveReadableCustomizationPalette,
 	resolveWorld,
 } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
+import { useUserCacheStore } from "@/store/userCache.store";
 
 const props = defineProps<{
 	toast: any;

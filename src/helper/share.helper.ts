@@ -1,12 +1,12 @@
-import { Share } from "@capacitor/share";
-import { useToast } from "@/service/toast.service";
 import { Clipboard } from "@capacitor/clipboard";
-import { Directory, Filesystem } from "@capacitor/filesystem";
-import { useShare } from "@vueuse/core";
-import { isMobile, isNative } from "@/helper/general.helper";
-import { ToastDuration } from "@/types/toast.types";
 import { CapacitorHttp } from "@capacitor/core";
+import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import { useShare } from "@vueuse/core";
+import { isMobile, isNative } from "@/helper/platform.helper";
+import { useToast } from "@/service/toast.service";
 import { FRONTEND_ROUTES } from "@/types/router.types";
+import { ToastDuration } from "@/types/toast.types";
 
 const { toast } = useToast();
 const { share, isSupported } = useShare();
@@ -145,14 +145,14 @@ export async function shareImg(
 }
 
 export function createPersonalShareLink(userID: string, connectRoute: string) {
-	let baseUrl;
+	let baseUrl: string;
 	if (isNative()) baseUrl = import.meta.env.VITE_FRONTEND as string;
 	else baseUrl = `${window.location.origin}`;
 	return `${baseUrl}${connectRoute}?mate=${userID}`;
 }
 
 export function createRoomLink(roomId: string) {
-	let baseUrl;
+	let baseUrl: string;
 	if (isNative()) baseUrl = import.meta.env.VITE_FRONTEND as string;
 	else baseUrl = `${window.location.origin}`;
 	return `${baseUrl}/${FRONTEND_ROUTES.draw}?room_id=${roomId}`;

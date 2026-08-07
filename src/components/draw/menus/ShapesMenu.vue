@@ -53,30 +53,30 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
-import { svg } from '@/helper/general.helper'
+import { IonContent, IonIcon, IonItem, IonList, IonPopover } from "@ionic/vue";
 import {
-  mdiCircleOutline,
-  mdiEllipseOutline,
-  mdiHeartOutline,
-  mdiRectangleOutline,
-  mdiTriangleOutline,
-  mdiVectorBezier,
-  mdiVectorLine,
-  mdiVectorPolygon
-} from '@mdi/js'
+	mdiCircleOutline,
+	mdiEllipseOutline,
+	mdiHeartOutline,
+	mdiRectangleOutline,
+	mdiTriangleOutline,
+	mdiVectorBezier,
+	mdiVectorLine,
+	mdiVectorPolygon,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { Shape } from "@/draw/tools/tool.types";
-import { useDrawStore } from '@/draw/session/draw.store'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
-const { selectAction } = useDrawStore()
-const { shapesMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const { selectAction } = useDrawStore();
+const { shapesMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
 function addShape(shape: Shape) {
-  setTimeout(() => selectAction(DrawAction.AddShape, { shape: shape }), 1) // TODO does not make any sense
-  shapesMenuOpen.value = false
+	setTimeout(() => selectAction(DrawAction.AddShape, { shape: shape }), 1); // TODO does not make any sense
+	shapesMenuOpen.value = false;
 }
 </script>
 

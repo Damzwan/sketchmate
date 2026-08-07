@@ -1,5 +1,7 @@
 // ─── Types ─────────────────────────────────────────────────────────
 
+import { compressImg } from "@/helper/image.helper";
+
 export interface PresignedUrl {
 	signedUrl: string;
 	publicUrl: string;
@@ -54,8 +56,6 @@ export async function uploadAssets(
 		thumbnail_url: urls.thumbnail.publicUrl,
 	};
 }
-
-import { compressImg } from "@/helper/general.helper";
 
 export interface ExportedDrawingBlobs {
 	drawingBlob: Blob;

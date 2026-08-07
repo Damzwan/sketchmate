@@ -328,8 +328,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, type CSSProperties } from "vue";
-import { onLongPress } from "@vueuse/core";
 import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
 import {
 	mdiArrowExpand,
@@ -342,22 +340,16 @@ import {
 	mdiPencilOutline,
 	mdiSendOutline,
 } from "@mdi/js";
+import { onLongPress } from "@vueuse/core";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { svg } from "@/helper/general.helper";
-import { FeedPost } from "@/types/server.types";
-import { playSelectionTick, reactionImages } from "@/config/post.config";
-import { useMenuStore } from "@/store/menu.store";
-import router from "@/router";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { Menu } from "@/types/menu.types";
-import { useModerationStore } from "@/store/moderation.store";
-
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import { type CSSProperties, computed, ref, watch } from "vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { playSelectionTick, reactionImages } from "@/config/post.config";
 import {
 	calculateSignatureStroke,
 	DEFAULT_EFFECT_ID,
@@ -373,7 +365,14 @@ import {
 	resolveWorld,
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/sharing/shareService.store";
+import { svg } from "@/helper/general.helper";
+import router from "@/router";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useMenuStore } from "@/store/menu.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { Menu } from "@/types/menu.types";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { FeedPost } from "@/types/server.types";
 
 dayjs.extend(relativeTime);
 

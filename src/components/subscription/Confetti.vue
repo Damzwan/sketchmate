@@ -39,13 +39,13 @@
 </template>
 
 <script setup lang="ts">
-import { watch, onUnmounted, ref, nextTick } from "vue";
-import { storeToRefs } from "pinia";
-import { DotLottie } from "@lottiefiles/dotlottie-web";
 import { IonIcon } from "@ionic/vue";
+import { DotLottie } from "@lottiefiles/dotlottie-web";
 import { mdiHeart } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { storeToRefs } from "pinia";
+import { nextTick, onUnmounted, ref, watch } from "vue";
 import confetti from "@/assets/lottie/confetti.lottie";
+import { svg } from "@/helper/general.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
 
 const { showConfetti } = storeToRefs(useSubscriptionStore());

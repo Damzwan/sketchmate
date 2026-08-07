@@ -1,4 +1,4 @@
-import { Canvas } from "fabric";
+import type { Canvas } from "fabric";
 
 /**
  * Bumped every time something clears the shared TOP context.

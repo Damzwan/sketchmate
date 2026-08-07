@@ -13,12 +13,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { Canvas, Point } from "fabric";
+import { computed, onMounted, ref } from "vue";
 import type { ShopSku } from "@/config/catalog.config";
-import { BrushType } from "@/draw/tools/tool.types";
 import { penBrushMapping, penIconMapping } from "@/draw/config/tools.config";
+import { BrushType } from "@/draw/tools/tool.types";
 import { svg } from "@/helper/general.helper";
 import ShopCardShell from "./ShopCardShell.vue";
 

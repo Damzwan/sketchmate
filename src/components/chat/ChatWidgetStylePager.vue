@@ -104,7 +104,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiArrowExpand,
@@ -112,9 +111,17 @@ import {
 	mdiClose,
 	mdiForumOutline,
 } from "@mdi/js";
+import {
+	computed,
+	nextTick,
+	onBeforeUnmount,
+	onMounted,
+	ref,
+	watch,
+} from "vue";
+import type { ChatCustomization } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 import ChatWidgetStylePreview from "./ChatWidgetStylePreview.vue";
-import type { ChatCustomization } from "@/config/profile_options.config";
 
 /** The preview lays out at the real widget's proportions and is then SCALED to
  * whatever box it is given. Re-flowing it into a short pane instead would change

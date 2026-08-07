@@ -90,28 +90,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonIcon, useIonRouter } from "@ionic/vue";
 import {
-  mdiAccountPlus,
-  mdiBullhorn,
-  mdiChatOutline,
-  mdiHeart,
-  mdiPencilOutline,
-  mdiShieldAlertOutline,
+	mdiAccountPlus,
+	mdiBullhorn,
+	mdiChatOutline,
+	mdiHeart,
+	mdiPencilOutline,
+	mdiShieldAlertOutline,
 } from "@mdi/js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { svg } from "@/helper/general.helper";
-import type { Notification } from "@/types/server.types";
-import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { usePostStore } from "@/store/post.store";
-import { useInboxStore } from "@/store/inbox.store";
+import { computed } from "vue";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { masterAnimation } from "@/helper/animation.helper";
+import { svg } from "@/helper/general.helper";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { useInboxStore } from "@/store/inbox.store";
+import { usePostStore } from "@/store/post.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { Notification } from "@/types/server.types";
 
 dayjs.extend(relativeTime);
 
@@ -119,120 +119,120 @@ const props = defineProps<{ notification: Notification }>();
 const store = useInAppNotificationStore();
 
 const typeConfig = computed(() => {
-  switch (props.notification.type) {
-    case "post_reaction":
-      return {
-        color: "var(--ion-color-secondary)",
-        icon: mdiHeart,
-        verb: (n: number) =>
-          n === 1
-            ? "loved your canvas post"
-            : `and ${n - 1} others loved your post`,
-      };
-    case "post_comment":
-      return {
-        color: "var(--ion-color-secondary)",
-        icon: mdiChatOutline,
-        verb: () => "commented on your post",
-      };
-    case "inbox_comment":
-      return {
-        color: "var(--ion-color-secondary)",
-        icon: mdiChatOutline,
-        verb: (n: number) =>
-          n === 1
-            ? "commented on a canvas drawing"
-            : `and ${n - 1} others commented`,
-      };
-    case "follow":
-      return {
-        color: "var(--ion-color-success, #2fdf75)",
-        icon: mdiAccountPlus,
-        verb: (n: number) =>
-          n === 1
-            ? "started following your sketches"
-            : `and ${n - 1} others started following you`,
-      };
-    case "inbox_drawing":
-      return {
-        color: "var(--ion-color-warning, #ffd534)",
-        icon: mdiPencilOutline,
-        verb: () => "shared a drawing with you",
-      };
-    case "moderation_strike":
-      return {
-        color: "var(--ion-color-danger, #f04141)",
-        icon: mdiShieldAlertOutline,
-        verb: () => "",
-      };
-    case "moderation_lifted":
-      return {
-        color: "var(--ion-color-success)",
-        icon: mdiShieldAlertOutline,
-        verb: () => "",
-      };
-    case "moderation_content":
-      // Review is a temporary, neutral state; removal is not. Colouring both red
-      // would tell someone whose post is merely queued that they've been
-      // penalised.
-      return {
-        color:
-          props.notification.payload?.status === "removed"
-            ? "var(--ion-color-danger, #f04141)"
-            : props.notification.payload?.status === "restored"
-              ? "var(--ion-color-success)"
-              : "var(--ion-color-warning, #ffd534)",
-        icon: mdiShieldAlertOutline,
-        verb: () => "",
-      };
-    case "announcement":
-      return {
-        color: "var(--ion-color-secondary)",
-        icon: mdiBullhorn,
-        verb: () => "",
-      };
-    default:
-      return {
-        color: "var(--ion-color-medium)",
-        icon: mdiBullhorn,
-        verb: () => "",
-      };
-  }
+	switch (props.notification.type) {
+		case "post_reaction":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon: mdiHeart,
+				verb: (n: number) =>
+					n === 1
+						? "loved your canvas post"
+						: `and ${n - 1} others loved your post`,
+			};
+		case "post_comment":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon: mdiChatOutline,
+				verb: () => "commented on your post",
+			};
+		case "inbox_comment":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon: mdiChatOutline,
+				verb: (n: number) =>
+					n === 1
+						? "commented on a canvas drawing"
+						: `and ${n - 1} others commented`,
+			};
+		case "follow":
+			return {
+				color: "var(--ion-color-success, #2fdf75)",
+				icon: mdiAccountPlus,
+				verb: (n: number) =>
+					n === 1
+						? "started following your sketches"
+						: `and ${n - 1} others started following you`,
+			};
+		case "inbox_drawing":
+			return {
+				color: "var(--ion-color-warning, #ffd534)",
+				icon: mdiPencilOutline,
+				verb: () => "shared a drawing with you",
+			};
+		case "moderation_strike":
+			return {
+				color: "var(--ion-color-danger, #f04141)",
+				icon: mdiShieldAlertOutline,
+				verb: () => "",
+			};
+		case "moderation_lifted":
+			return {
+				color: "var(--ion-color-success)",
+				icon: mdiShieldAlertOutline,
+				verb: () => "",
+			};
+		case "moderation_content":
+			// Review is a temporary, neutral state; removal is not. Colouring both red
+			// would tell someone whose post is merely queued that they've been
+			// penalised.
+			return {
+				color:
+					props.notification.payload?.status === "removed"
+						? "var(--ion-color-danger, #f04141)"
+						: props.notification.payload?.status === "restored"
+							? "var(--ion-color-success)"
+							: "var(--ion-color-warning, #ffd534)",
+				icon: mdiShieldAlertOutline,
+				verb: () => "",
+			};
+		case "announcement":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon: mdiBullhorn,
+				verb: () => "",
+			};
+		default:
+			return {
+				color: "var(--ion-color-medium)",
+				icon: mdiBullhorn,
+				verb: () => "",
+			};
+	}
 });
 
 const accentColor = computed(() => typeConfig.value.color);
 const systemIcon = computed(() => typeConfig.value.icon);
 
 const headline = computed(() => {
-  if (props.notification.type === "moderation_strike") {
-    return props.notification.payload?.name ?? "Account restriction";
-  }
-  if (props.notification.type === "moderation_lifted") {
-    return "Welcome back";
-  }
-  if (props.notification.type === "moderation_content") {
-    return props.notification.payload?.title ?? "Content update";
-  }
-  if (props.notification.type === "announcement") {
-    return props.notification.payload?.title ?? "Announcement";
-  }
-  return props.notification.actors[0]?.name ?? "Someone";
+	if (props.notification.type === "moderation_strike") {
+		return props.notification.payload?.name ?? "Account restriction";
+	}
+	if (props.notification.type === "moderation_lifted") {
+		return "Welcome back";
+	}
+	if (props.notification.type === "moderation_content") {
+		return props.notification.payload?.title ?? "Content update";
+	}
+	if (props.notification.type === "announcement") {
+		return props.notification.payload?.title ?? "Announcement";
+	}
+	return props.notification.actors[0]?.name ?? "Someone";
 });
 
 const body = computed(() => {
-  if (props.notification.type === "moderation_strike") {
-    return props.notification.payload?.description ?? "";
-  }
-  if (props.notification.type === "moderation_lifted") {
-    return "Your restriction has been lifted.";
-  }
-  if (props.notification.type === "moderation_content") {
-    return props.notification.payload?.body ?? "";
-  }
-  if (props.notification.type === "announcement") {
-    return props.notification.payload?.body ?? "";
-  }
-  return typeConfig.value.verb(props.notification.actor_count);
+	if (props.notification.type === "moderation_strike") {
+		return props.notification.payload?.description ?? "";
+	}
+	if (props.notification.type === "moderation_lifted") {
+		return "Your restriction has been lifted.";
+	}
+	if (props.notification.type === "moderation_content") {
+		return props.notification.payload?.body ?? "";
+	}
+	if (props.notification.type === "announcement") {
+		return props.notification.payload?.body ?? "";
+	}
+	return typeConfig.value.verb(props.notification.actor_count);
 });
 
 const postStore = usePostStore();
@@ -241,41 +241,41 @@ const { openInboxSwiper } = useInboxSwiper();
 const { openPostSwiper } = usePostSwiper();
 
 const openSharedPost = async (_id: string) => {
-  const post = await postStore.fetchSinglePost(_id);
-  if (post) openPostSwiper([post], 0);
+	const post = await postStore.fetchSinglePost(_id);
+	if (post) openPostSwiper([post], 0);
 };
 
 const openSharedInboxItem = async (_id: string) => {
-  const item = await inboxStore.fetchSingleInboxItem(_id);
-  if (item) openInboxSwiper([item], 0);
+	const item = await inboxStore.fetchSingleInboxItem(_id);
+	if (item) openInboxSwiper([item], 0);
 };
 
 const r = useIonRouter();
 const { openUserActions } = useUserContextSheet();
 
 async function handleTap() {
-  await store.markRead(props.notification._id);
-  const n = props.notification;
+	await store.markRead(props.notification._id);
+	const n = props.notification;
 
-  switch (n.target_type) {
-    case "post":
-      if (n.target_id) openSharedPost(n.target_id);
-      break;
-    case "inbox_item":
-      if (n.target_id) openSharedInboxItem(n.target_id);
-      break;
-    case "user":
-      if (n.target_id) openUserActions({ _id: n.target_id });
-      break;
-    case "system":
-      if (
-        n.type === "moderation_strike" ||
-        n.type === "moderation_lifted" ||
-        n.type === "moderation_content"
-      ) {
-        r.push(FRONTEND_ROUTES.moderation, masterAnimation);
-      }
-      break;
-  }
+	switch (n.target_type) {
+		case "post":
+			if (n.target_id) openSharedPost(n.target_id);
+			break;
+		case "inbox_item":
+			if (n.target_id) openSharedInboxItem(n.target_id);
+			break;
+		case "user":
+			if (n.target_id) openUserActions({ _id: n.target_id });
+			break;
+		case "system":
+			if (
+				n.type === "moderation_strike" ||
+				n.type === "moderation_lifted" ||
+				n.type === "moderation_content"
+			) {
+				r.push(FRONTEND_ROUTES.moderation, masterAnimation);
+			}
+			break;
+	}
 }
 </script>

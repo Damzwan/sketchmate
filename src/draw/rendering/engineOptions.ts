@@ -1,3 +1,4 @@
+import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
 import {
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
@@ -5,7 +6,6 @@ import {
 } from "@/draw/config/renderQuality.config";
 import type { RenderEngineOptions } from "@/draw/rendering/renderEngine";
 import { DEFAULT_OVERVIEW_TIER } from "@/draw/rendering/zoomLevels";
-import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
 
 export const isLowEndDrawDevice = IS_LOW_END_DEVICE;
 export const isMobileDrawDevice = IS_MOBILE_DEVICE;

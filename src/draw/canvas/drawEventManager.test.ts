@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { Canvas } from "fabric";
+import { describe, expect, it, vi } from "vitest";
 import { createDrawEventManager } from "./drawEventManager";
 import type { FabricEvent } from "./fabricEvent.types";
 

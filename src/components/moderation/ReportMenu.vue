@@ -61,7 +61,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import {
 	IonButton,
 	IonCheckbox,
@@ -73,11 +72,12 @@ import {
 } from "@ionic/vue";
 import { mdiClose } from "@mdi/js";
 import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
 import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
-import type { ReportReason } from "@/types/server.types";
 import { Menu } from "@/types/menu.types";
+import type { ReportReason } from "@/types/server.types";
 
 const menuStore = useMenuStore();
 const moderationStore = useModerationStore();

@@ -61,14 +61,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
 import { IonIcon, IonSpinner } from "@ionic/vue";
 import { mdiDraw, mdiImageBroken } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { usePostStore } from "@/store/post.store";
-import { usePostSwiper } from "@/composables/home/usePostSwiper";
-import { useInboxStore } from "@/store/inbox.store";
+import { computed, onMounted, ref } from "vue";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { svg } from "@/helper/general.helper";
+import { useInboxStore } from "@/store/inbox.store";
+import { usePostStore } from "@/store/post.store";
 import MessageTimestamp from "./MessageTimestamp.vue";
 
 const props = defineProps<{

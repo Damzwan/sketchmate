@@ -50,7 +50,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
 import {
 	IonAccordion,
 	IonAccordionGroup,
@@ -60,8 +59,9 @@ import {
 	IonSpinner,
 } from "@ionic/vue";
 import { mdiClose } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { ref } from "vue";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import { svg } from "@/helper/general.helper";
 import type { NotificationSubscription } from "@/types/server.types";
 
 defineProps<{
@@ -69,9 +69,8 @@ defineProps<{
 	pendingFingerprint?: string | null;
 }>();
 
-const emit = defineEmits<{
-	(e: "delete", sub: NotificationSubscription): void;
-}>();
+const emit =
+	defineEmits<(e: "delete", sub: NotificationSubscription) => void>();
 
 const deleteSubscriptionAlertOpen = ref(false);
 const selectedSub = ref<NotificationSubscription | null>(null);

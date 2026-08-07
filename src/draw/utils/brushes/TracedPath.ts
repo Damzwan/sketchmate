@@ -1,11 +1,11 @@
-import { Path, config, type TBBox, type TSimplePathData, util } from "fabric";
+import { config, Path, type TBBox, type TSimplePathData, util } from "fabric";
 import { isCompactStrokeGeometryEnabled } from "@/draw/config/strokeGeometry.config";
 import {
-	compactPathStorageInfo,
 	type CompactPathStorageInfo,
+	compactPathStorageInfo,
 } from "@/draw/utils/brushes/pathStorage";
 
-const enum PackedCommand {
+enum PackedCommand {
 	Move = 0,
 	Line = 1,
 	Cubic = 2,

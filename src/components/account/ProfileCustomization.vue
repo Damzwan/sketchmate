@@ -64,97 +64,93 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonIcon, IonInput, IonTextarea } from '@ionic/vue'
-import { mdiAlertCircleOutline } from '@mdi/js'
-
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
-import { updateProfile, uploadProfileImg } from '@/service/api/user.api'
-import { svg } from '@/helper/general.helper'
-
-import ProfilePictureSelector from '@/components/account/ProfilePictureSelector.vue'
-import { useProfileUpload } from '@/composables/general/useProfileUpload'
+import { IonIcon, IonInput, IonTextarea } from "@ionic/vue";
+import { mdiAlertCircleOutline } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed, reactive, ref } from "vue";
+import ProfilePictureSelector from "@/components/account/ProfilePictureSelector.vue";
+import { useProfileUpload } from "@/composables/general/useProfileUpload";
+import { svg } from "@/helper/general.helper";
+import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 
 const props = defineProps<{
-  skipToast?: boolean;
-}>()
+	skipToast?: boolean;
+}>();
 
-const { user } = storeToRefs(useAuthStore())
-const { toast } = useToast()
+const { user } = storeToRefs(useAuthStore());
+const { toast } = useToast();
 
-const nameRef = ref<HTMLInputElement>()
+const nameRef = ref<HTMLInputElement>();
 
 // Reactive form state
 const editForm = reactive({
-  name: user.value?.name || '',
-  description: user.value?.description || ''
-})
+	name: user.value?.name || "",
+	description: user.value?.description || "",
+});
 
 // Live, human-readable reason the name can't be saved (empty on valid).
 const nameError = computed(() => {
-  const n = editForm.name.trim()
-  if (!n) return "Your name can't be empty."
-  if (n.length < 4) return 'Name needs at least 4 characters.'
-  return ''
-})
+	const n = editForm.name.trim();
+	if (!n) return "Your name can't be empty.";
+	if (n.length < 4) return "Name needs at least 4 characters.";
+	return "";
+});
 
 function saveProfile() {
-  if (!user.value) return
+	if (!user.value) return;
 
-  const newName = editForm.name.trim()
-  const newDesc = editForm.description?.trim() || ''
-  const oldName = user.value.name || ''
-  const oldDesc = user.value.description || ''
+	const newName = editForm.name.trim();
+	const newDesc = editForm.description?.trim() || "";
+	const oldName = user.value.name || "";
+	const oldDesc = user.value.description || "";
 
-  // 1. Validation — revert the field, no network work.
-  if (!newName) {
-    if (!props.skipToast) toast('Name cannot be empty', { color: 'danger' })
-    editForm.name = oldName
-    return
-  }
-  if (newName.length < 4) {
-    if (!props.skipToast)
-      toast('Name must be at least 4 characters', { color: 'danger' })
-    editForm.name = oldName
-    return
-  }
+	// 1. Validation — revert the field, no network work.
+	if (!newName) {
+		if (!props.skipToast) toast("Name cannot be empty", { color: "danger" });
+		editForm.name = oldName;
+		return;
+	}
+	if (newName.length < 4) {
+		if (!props.skipToast)
+			toast("Name must be at least 4 characters", { color: "danger" });
+		editForm.name = oldName;
+		return;
+	}
 
-  // 2. No change — nothing to persist.
-  if (newName === oldName && newDesc === oldDesc) return
+	// 2. No change — nothing to persist.
+	if (newName === oldName && newDesc === oldDesc) return;
 
-  // 3. Optimistic: apply locally NOW, persist in the background.
-  const u = user.value
-  u.name = newName
-  u.description = newDesc
+	// 3. Optimistic: apply locally NOW, persist in the background.
+	const u = user.value;
+	u.name = newName;
+	u.description = newDesc;
 
-  void (async () => {
-    try {
-      await updateProfile({ name: newName, description: newDesc })
-    } catch (err: any) {
-      // Roll back — but only if the field still holds what we set
-      // (guards against a newer edit racing this request).
-      if (u.name === newName) u.name = oldName
-      if (u.description === newDesc) u.description = oldDesc
-      editForm.name = oldName
-      editForm.description = oldDesc
-      const errorMsg = err?.response?.data?.error || 'Failed to update profile'
-      if (!props.skipToast) toast(errorMsg, { color: 'danger' })
-    }
-  })()
+	void (async () => {
+		try {
+			await updateProfile({ name: newName, description: newDesc });
+		} catch (err: any) {
+			// Roll back — but only if the field still holds what we set
+			// (guards against a newer edit racing this request).
+			if (u.name === newName) u.name = oldName;
+			if (u.description === newDesc) u.description = oldDesc;
+			editForm.name = oldName;
+			editForm.description = oldDesc;
+			const errorMsg = err?.response?.data?.error || "Failed to update profile";
+			if (!props.skipToast) toast(errorMsg, { color: "danger" });
+		}
+	})();
 }
 
 function onBlur() {
-  saveProfile()
+	saveProfile();
 }
 
 function onEnter() {
-  // Trigger blur to force save
-  (nameRef.value as any)?.blur()
+	// Trigger blur to force save
+	(nameRef.value as any)?.blur();
 }
 
-const { uploadImage } = useProfileUpload()
-
-
+const { uploadImage } = useProfileUpload();
 </script>

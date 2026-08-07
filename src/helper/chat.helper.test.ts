@@ -46,11 +46,7 @@ describe("chat activity ordering", () => {
 
 	it("uses server interaction metadata before chats hydrate", () => {
 		expect(
-			recentActivityForPartner(
-				[],
-				"mate",
-				"2026-04-01T00:00:00.000Z",
-			),
+			recentActivityForPartner([], "mate", "2026-04-01T00:00:00.000Z"),
 		).toBe(new Date("2026-04-01T00:00:00.000Z").getTime());
 	});
 });

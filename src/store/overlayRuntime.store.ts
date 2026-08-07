@@ -12,10 +12,10 @@ export const useOverlayRuntimeStore = defineStore("overlayRuntime", () => {
 	const isFullscreen = ref(false);
 	const chatToastsSilenced = ref(false);
 
-	function reset() {
+	function resetRuntimeState() {
 		isFullscreen.value = false;
 		chatToastsSilenced.value = false;
 	}
 
-	return { isFullscreen, chatToastsSilenced, reset };
+	return { isFullscreen, chatToastsSilenced, resetRuntimeState };
 });

@@ -10,10 +10,10 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import type { ShopSku } from "@/config/catalog.config";
 import { resolveWorld } from "@/config/profile_options.config";
 import ShopCardShell from "./ShopCardShell.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 
 const props = defineProps<{
 	sku: ShopSku;

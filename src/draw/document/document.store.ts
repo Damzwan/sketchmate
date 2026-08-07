@@ -1,23 +1,23 @@
-import { computed, ref } from "vue";
+import { ActiveSelection, type Canvas } from "fabric";
 import { defineStore } from "pinia";
-import { ActiveSelection, Canvas } from "fabric";
-import { EventBus } from "@/main";
+import { computed, ref } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import {
 	centerObjectInViewport,
 	precalculateAndSetViewport,
 } from "@/draw/canvas/viewport";
-import { v4 as uuidv4 } from "uuid";
 import {
 	documentJsonToBlob,
 	enlivenObjectsTimeSlivered,
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { EventBus } from "@/main";
+import { uuidv4 } from "@/utils/uuid";
 
 /**
  * Local idle helper.
@@ -500,7 +500,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		EventBus.on("room:joining", stopAutosave);
 	}
 
-	function startAutosave(canvas: Canvas, drawingId: string) {
+	function startAutosave(_canvas: Canvas, drawingId: string) {
 		currentDraftId.value = drawingId;
 		saveEvents.forEach((event) => EventBus.off(event, markAsDirty));
 		saveEvents.forEach((e) => EventBus.on(e, markAsDirty));

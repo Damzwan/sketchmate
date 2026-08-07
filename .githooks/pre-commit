@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Format + safe lint fixes on STAGED files only, then re-stage exactly those.
+# The previous hook ran `git add .`, which swept every unstaged file in the
+# working tree into each commit.
+staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|vue|json)$' || true)
+[ -z "$staged" ] && exit 0
+
+echo "$staged" | xargs npx biome check --write --no-errors-on-unmatched
+echo "$staged" | xargs git add

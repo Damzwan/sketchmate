@@ -98,7 +98,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import type { ToggleCustomEvent } from "@ionic/vue";
 import {
 	IonIcon,
@@ -109,7 +108,6 @@ import {
 	IonSpinner,
 	IonToggle,
 } from "@ionic/vue";
-import { isNative, svg } from "@/helper/general.helper";
 import {
 	mdiBalloon,
 	mdiBellOff,
@@ -118,15 +116,18 @@ import {
 	mdiViewDashboardOutline,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
-import { useNotificationStore } from "@/store/notification.store";
+import { computed, ref } from "vue";
+import SettingCard from "@/components/settings/SettingCard.vue";
+import { svg } from "@/helper/general.helper";
 import {
 	disableNotifications,
 	requestNotifications,
 } from "@/helper/notification.helper";
+import { isNative } from "@/helper/platform.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
-import SettingCard from "@/components/settings/SettingCard.vue";
+import { useAuthStore } from "@/store/auth.store";
+import { useNotificationStore } from "@/store/notification.store";
 
 const { user } = storeToRefs(useAuthStore());
 const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore());

@@ -1,5 +1,5 @@
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { fullErase } from "@/draw/tools/eraseActions";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
 import {
 	addSavedFabricObjectToCanvas,
 	copyObjects,
@@ -15,7 +15,6 @@ import {
 	setPropertiesOfObjects,
 	unselectObjects,
 } from "@/draw/objects/objectActions";
-import { addFilterToImg, addImageToCanvas } from "@/draw/tools/imageActions";
 import {
 	changeStrokeWidth,
 	exitColorPickerMode,
@@ -24,6 +23,9 @@ import {
 	setFillColor,
 	setStrokeColor,
 } from "@/draw/tools/colorActions";
+import { fullErase } from "@/draw/tools/eraseActions";
+import { addFilterToImg, addImageToCanvas } from "@/draw/tools/imageActions";
+import { addShape, confirmShapeCreation } from "@/draw/tools/shapeActions";
 import {
 	addText,
 	changeFont,
@@ -32,8 +34,6 @@ import {
 	changeTextAlign,
 	exitTextAddingMode,
 } from "@/draw/tools/textActions";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
-import { addShape, confirmShapeCreation } from "@/draw/tools/shapeActions";
 
 export const drawActionMapping: Record<
 	DrawAction,

@@ -1,10 +1,10 @@
 import type { Canvas } from "fabric";
-import { exportBoundingBoxImage } from "@/draw/document/export";
 import {
 	renderDraftSnapshotInWorker,
 	renderDraftThumbnailInWorker,
 	supportsDraftThumbnailWorker,
 } from "@/draw/document/draftThumbnailWorker";
+import { exportBoundingBoxImage } from "@/draw/document/export";
 
 const THUMBNAIL_MAX_SIZE = 640;
 const THUMBNAIL_QUALITY = 0.72;

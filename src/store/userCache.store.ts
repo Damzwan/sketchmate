@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef, triggerRef } from "vue";
+import { computed, shallowRef, triggerRef } from "vue";
 import { getPartialUsers } from "@/service/api/user.api";
 
 interface CacheEntry {
@@ -231,7 +231,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	/**
 	 * Nuke everything. Called on logout.
 	 */
-	const clear = () => {
+	const resetRuntimeState = () => {
 		cache.value = new Map();
 		pendingIds.clear();
 		inflight.clear();
@@ -254,7 +254,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 		upsert,
 		upsertMany,
 		invalidate,
-		clear,
+		resetRuntimeState,
 		size,
 	};
 });

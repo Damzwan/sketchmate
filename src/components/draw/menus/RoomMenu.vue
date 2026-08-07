@@ -205,8 +205,6 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
-import { computed, nextTick, ref } from "vue";
 import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountPlus,
@@ -214,29 +212,30 @@ import {
 	mdiShareVariant,
 	mdiShieldLockOutline,
 } from "@mdi/js";
+import { storeToRefs } from "pinia";
 import QrcodeVue from "qrcode.vue";
-
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useParentalStore } from "@/store/parental.store";
-import { useScanner } from "@/service/scanner.service";
-import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
-import { generateRandomCode, isNative, svg } from "@/helper/general.helper";
-import { createRoomLink, shareUrl } from "@/helper/share.helper";
-
+import { computed, nextTick, ref } from "vue";
 import LobbyInvitePopover from "@/components/chat/LobbyInvitePopover.vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import ActiveLobbies from "@/components/home/ActiveLobbies.vue";
-import { useDocumentStore } from "@/draw/document/document.store";
-import { useToast } from "@/service/toast.service";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import {
 	hydrateCustomization,
 	resolveTheme,
 } from "@/config/profile_options.config";
+import { useDocumentStore } from "@/draw/document/document.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { generateRandomCode, svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
+import { createRoomLink, shareUrl } from "@/helper/share.helper";
+import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
+import { useScanner } from "@/service/scanner.service";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useParentalStore } from "@/store/parental.store";
 
 const router = useIonRouter();
 
@@ -339,8 +338,8 @@ async function handleJoinPublicLobby(id: string) {
 	// so Pro members can still claim a VIP slot when users >= maxUsers.
 	if (lobby.users >= lobby.maxUsers + lobby.premiumSlots) return;
 
-	// Set store state explicitly before calling socket join
-	publicLobbyName.value = lobby.name;
+	// `publicLobbyName` is computed from `publicLobbies` + `roomId`, so it
+	// resolves on its own once joinRoom() sets the room. Only the flag is state.
 	isPublicLobby.value = true;
 
 	joinRoom(id);

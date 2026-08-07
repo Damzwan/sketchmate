@@ -1,6 +1,7 @@
 // api/savedDrawing.api.ts
+
+import type { CreateSavedParams, Res, Saved } from "@/types/server.types";
 import { request } from "./http";
-import { Res, Saved, CreateSavedParams } from "@/types/server.types";
 
 const BASE_URL = "/saved";
 

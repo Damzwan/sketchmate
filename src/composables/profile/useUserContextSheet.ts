@@ -1,5 +1,5 @@
-import { useMenuStore } from "@/store/menu.store";
 import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 
 let lastFetchedId: string | null = null;

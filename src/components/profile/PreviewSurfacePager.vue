@@ -126,7 +126,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiArrowExpand,
@@ -135,12 +134,13 @@ import {
 	mdiClose,
 	mdiImageOutline,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import type { Customization } from "@/config/profile_options.config";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
+import exampleImg from "@/assets/example.webp";
 import AmbientScope from "@/components/general/AmbientScope.vue";
 import PreviewSurface from "@/components/profile/PreviewSurface.vue";
+import type { Customization } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
 import { useAmbientPause } from "@/store/ambientPause.store";
-import exampleImg from "@/assets/example.webp";
 
 const props = withDefaults(
 	defineProps<{

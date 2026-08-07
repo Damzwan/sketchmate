@@ -71,11 +71,11 @@
 </template>
 
 <script setup lang="ts">
-import { IonToolbar, IonButtons, IonButton, IonIcon } from "@ionic/vue";
+import { IonButton, IonButtons, IonIcon, IonToolbar } from "@ionic/vue";
 import { arrowBack } from "ionicons/icons";
-import { senderImg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { senderImg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	currItem: any;

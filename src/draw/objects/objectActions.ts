@@ -1,33 +1,20 @@
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import * as Sentry from "@sentry/capacitor";
 import * as fabric from "fabric";
-import { ActiveSelection, Canvas, FabricObject, Group } from "fabric";
-
+import { ActiveSelection, type Canvas, type FabricObject, Group } from "fabric";
 import {
 	DrawAction,
 	type DrawActionParams,
 } from "@/draw/actions/drawAction.types";
-import { DrawTool } from "@/draw/tools/tool.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { v4 as uuidv4 } from "uuid";
-import { useSelect } from "@/draw/tools/select.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useToast } from "@/service/toast.service";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { toJSON, toObjectsIds } from "@/draw/objects/objectSerialization";
-import { useDrawSyncer } from "@/draw/sync/session.store";
 import {
 	enlivenAllBatched,
 	enlivenObjectsTimeSlivered,
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
-import { createSavedDrawing } from "@/service/api/savedDrawing.api";
-import { useShareToastStore } from "@/draw/sharing/shareToast.store";
-import { createYielder } from "@/draw/scheduling/yielder";
-import { fitAndCenterSavedObjects } from "@/draw/objects/savedObjectPlacement";
+import { toJSON, toObjectsIds } from "@/draw/objects/objectSerialization";
 import {
 	FLATTENED_SAVED_OBJECT_MAX_DIMENSION,
 	FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION,
@@ -38,7 +25,19 @@ import {
 	validateSavedDrawingBytes,
 	validateSavedObjectCount,
 } from "@/draw/objects/savedObjectLimits";
-import * as Sentry from "@sentry/capacitor";
+import { fitAndCenterSavedObjects } from "@/draw/objects/savedObjectPlacement";
+import { createYielder } from "@/draw/scheduling/yielder";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useShareToastStore } from "@/draw/sharing/shareToast.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { createSavedDrawing } from "@/service/api/savedDrawing.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { uuidv4 } from "@/utils/uuid";
 
 async function runSavedImportPhase<T>(
 	phase: string,

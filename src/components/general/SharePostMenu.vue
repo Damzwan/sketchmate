@@ -107,158 +107,162 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import {
-  IonModal,
-  IonSpinner,
-  IonIcon,
-  IonButton,
-  IonFab,
-  IonFabButton
-} from '@ionic/vue'
-import { mdiSendOutline, mdiShareVariant, mdiClose } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { svg, compareVersions } from '@/helper/general.helper'
-import { shareImg } from '@/helper/share.helper'
-import { useAuthStore } from '@/store/auth.store'
-import { useFriendStore } from '@/store/friend.store'
-import { useMenuStore } from '@/store/menu.store'
-import { useToast } from '@/service/toast.service'
+	IonButton,
+	IonFab,
+	IonFabButton,
+	IonIcon,
+	IonModal,
+	IonSpinner,
+} from "@ionic/vue";
+import { mdiClose, mdiSendOutline, mdiShareVariant } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import ShareMateRow from "@/components/general/ShareMateRow.vue";
+import { useShareService } from "@/draw/sharing/shareService.store";
+import { recentActivityForPartner } from "@/helper/chat.helper";
+import { compareVersions, svg } from "@/helper/general.helper";
+import { shareImg } from "@/helper/share.helper";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { useShareService } from '@/draw/sharing/shareService.store'
-import { useChatStore } from '@/store/chat.store'
-import { recentActivityForPartner } from '@/helper/chat.helper'
-import ShareMateRow from '@/components/general/ShareMateRow.vue'
 
-const authStore = useAuthStore()
-const friendStore = useFriendStore()
-const menuStore = useMenuStore()
-const shareService = useShareService()
-const chatStore = useChatStore()
-const { toast } = useToast()
+const authStore = useAuthStore();
+const friendStore = useFriendStore();
+const menuStore = useMenuStore();
+const shareService = useShareService();
+const chatStore = useChatStore();
+const { toast } = useToast();
 
-const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore)
-const { activeChats } = storeToRefs(chatStore)
-const { sharePostMenuOpen } = storeToRefs(menuStore)
-const { activeShareItem } = storeToRefs(shareService)
+const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore);
+const { activeChats } = storeToRefs(chatStore);
+const { sharePostMenuOpen } = storeToRefs(menuStore);
+const { activeShareItem } = storeToRefs(shareService);
 
-const minChatVersion = '0.4.0'
-const loading = ref(false)
-const isSending = ref(false)
-const selectedFriendIds = ref<string[]>([])
-const scrollContainer = ref<HTMLElement | null>(null)
-let matesFetchedThisSession = false
+const minChatVersion = "0.4.0";
+const loading = ref(false);
+const isSending = ref(false);
+const selectedFriendIds = ref<string[]>([]);
+const scrollContainer = ref<HTMLElement | null>(null);
+let matesFetchedThisSession = false;
 
 // --- Preview adapters (post vs inbox) ---
 const headerTitle = computed(() =>
-  activeShareItem.value?.type === 'inbox' ? 'Share Drawing' : 'Share Sketch'
-)
+	activeShareItem.value?.type === "inbox" ? "Share Drawing" : "Share Sketch",
+);
 
 const previewThumbnail = computed(() => {
-  const item = activeShareItem.value
-  if (!item) return ''
-  return activeShareItem.value?.type === 'inbox'
-    ? (item.data as any).thumbnail
-    : (item.data as any).thumbnail_url
-})
+	const item = activeShareItem.value;
+	if (!item) return "";
+	return activeShareItem.value?.type === "inbox"
+		? (item.data as any).thumbnail
+		: (item.data as any).thumbnail_url;
+});
 
 const previewLabel = computed(() => {
-  const item = activeShareItem.value
-  if (!item) return ''
-  if (item.type === 'post') {
-    return `Sharing ${item.data.author.name}'s post...`
-  }
-  // inbox item
-  const senderName = (item.data as any).sender_name ?? 'this'
-  return `Forwarding ${senderName}'s drawing...`
-})
+	const item = activeShareItem.value;
+	if (!item) return "";
+	if (item.type === "post") {
+		return `Sharing ${item.data.author.name}'s post...`;
+	}
+	// inbox item
+	const senderName = (item.data as any).sender_name ?? "this";
+	return `Forwarding ${senderName}'s drawing...`;
+});
 
 // --- Mate list ---
 const onWillPresent = async () => {
-  selectedFriendIds.value = []
+	selectedFriendIds.value = [];
 
-  if (!matesFetchedThisSession && authStore.user?._id) {
-    matesFetchedThisSession = true
-    if (allConnectedPartners.value.length === 0) loading.value = true
-    try {
-      await friendStore.getNetworkList('mates', authStore.user._id, 1)
-    } catch (e) {
-      console.error('Failed to load mates', e)
-    } finally {
-      loading.value = false
-    }
-  }
-}
+	if (!matesFetchedThisSession && authStore.user?._id) {
+		matesFetchedThisSession = true;
+		if (allConnectedPartners.value.length === 0) loading.value = true;
+		try {
+			await friendStore.getNetworkList("mates", authStore.user._id, 1);
+		} catch (e) {
+			console.error("Failed to load mates", e);
+		} finally {
+			loading.value = false;
+		}
+	}
+};
 
-const friends = computed(() => allConnectedPartners.value)
+const friends = computed(() => allConnectedPartners.value);
 
 const isFriendDisabled = (friend: any) =>
-  !friend.last_seen_version ||
-  compareVersions(friend.last_seen_version, minChatVersion) === -1
+	!friend.last_seen_version ||
+	compareVersions(friend.last_seen_version, minChatVersion) === -1;
 
 const sortedFriends = computed(() => {
-  return [...friends.value].sort((a, b) => {
-    const aDisabled = isFriendDisabled(a)
-    const bDisabled = isFriendDisabled(b)
-    if (aDisabled !== bDisabled) return aDisabled ? 1 : -1
-    const recentDelta =
-      recentActivityForPartner(activeChats.value, b._id, b.last_interaction_at) -
-      recentActivityForPartner(activeChats.value, a._id, a.last_interaction_at)
-    if (recentDelta !== 0) return recentDelta
-    const aOnline = isFriendOnline.value(a._id)
-    const bOnline = isFriendOnline.value(b._id)
-    if (aOnline !== bOnline) return aOnline ? -1 : 1
-    return a.name.localeCompare(b.name)
-  })
-})
+	return [...friends.value].sort((a, b) => {
+		const aDisabled = isFriendDisabled(a);
+		const bDisabled = isFriendDisabled(b);
+		if (aDisabled !== bDisabled) return aDisabled ? 1 : -1;
+		const recentDelta =
+			recentActivityForPartner(
+				activeChats.value,
+				b._id,
+				b.last_interaction_at,
+			) -
+			recentActivityForPartner(activeChats.value, a._id, a.last_interaction_at);
+		if (recentDelta !== 0) return recentDelta;
+		const aOnline = isFriendOnline.value(a._id);
+		const bOnline = isFriendOnline.value(b._id);
+		if (aOnline !== bOnline) return aOnline ? -1 : 1;
+		return a.name.localeCompare(b.name);
+	});
+});
 
 const toggleFriend = (friendId: string) => {
-  const index = selectedFriendIds.value.indexOf(friendId)
-  if (index > -1) selectedFriendIds.value.splice(index, 1)
-  else selectedFriendIds.value.push(friendId)
-}
+	const index = selectedFriendIds.value.indexOf(friendId);
+	if (index > -1) selectedFriendIds.value.splice(index, 1);
+	else selectedFriendIds.value.push(friendId);
+};
 
 // --- Send ---
 const sendToAllSelected = async () => {
-  if (
-    !activeShareItem.value ||
-    selectedFriendIds.value.length === 0 ||
-    isSending.value
-  )
-    return
-  isSending.value = true
+	if (
+		!activeShareItem.value ||
+		selectedFriendIds.value.length === 0 ||
+		isSending.value
+	)
+		return;
+	isSending.value = true;
 
-  try {
-    const { successCount } = await shareService.shareItemToMates(
-      activeShareItem.value,
-      selectedFriendIds.value
-    )
+	try {
+		const { successCount } = await shareService.shareItemToMates(
+			activeShareItem.value,
+			selectedFriendIds.value,
+		);
 
-    // Success (full or partial) surfaces via the ShareToasts card the service
-    // pushes — tapping it opens the chat. Only a total failure needs the bar.
-    if (successCount > 0) {
-      handleDismiss()
-    } else {
-      toast('Failed to share with selected mates', { color: 'danger' })
-    }
-  } finally {
-    isSending.value = false
-  }
-}
+		// Success (full or partial) surfaces via the ShareToasts card the service
+		// pushes — tapping it opens the chat. Only a total failure needs the bar.
+		if (successCount > 0) {
+			handleDismiss();
+		} else {
+			toast("Failed to share with selected mates", { color: "danger" });
+		}
+	} finally {
+		isSending.value = false;
+	}
+};
 
 // --- Secondary actions ---
 const handleSystemShare = () => {
-  const item = activeShareItem.value
-  if (!item) return
-  const imgUrl = (item.data as any).image_url || (item.data as any).image
-  if (imgUrl) shareImg(imgUrl)
-}
+	const item = activeShareItem.value;
+	if (!item) return;
+	const imgUrl = (item.data as any).image_url || (item.data as any).image;
+	if (imgUrl) shareImg(imgUrl);
+};
 
 const handleDismiss = () => {
-  selectedFriendIds.value = []
-  menuStore.closeMenu(Menu.SharePostMenu)
-  setTimeout(() => shareService.setActiveShareItem(null), 300)
-}
+	selectedFriendIds.value = [];
+	menuStore.closeMenu(Menu.SharePostMenu);
+	setTimeout(() => shareService.setActiveShareItem(null), 300);
+};
 </script>
 
 <style scoped>

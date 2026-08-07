@@ -1,7 +1,7 @@
-import { onScopeDispose, ref } from "vue";
-import { Keyboard } from "@capacitor/keyboard";
 import type { PluginListenerHandle } from "@capacitor/core";
-import { isNative } from "@/helper/general.helper";
+import { Keyboard } from "@capacitor/keyboard";
+import { onScopeDispose, ref } from "vue";
+import { isNative } from "@/helper/platform.helper";
 
 /**
  * How many CSS pixels the on-screen keyboard covers at the bottom of the

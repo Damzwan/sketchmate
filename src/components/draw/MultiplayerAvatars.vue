@@ -28,10 +28,10 @@
 </template>
 
 <script setup lang="ts">
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { useGestureStore } from "@/draw/tools/gesture.store";
 import { storeToRefs } from "pinia";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useGestureStore } from "@/draw/tools/gesture.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 const { activeAvatars } = storeToRefs(useDrawUIStore());
 const { isGesturing } = storeToRefs(useGestureStore());

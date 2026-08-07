@@ -1,29 +1,32 @@
-import * as fabric from "fabric";
-import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
-import { bakeryMarkDirty } from "@/draw/rendering/bakery/tileBakeryClient";
-import { restoreStrokeDefaults } from "@/draw/objects/strokeDefaults";
+import * as fabric from "fabric";
 import {
-	stripType,
-	toObjectWithoutPath,
-} from "@/draw/utils/brushes/brush.helpers";
-import { createYielder } from "@/draw/scheduling/yielder";
+	type Canvas,
+	type FabricObject,
+	Group,
+	type Path,
+	PencilBrush,
+} from "fabric";
 import {
 	FLATTEN_ERASE_CLIP_AFTER,
 	LIVE_ERASE_STROKES,
 } from "@/draw/history/eraseUndoPolicy";
+import { activeLayerId, isLayerHidden } from "@/draw/layers/layerRegistry";
+import { restoreStrokeDefaults } from "@/draw/objects/strokeDefaults";
+import { bakeryMarkDirty } from "@/draw/rendering/bakery/tileBakeryClient";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
-import { TracedPath } from "@/draw/utils/brushes/TracedPath";
-import {
-	activeLayerId,
-	isLayerHidden,
-} from "@/draw/layers/layerRegistry";
+import { createYielder } from "@/draw/scheduling/yielder";
 import {
 	allowedCompactionPixels,
 	canRetainCompactedStrokes,
 	measureEraserCompactionUsage,
 	pruneExpiredRetainedClipStrokes,
 } from "@/draw/tools/eraserCompactionBudget";
+import {
+	stripType,
+	toObjectWithoutPath,
+} from "@/draw/utils/brushes/brush.helpers";
+import { TracedPath } from "@/draw/utils/brushes/TracedPath";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -33,7 +36,7 @@ function isPrimaryPointer(ev: Event | undefined): boolean {
 
 	// Mobile TouchEvent
 	if ("touches" in ev) {
-		return ev.touches.length <= 1;
+		return (ev as TouchEvent).touches.length <= 1;
 	}
 
 	// PointerEvent (desktop, stylus)
@@ -144,7 +147,11 @@ function drawCanvas(
 		clipPath._set("canvas", canvas);
 		clipPath.shouldCache();
 		clipPath._transformDone = true;
-		clipPath.renderCache({ forClipping: true });
+		// renderCache() is typed on TCachedFabricObject; shouldCache() above is
+		// what actually establishes the cache fields at runtime.
+		(clipPath as unknown as { renderCache: (o: object) => void }).renderCache({
+			forClipping: true,
+		});
 		canvas.drawClipPathOnCanvas(ctx, clipPath as any);
 	}
 
@@ -212,6 +219,16 @@ function draw(
 	});
 }
 
+/**
+ * Fabric's shipped types declare `erasable` as boolean, but the eraser runtime
+ * also honours the string "deep" to mean "recurse into this group". Nothing in
+ * this app writes "deep" today; the branch is kept for parity with upstream
+ * @erase2d and for any scene that carries it.
+ */
+function isDeepErasable(object: FabricObject): boolean {
+	return (object as { erasable?: boolean | "deep" }).erasable === "deep";
+}
+
 function walk(
 	objects: FabricObject[],
 	path: Path,
@@ -220,7 +237,7 @@ function walk(
 	return objects.flatMap((object) => {
 		if (!isErasable(object) || !object.intersectsWithObject(path)) {
 			return [];
-		} else if (object instanceof Group && object.erasable === "deep") {
+		} else if (object instanceof Group && isDeepErasable(object)) {
 			return walk(object.getObjects(), path, isErasable);
 		} else {
 			return [object];
@@ -235,7 +252,7 @@ function walk2(
 	return objects.flatMap((object) => {
 		if (!isErasable(object) || object.isNotVisible()) {
 			return [];
-		} else if (object instanceof Group && object.erasable === "deep") {
+		} else if (object instanceof Group && isDeepErasable(object)) {
 			return walk2(object.getObjects(), isErasable);
 		} else {
 			return [object];
@@ -728,7 +745,6 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override
 	 */
-	// @ts-ignore
 	createPath(pathData: fabric.util.TSimplePathData) {
 		// We instantiate our synced class directly instead of using super.createPath()
 		const path = new OptimizedEraserStroke(pathData, {
@@ -753,7 +769,6 @@ export class CustomEraserBrush extends PencilBrush {
 		});
 
 		if (this.shadow) {
-			// @ts-ignore - Fabric typing workaround
 			this.shadow.affectStroke = true;
 			path.shadow = new fabric.Shadow(this.shadow);
 		}
@@ -918,10 +933,7 @@ export class CustomEraserBrush extends PencilBrush {
 		if (toBake.length === 0) return;
 
 		const sceneObjects = this.canvas.getObjects();
-		pruneExpiredRetainedClipStrokes(
-			sceneObjects,
-			this.isEraseStrokeUndoable,
-		);
+		pruneExpiredRetainedClipStrokes(sceneObjects, this.isEraseStrokeUndoable);
 		const prevRetained: FabricObject[] = (
 			(object as any).__bakedClipStrokes ?? []
 		).filter(
@@ -937,12 +949,7 @@ export class CustomEraserBrush extends PencilBrush {
 			return;
 		}
 		const usage = measureEraserCompactionUsage(sceneObjects, object);
-		if (
-			!canRetainCompactedStrokes(
-				usage.retainedStrokes,
-				retained.length,
-			)
-		) {
+		if (!canRetainCompactedStrokes(usage.retainedStrokes, retained.length)) {
 			// Keeping vectors live costs render time but does not duplicate them into
 			// both a bitmap and an off-tree undo list. Memory safety wins here.
 			return;
@@ -984,7 +991,6 @@ export class CustomEraserBrush extends PencilBrush {
 			multiplier *= Math.sqrt(allowedPixels / area);
 		}
 
-		// @ts-ignore — toCanvasElement exists on Group
 		const flattenStartedAt = performance.now();
 		const el: HTMLCanvasElement = union.toCanvasElement({ multiplier });
 		recordPhase("eraseClipFlatten", performance.now() - flattenStartedAt);
@@ -1069,7 +1075,7 @@ export class CustomEraserBrush extends PencilBrush {
 			: this.canvas.getObjects();
 		const targets = walk(candidates, path, this.erasableFilter);
 
-		const r = path.getBoundingRect(true, true);
+		const r = path.getBoundingRect();
 
 		const pad = (path.strokeWidth ?? 0) * 1.5;
 
@@ -1109,7 +1115,9 @@ export class OptimizedEraserStroke extends TracedPath {
 
 	constructor(path: string | any[] | TracedPath, options: any) {
 		const sharedSource =
-			path instanceof TracedPath && path._hasCompactPathGeometry() ? path : null;
+			path instanceof TracedPath && path._hasCompactPathGeometry()
+				? path
+				: null;
 		// Like pencil, the packed geometry can regenerate compressedTrace. Keeping
 		// the loaded JSON array would retain a second copy for every clip clone.
 		const { compressedTrace: _compressedTrace, ...pathOptions } = options || {};
@@ -1119,8 +1127,14 @@ export class OptimizedEraserStroke extends TracedPath {
 		}
 	}
 
-	// @ts-ignore
-	toObject(additionalProperties: string[] = []) {
+	/**
+	 * Fabric 7 types `toObject` with generics that describe the returned property
+	 * subset. This override cannot honour them — it rebuilds the payload from the
+	 * compressed trace rather than the base property set — so the boundary is
+	 * widened here rather than suppressed. Suppressing it left the whole class
+	 * unassignable to `TracedPath`/`Path`, which surfaced as errors at every use.
+	 */
+	toObject(additionalProperties: any = []): any {
 		// Preserve the composite operation essential for the masking effect.
 		// Path.toObject deep-copies every segment and it is discarded below —
 		// fromObject rebuilds from `compressedTrace`. See toObjectWithoutPath.
@@ -1183,7 +1197,8 @@ export class OptimizedEraserStroke extends TracedPath {
 				const cmd = trace[i];
 
 				if (cmd === "M" || cmd === "L") {
-					let ix, iy;
+					let ix: number;
+					let iy: number;
 					if (cmd === "M") {
 						ix = trace[i + 1] as number;
 						iy = trace[i + 2] as number;

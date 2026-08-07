@@ -140,26 +140,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { storeToRefs } from "pinia";
-import { IonSpinner, IonIcon } from "@ionic/vue";
+import { IonIcon, IonSpinner } from "@ionic/vue";
 import {
 	mdiAccountPlusOutline,
 	mdiChevronRight,
 	mdiClose,
 	mdiMagnify,
 } from "@mdi/js";
-import { compareVersions, svg } from "@/helper/general.helper";
-
+import { storeToRefs } from "pinia";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useUserCacheStore } from "@/store/userCache.store";
-import { useMenuStore } from "@/store/menu.store";
 import { hydrateCustomization } from "@/config/profile_options.config";
-import { Menu } from "@/types/menu.types";
-import { useChatStore } from "@/store/chat.store";
 import { recentActivityForPartner } from "@/helper/chat.helper";
+import { compareVersions, svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import { Menu } from "@/types/menu.types";
 
 const props = defineProps<{
 	minChatVersion: string;
@@ -172,8 +171,13 @@ const friendStore = useFriendStore();
 const chatStore = useChatStore();
 const userCache = useUserCacheStore();
 const menuStore = useMenuStore();
-const { networkLists, networkLoading, hasMore, isFriendOnline, allConnectedPartners } =
-	storeToRefs(friendStore);
+const {
+	networkLists,
+	networkLoading,
+	hasMore,
+	isFriendOnline,
+	allConnectedPartners,
+} = storeToRefs(friendStore);
 const { activeChats } = storeToRefs(chatStore);
 
 const openConnectionMenu = () => menuStore.openMenu(Menu.ConnectionMenu);
@@ -223,7 +227,11 @@ const sortedFriends = computed(() => {
 		const aOnline = isFriendOnline.value(a._id);
 		const bOnline = isFriendOnline.value(b._id);
 		const recentDelta =
-			recentActivityForPartner(activeChats.value, b._id, b.last_interaction_at) -
+			recentActivityForPartner(
+				activeChats.value,
+				b._id,
+				b.last_interaction_at,
+			) -
 			recentActivityForPartner(activeChats.value, a._id, a.last_interaction_at);
 		if (recentDelta !== 0) return recentDelta;
 		if (aOnline !== bOnline) return aOnline ? -1 : 1;

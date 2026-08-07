@@ -73,21 +73,21 @@
 <script setup lang="ts">
 import { IonButton, IonHeader, IonIcon, useIonRouter } from "@ionic/vue";
 import {
-  chatbubblesOutline,
-  bulbOutline,
-  notificationsOutline,
-  storefrontOutline,
+	bulbOutline,
+	chatbubblesOutline,
+	notificationsOutline,
+	storefrontOutline,
 } from "ionicons/icons";
-import { Menu } from "@/types/menu.types";
-import { useMenuStore } from "@/store/menu.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
 import { storeToRefs } from "pinia";
-import { useFriendStore } from "@/store/friend.store";
-import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
-import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 defineProps<{ title: string }>();
 
@@ -97,13 +97,13 @@ const chatWidgetStore = useChatWidgetStore();
 const { openPanel } = chatWidgetStore;
 
 const openShop = () => {
-  trackEvent(mixpanelEvents.shopOpen, { source: "topbar" });
-  openMenu(Menu.Shop);
+	trackEvent(mixpanelEvents.shopOpen, { source: "topbar" });
+	openMenu(Menu.Shop);
 };
 
 const openMessages = () => {
-  trackEvent(mixpanelEvents.messagesOpen, { source: "topbar" });
-  openPanel();
+	trackEvent(mixpanelEvents.messagesOpen, { source: "topbar" });
+	openPanel();
 };
 const { onlineFriends } = storeToRefs(useFriendStore());
 const { totalUnreadCount } = storeToRefs(useChatStore());
@@ -113,8 +113,11 @@ const { unseen } = storeToRefs(useInAppNotificationStore());
 const r = useIonRouter();
 
 const openNotifications = () => {
-  trackEvent(mixpanelEvents.notificationsOpen, { unseen: unseen.value, source: "topbar" });
-  r.push(FRONTEND_ROUTES.notifications, masterAnimation);
+	trackEvent(mixpanelEvents.notificationsOpen, {
+		unseen: unseen.value,
+		source: "topbar",
+	});
+	r.push(FRONTEND_ROUTES.notifications, masterAnimation);
 };
 </script>
 

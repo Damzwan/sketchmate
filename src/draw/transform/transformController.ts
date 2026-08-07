@@ -1,16 +1,16 @@
-import { Canvas, FabricObject, InteractiveFabricObject } from "fabric";
+import { type Canvas, FabricObject, InteractiveFabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { compareRenderOrder } from "@/draw/layers/layerRegistry";
-import { useGestureStore } from "@/draw/tools/gesture.store";
-import { getRenderDpr } from "@/draw/config/renderQuality.config";
 import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
 import { fitBitmapDimensions } from "@/draw/config/drawMemoryProfile";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { getRenderDpr } from "@/draw/config/renderQuality.config";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import {
 	bakeryRenderSelection,
 	isBakeryActive,
 } from "@/draw/rendering/bakery/tileBakeryClient";
 import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { useGestureStore } from "@/draw/tools/gesture.store";
 import {
 	rectangularHoleClipPath,
 	snapRectToDevicePixels,
@@ -1282,7 +1282,7 @@ function bitmapGeometry(
 		width: bounds.width + PAD * 2,
 		height: bounds.height + PAD * 2,
 	};
-	let scale = c.viewportTransform![0] * getRenderDpr();
+	const scale = c.viewportTransform![0] * getRenderDpr();
 	let width = Math.ceil(origin.width * scale);
 	let height = Math.ceil(origin.height * scale);
 	({ width, height } = fitTransformBitmap(width, height));

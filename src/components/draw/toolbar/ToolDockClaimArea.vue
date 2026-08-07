@@ -20,14 +20,14 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon } from '@ionic/vue'
-import ToolButton from './ToolButton.vue'
-import { mdiClose, mdiSelectionDrag } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { useClaimArea } from '@/draw/claims/claimArea.store'
+import { IonIcon } from "@ionic/vue";
+import { mdiClose, mdiSelectionDrag } from "@mdi/js";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { svg } from "@/helper/general.helper";
+import ToolButton from "./ToolButton.vue";
 
-const claim = useClaimArea()
-const exitClaimMode = () => claim.exitClaimMode()
+const claim = useClaimArea();
+const exitClaimMode = () => claim.exitClaimMode();
 </script>
 
 <style scoped>

@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	type Bounded,
+	CommittedLayer,
+	type SpatialIndex,
+	type WorldRect,
+} from "./committedLayer";
+import {
 	estimateObjectRenderCost,
 	estimateRenderCost,
 	isSyncRenderAffordable,
 } from "./renderCost";
-import {
-	CommittedLayer,
-	type Bounded,
-	type SpatialIndex,
-	type WorldRect,
-} from "./committedLayer";
 
 interface TestObject extends Bounded {}
 

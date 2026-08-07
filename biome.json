@@ -1,21 +1,53 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
 	"vcs": {
-		"enabled": false,
+		"enabled": true,
 		"clientKind": "git",
 		"useIgnoreFile": true
 	},
 	"files": {
-		"includes": ["**", "!!**/dist"]
+		"includes": [
+			"src/**",
+			"scripts/**",
+			"*.ts",
+			"*.mjs",
+			"*.cjs",
+			"*.js",
+			"*.json",
+			"!**/node_modules",
+			"!android",
+			"!ios",
+			"!dist",
+			"!dev-dist",
+			"!public",
+			"!src/assets",
+			"!src/theme",
+			"!pnpm-lock.yaml"
+		]
 	},
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab"
 	},
 	"linter": {
-		"enabled": false,
+		"enabled": true,
 		"rules": {
-			"recommended": true
+			"recommended": true,
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noDoubleEquals": "off",
+				"useIterableCallbackReturn": "off",
+				"noAssignInExpressions": "off",
+				"noTsIgnore": "warn"
+			},
+			"style": {
+				"noNonNullAssertion": "off",
+				"useTemplate": "off"
+			},
+			"complexity": {
+				"useOptionalChain": "off",
+				"useLiteralKeys": "off"
+			}
 		}
 	},
 	"javascript": {
@@ -25,11 +57,39 @@
 		}
 	},
 	"assist": {
-		"enabled": false,
+		"enabled": true,
 		"actions": {
 			"source": {
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.vue"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnusedVariables": "off",
+						"noUnusedImports": "off",
+						"noUnusedFunctionParameters": "off",
+						"noVueDuplicateKeys": "off"
+					},
+					"style": {
+						"useImportType": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.test.ts", "**/*.spec.ts", "bench/**", "scripts/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noTsIgnore": "off"
+					}
+				}
+			}
+		}
+	]
 }

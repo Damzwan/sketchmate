@@ -24,6 +24,7 @@ export enum Shortcut {
 	flipX = "x",
 	flipY = "y",
 	penBrush = "p",
+	manual = "?",
 	inspect = "/",
 	inspect2 = ".",
 }

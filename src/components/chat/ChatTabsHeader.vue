@@ -134,21 +134,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { storeToRefs } from "pinia";
 import { IonButton, IonIcon } from "@ionic/vue";
+import { mdiClose, mdiEarth, mdiPaletteOutline } from "@mdi/js";
 import { chatbubblesOutline } from "ionicons/icons";
-import { mdiEarth, mdiClose, mdiPaletteOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { resolveSenderStyle } from "@/composables/chat/useSenderStyle";
-
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
 
 const chatWidget = useChatWidgetStore();
 const friendStore = useFriendStore();

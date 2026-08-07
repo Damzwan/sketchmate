@@ -1,5 +1,4 @@
 import type { Bounded, WorldRect } from "../committedLayer";
-import type { LiveMode } from "../liveLayer";
 import { getObjectBounds, mergeNearbyRects, unionRects } from "./invalidation";
 import { RenderInvalidationCoordinator } from "./renderInvalidationCoordinator";
 

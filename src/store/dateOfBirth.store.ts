@@ -40,5 +40,13 @@ export const useDateOfBirthModalStore = defineStore("dateOfBirthModal", () => {
 		isOpen.value = false;
 	}
 
-	return { isOpen, mode, open, resolve, close };
+	// Resolve rather than drop the pending promise: an awaiting caller that never
+	// settles keeps its whole closure alive.
+	function resetRuntimeState() {
+		resolve(null);
+		isOpen.value = false;
+		mode.value = "initial";
+	}
+
+	return { isOpen, mode, open, resolve, close, resetRuntimeState };
 });

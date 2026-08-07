@@ -106,20 +106,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import {
 	actionSheetController,
 	IonButton,
 	IonIcon,
 	IonSpinner,
 } from "@ionic/vue";
-import type { DrawingDraftMetadata } from "@/draw/document/document.store";
 import {
 	mdiDeleteOutline,
 	mdiDotsVertical,
 	mdiPencilOutline,
 	mdiShareOutline,
 } from "@mdi/js";
+import { computed } from "vue";
+import type { DrawingDraftMetadata } from "@/draw/document/document.store";
 import { svg } from "@/helper/general.helper";
 import { shareImg } from "@/helper/share.helper";
 

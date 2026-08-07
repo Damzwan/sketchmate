@@ -158,12 +158,13 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import TitleBadge from "@/components/profile/TitleBadge.vue";
 import {
+	type Customization,
 	calculateSignatureStroke,
 	hydrateCustomization,
 	resolveFontEffectClass,
@@ -171,7 +172,6 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveWorld,
-	type Customization,
 } from "@/config/profile_options.config";
 
 const props = withDefaults(

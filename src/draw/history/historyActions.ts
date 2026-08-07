@@ -1,39 +1,16 @@
+import type { Canvas, FabricObject } from "fabric";
+import { type HistoryAction, HistoryEvent } from "@/draw/history/history.types";
 import {
-	HistoryAction,
-	HistoryEvent,
-	HistoryParams,
-} from "@/draw/history/history.types";
-import {
-	redoFlipX,
-	redoFlipY,
-	redoMerge,
-	redoObjectAdded,
-	redoObjectModified,
-	redoObjectsAdded,
-	redoObjectsCopied,
-	redoObjectsDeleted,
-	redoObjectStyle,
-	undoFlipX,
-	undoFlipY,
-	undoMerge,
-	undoObjectAdded,
-	undoObjectModified,
-	undoObjectsAdded,
-	undoObjectsCopied,
-	undoObjectsDeleted,
-	undoObjectStyle,
-} from "@/draw/history/operations/objectHistory";
+	redoChangeBackgroundColor,
+	redoFullErase,
+	undoChangeBackgroundColor,
+	undoFullErase,
+} from "@/draw/history/operations/canvasHistory";
 import { redoErased, undoErased } from "@/draw/history/operations/eraseHistory";
 import {
-	redoMoveObjectsDownOneLayer,
-	redoMoveObjectsToBack,
-	redoMoveObjectsToFront,
-	redoMoveObjectsUpOneLayer,
-	undoMoveObjectsDownOneLayer,
-	undoMoveObjectsToBack,
-	undoMoveObjectsToFront,
-	undoMoveObjectsUpOneLayer,
-} from "@/draw/history/operations/layerHistory";
+	redoImgFilter,
+	undoImgFilter,
+} from "@/draw/history/operations/imageHistory";
 import {
 	redoLayerAdded,
 	redoLayerDeleted,
@@ -47,26 +24,45 @@ import {
 	undoLayerReordered,
 } from "@/draw/history/operations/layerDocumentHistory";
 import {
+	redoMoveObjectsDownOneLayer,
+	redoMoveObjectsToBack,
+	redoMoveObjectsToFront,
+	redoMoveObjectsUpOneLayer,
+	undoMoveObjectsDownOneLayer,
+	undoMoveObjectsToBack,
+	undoMoveObjectsToFront,
+	undoMoveObjectsUpOneLayer,
+} from "@/draw/history/operations/layerHistory";
+import {
+	redoFlipX,
+	redoFlipY,
+	redoMerge,
+	redoObjectAdded,
+	redoObjectModified,
+	redoObjectStyle,
+	redoObjectsAdded,
+	redoObjectsCopied,
+	redoObjectsDeleted,
+	undoFlipX,
+	undoFlipY,
+	undoMerge,
+	undoObjectAdded,
+	undoObjectModified,
+	undoObjectStyle,
+	undoObjectsAdded,
+	undoObjectsCopied,
+	undoObjectsDeleted,
+} from "@/draw/history/operations/objectHistory";
+import {
 	redoPolygonCreation,
 	undoPolygonCreation,
 } from "@/draw/history/operations/shapeHistory";
-import {
-	redoImgFilter,
-	undoImgFilter,
-} from "@/draw/history/operations/imageHistory";
-import {
-	redoChangeBackgroundColor,
-	redoFullErase,
-	undoChangeBackgroundColor,
-	undoFullErase,
-} from "@/draw/history/operations/canvasHistory";
 import {
 	redoTextChanged,
 	redoTextStyleChanged,
 	undoTextChanged,
 	undoTextStyleChanged,
 } from "@/draw/history/operations/textHistory";
-import { Canvas, FabricObject } from "fabric";
 
 export interface HistoryContext {
 	canvas: Canvas;

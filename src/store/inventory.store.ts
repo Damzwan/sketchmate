@@ -1,15 +1,15 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { useSubscriptionStore } from "./subscription.store";
-import { useAuthStore } from "./auth.store";
 import {
 	CATALOG_BY_ID,
 	FREE_ITEMS,
-	PRO_UNLOCKED_CATEGORIES,
 	grantsForSku,
 	type ItemCategory,
+	PRO_UNLOCKED_CATEGORIES,
 	type ShopSku,
 } from "@/config/catalog.config";
+import { useAuthStore } from "./auth.store";
+import { useSubscriptionStore } from "./subscription.store";
 
 const DEV_UNLOCK_ALL = true;
 
@@ -98,7 +98,7 @@ export const useInventoryStore = defineStore("inventory", () => {
 		grantOptimistic(grantsForSku(skuId));
 	};
 
-	const clear = () => {
+	const resetRuntimeState = () => {
 		owned.value = new Set();
 		optimisticGrants.value = new Set();
 		hydrated.value = false;
@@ -127,7 +127,7 @@ export const useInventoryStore = defineStore("inventory", () => {
 		grantOptimistic,
 		grantSkuOptimistic,
 		findSkuForItem,
-		clear,
+		resetRuntimeState,
 		devUnlockAll,
 		setDevUnlockAll,
 	};

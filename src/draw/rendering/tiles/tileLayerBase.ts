@@ -1,4 +1,5 @@
 import { WorldOverview } from "../worldOverview";
+import { DEFAULT_OVERVIEW_TIER, DEFAULT_ZOOM_TIERS } from "../zoomLevels";
 import {
 	getTileRange,
 	pickTileTier,
@@ -6,14 +7,13 @@ import {
 	viewportToWorldRect,
 	type WorldRect,
 } from "./tileGeometry";
+import { keyTier, keyTx, keyTy, type TileKey, tileKey } from "./tileKey";
 import {
 	releaseTileSurface,
 	type Tile,
-	type TileSurface,
 	TileStore,
+	type TileSurface,
 } from "./tileStore";
-import { keyTier, keyTx, keyTy, tileKey, type TileKey } from "./tileKey";
-import { DEFAULT_OVERVIEW_TIER, DEFAULT_ZOOM_TIERS } from "../zoomLevels";
 
 export type { WorldRect } from "./tileGeometry";
 

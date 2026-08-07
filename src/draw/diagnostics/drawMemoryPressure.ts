@@ -33,6 +33,10 @@
 
 import { App as CapacitorApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
+import {
+	installMemoryPressureBridge,
+	onMemoryPressure,
+} from "@/service/memoryPressure";
 
 export interface DrawMemoryPressureHandlers {
 	/** Drop every GPU-backed cache. Must be safe to call repeatedly. */
@@ -62,7 +66,7 @@ let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let released = false;
 let onVisibility: (() => void) | null = null;
 let appStateListener: PluginListenerHandle | null = null;
-let trimMemoryListener: PluginListenerHandle | null = null;
+let unsubscribeMemoryPressure: (() => void) | null = null;
 
 function cancelHideTimer(): void {
 	if (hideTimer === null) return;
@@ -97,22 +101,6 @@ function restoreNow(): void {
 	}
 }
 
-/**
- * Android `ComponentCallbacks2.onTrimMemory`, if a native bridge is emitting it.
- *
- * There is no such plugin in the app today, so this is a no-op until one is
- * added — the listener is registered opportunistically so that adding the
- * native side later requires no change here. The event name matches the
- * conventional Capacitor bridge shape (`{ level: number }`, the raw
- * `TRIM_MEMORY_*` constant).
- *
- * TRIM_MEMORY_RUNNING_LOW = 10, TRIM_MEMORY_RUNNING_CRITICAL = 15,
- * TRIM_MEMORY_UI_HIDDEN = 20. Anything at or above RUNNING_LOW means the system
- * is already looking for a process to kill, so we release immediately rather
- * than waiting out the grace period.
- */
-const TRIM_MEMORY_RUNNING_LOW = 10;
-
 function bindNativeListeners(): void {
 	// `App.addListener` resolves asynchronously. Guard every assignment against
 	// the module having been uninstalled while it was pending, or a listener
@@ -129,17 +117,17 @@ function bindNativeListeners(): void {
 			/* web / unsupported platform — visibilitychange covers it */
 		});
 
-	void (CapacitorApp as any)
-		.addListener?.("trimMemory", (event: { level?: number }) => {
-			if ((event?.level ?? 0) >= TRIM_MEMORY_RUNNING_LOW) releaseNow();
-		})
-		?.then((handle: PluginListenerHandle) => {
-			if (handlers) trimMemoryListener = handle;
-			else void handle.remove();
-		})
-		?.catch(() => {
-			/* no native trimMemory bridge yet */
-		});
+	// Android `onTrimMemory`, forwarded by MainActivity through
+	// `service/memoryPressure.ts`. `moderate` is the system asking politely
+	// while it still has room; from `low` upwards it is already choosing a
+	// process to kill, so release immediately rather than waiting out the grace
+	// period. `uiHidden` says only that the UI went away — `visibilitychange`
+	// and the app-state listener already handle that, with the grace period
+	// intact, so it must not short-circuit them.
+	installMemoryPressureBridge();
+	unsubscribeMemoryPressure = onMemoryPressure((level) => {
+		if (level === "low" || level === "critical") releaseNow();
+	});
 }
 
 /** Called once per canvas, from the object manager's `init`. */
@@ -172,8 +160,8 @@ export function uninstallDrawMemoryPressure(): void {
 	onVisibility = null;
 	void appStateListener?.remove();
 	appStateListener = null;
-	void trimMemoryListener?.remove();
-	trimMemoryListener = null;
+	unsubscribeMemoryPressure?.();
+	unsubscribeMemoryPressure = null;
 }
 
 /** Test seam: is the engine currently in the released state? */

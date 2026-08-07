@@ -1,0 +1,43 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Frozen lockfile: a manifest/lockfile mismatch must fail here rather than
+      # silently resolving to different versions than anyone tested against.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint and format (Biome)
+        run: pnpm exec biome check .
+
+      - name: Typecheck
+        run: pnpm exec vue-tsc --noEmit
+
+      - name: Unit tests
+        run: pnpm exec vitest run
+
+      - name: Build
+        run: pnpm exec vite build
+
+      - name: Cold-start payload budget
+        run: node scripts/checkBudget.mjs

@@ -1,9 +1,6 @@
 import { Canvas } from "fabric";
-import {
-	applyRenderDpr,
-	configureFabric,
-	createCanvasOptions,
-} from "@/draw/canvas/fabricSetup";
+import { ref } from "vue";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import {
 	overrideFindTarget,
 	overrideHandleSelection,
@@ -12,14 +9,13 @@ import {
 	overrideTransform,
 } from "@/draw/canvas/fabricInteractions";
 import {
-	getDefaultZoom,
-	initViewport,
-	resetZoom,
-} from "@/draw/canvas/viewport";
+	applyRenderDpr,
+	configureFabric,
+	createCanvasOptions,
+} from "@/draw/canvas/fabricSetup";
+import { initViewport } from "@/draw/canvas/viewport";
 import { BACKGROUND, CANVAS_SIZE } from "@/draw/config/canvas.config";
-import { ref } from "vue";
 import { loadFonts } from "@/draw/tools/textEditing";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 
 function createCanvasController() {
 	let c: Canvas | null = null;
@@ -39,7 +35,7 @@ function createCanvasController() {
 				// a disposed one — "Cannot read properties of undefined (reading
 				// 'ctx')" after leaving and re-entering the draw page.
 				useDrawObjectManager().detach();
-			} catch (e) {
+			} catch (_e) {
 				// ignore
 			}
 			try {

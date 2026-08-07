@@ -1,14 +1,5 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import type {
-	UserRestriction,
-	UserStrikeSummary,
-	ModerationStrikePayload,
-	UserStandingData,
-	Capability,
-	ReportReason,
-	ReportableType,
-} from "@/types/server.types";
 import {
 	getStanding,
 	reportBalloon,
@@ -19,11 +10,20 @@ import {
 	reportPost,
 	reportUser,
 } from "@/service/api/moderation.api";
+import { blockUser } from "@/service/api/relationship.api";
+import { useToast } from "@/service/toast.service";
+import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { useToast } from "@/service/toast.service";
-import { blockUser } from "@/service/api/relationship.api";
-import { useFriendStore } from "@/store/friend.store";
+import type {
+	Capability,
+	ModerationStrikePayload,
+	ReportableType,
+	ReportReason,
+	UserRestriction,
+	UserStandingData,
+	UserStrikeSummary,
+} from "@/types/server.types";
 
 export interface ReportTarget {
 	type: ReportableType;
@@ -171,7 +171,7 @@ export const useModerationStore = defineStore("moderation", () => {
 		};
 	}
 
-	function reset() {
+	function resetRuntimeState() {
 		restriction.value = null;
 		cachedCapabilities.value = [];
 		strikeSummary.value = { active_strikes: 0, total_strikes: 0 };
@@ -259,7 +259,6 @@ export const useModerationStore = defineStore("moderation", () => {
 			return true;
 		} catch (e) {
 			console.error("submitReport failed:", e);
-			console.log(e.status);
 			toast("Could not submit report. Please try again.", { color: "danger" });
 			return false;
 		} finally {
@@ -281,7 +280,7 @@ export const useModerationStore = defineStore("moderation", () => {
 		dismissStrikeNotice,
 		fetchStanding,
 		notifyCapabilityBlocked,
-		reset,
+		resetRuntimeState,
 		targetToReport,
 		isSubmittingReport,
 		blockableUserId,

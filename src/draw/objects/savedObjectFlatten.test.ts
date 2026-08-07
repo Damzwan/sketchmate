@@ -76,7 +76,10 @@ describe("flatten raster sizing", () => {
 	it("keeps a room flatten inside the wire budget", () => {
 		// A replicated raster crosses the wire on the add and inside every undo of
 		// it, so a room trades resolution for a bounded payload.
-		const size = flattenRasterSize(4_000, FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION);
+		const size = flattenRasterSize(
+			4_000,
+			FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION,
+		);
 		expect(size).toBeLessThanOrEqual(FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION);
 	});
 

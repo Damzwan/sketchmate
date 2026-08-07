@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { BASE_BRUSH_SIZE } from "@/draw/config/canvas.config";
+import { simplifyPathDouglasPeucker } from "./brush.helpers";
 import {
 	strokeDecimateDistance,
 	strokeSimplifyTolerance,
 } from "./strokeSimplification";
-import { simplifyPathDouglasPeucker } from "./brush.helpers";
-import { BASE_BRUSH_SIZE } from "@/draw/config/canvas.config";
 
 describe("strokeSimplifyTolerance", () => {
 	it("reproduces the previous fixed tolerance at the default brush size", () => {

@@ -1,40 +1,40 @@
+import type { Canvas, FabricObject } from "fabric";
 import { defineStore } from "pinia";
-import { type Canvas, type FabricObject } from "fabric";
 import { computed, ref } from "vue";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { MAX_HISTORY_ACTIONS } from "@/draw/history/eraseUndoPolicy";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import { useSelect } from "@/draw/tools/select.store";
-import { useEraser } from "@/draw/tools/eraser.store";
+import { MAX_HISTORY_ACTIONS } from "@/draw/history/eraseUndoPolicy";
+import { type HistoryAction, HistoryEvent } from "@/draw/history/history.types";
 import {
-	HistoryContext,
+	type HistoryContext,
 	redoActionMapping,
 	undoActionMapping,
 } from "@/draw/history/historyActions";
-import { EventBus } from "@/main";
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { isText } from "@/draw/tools/textEditing";
+import {
+	eraseHistoryWeight,
+	referenceHistoryWeight,
+} from "@/draw/history/historyBudget";
+import { getObjectDiff } from "@/draw/history/operations/objectHistory";
+import { handleTextModification } from "@/draw/history/operations/textHistory";
 import {
 	getAbsoluteState,
 	serializeOnce,
 	toJSON,
 	toObjectsIds,
 } from "@/draw/objects/objectSerialization";
-import { handleTextModification } from "@/draw/history/operations/textHistory";
-import { getObjectDiff } from "@/draw/history/operations/objectHistory";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { yieldToMain } from "@/draw/scheduling/yielder";
-import {
-	eraseHistoryWeight,
-	referenceHistoryWeight,
-} from "@/draw/history/historyBudget";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { yieldToMain } from "@/draw/scheduling/yielder";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useEraser } from "@/draw/tools/eraser.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { isText } from "@/draw/tools/textEditing";
 import * as transform from "@/draw/transform/transformController";
+import { EventBus } from "@/main";
 
 export const useDrawHistoryManager = defineStore("history", () => {
-	let c: Canvas | undefined = undefined;
+	let c: Canvas | undefined;
 
 	let undoStack: HistoryAction[] = [];
 	let redoStack: HistoryAction[] = [];

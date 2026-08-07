@@ -74,16 +74,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { useDrawStore } from "@/draw/session/draw.store";
-import {
-	runLiveDrawingBenchmark,
-	type LiveBenchmarkProgress,
-} from "@/draw/benchmark/liveDrawingBenchmark";
-import {
-	startBenchmarkSession,
-	type BenchmarkSession,
-} from "@/draw/benchmark/benchmarkSession";
 import type { BenchmarkReport } from "@/draw/benchmark/benchmark.types";
+import {
+	type BenchmarkSession,
+	startBenchmarkSession,
+} from "@/draw/benchmark/benchmarkSession";
+import {
+	type LiveBenchmarkProgress,
+	runLiveDrawingBenchmark,
+} from "@/draw/benchmark/liveDrawingBenchmark";
+import { useDrawStore } from "@/draw/session/draw.store";
 
 const props = withDefaults(
 	defineProps<{

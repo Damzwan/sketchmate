@@ -1,4 +1,4 @@
-import { Canvas } from "fabric";
+import type { Canvas } from "fabric";
 
 /**
  * Browsers refuse a custom cursor image above roughly 128×128 (Chrome silently

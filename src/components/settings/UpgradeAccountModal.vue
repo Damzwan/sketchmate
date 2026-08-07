@@ -120,7 +120,6 @@ import {
 	IonSpinner,
 	modalController,
 } from "@ionic/vue";
-import { svg } from "@/helper/general.helper";
 import {
 	mdiChevronLeft,
 	mdiEmailOutline,
@@ -128,6 +127,8 @@ import {
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
+import { useCredentialsValidation } from "@/composables/general/useCredentialsValidation";
+import { svg } from "@/helper/general.helper";
 
 withDefaults(
 	defineProps<{
@@ -137,39 +138,22 @@ withDefaults(
 		trigger: "openUpgradeAccountModal",
 	},
 );
-import { computed, reactive, ref } from "vue";
-import { email, minLength, required, sameAs } from "@vuelidate/validators";
-import { useVuelidate } from "@vuelidate/core";
+
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { GoogleAuthProvider, getAuth, linkWithCredential } from "firebase/auth";
-import { ToastDuration } from "@/types/toast.types";
-import { useToast } from "@/service/toast.service";
-import connectImage from "@/assets/illustrations/connect.webp";
 import { storeToRefs } from "pinia";
+import { computed, reactive, ref } from "vue";
+import connectImage from "@/assets/illustrations/connect.webp";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
+import { ToastDuration } from "@/types/toast.types";
 
 const { toast } = useToast();
 const { firebaseUser } = storeToRefs(useAuthStore());
 
-const state = reactive({
-	loginEmail: "",
-	password: "",
-	confirmPassword: "",
-});
+const { state, v$ } = useCredentialsValidation();
 const loginErrorMsg = ref("");
 
-const confirmRef = computed(() => state.password);
-
-const rules = {
-	loginEmail: { required, email },
-	password: { required, minLength: minLength(8) },
-	confirmPassword: {
-		required,
-		minLength: minLength(8),
-		confirmRef: sameAs(confirmRef),
-	},
-};
-const v$ = useVuelidate(rules, state);
 const isRegisterInvalid = computed(
 	() =>
 		v$.value.loginEmail.$invalid ||

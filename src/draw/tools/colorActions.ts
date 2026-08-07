@@ -1,17 +1,16 @@
-import { useDrawStore } from "@/draw/session/draw.store";
+import type { FabricObject } from "fabric";
 import { storeToRefs } from "pinia";
-import { useSelect } from "@/draw/tools/select.store";
+import type {
+	DrawAction,
+	DrawActionParams,
+} from "@/draw/actions/drawAction.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { FabricObject } from "fabric";
+import { ERASERS } from "@/draw/config/tools.config";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { usePen } from "@/draw/tools/pen.store";
-import { DrawAction, type DrawActionParams } from "@/draw/actions/drawAction.types";
-import { DrawTool } from "@/draw/tools/tool.types";
+import { useSelect } from "@/draw/tools/select.store";
 import { exitEditing, isText } from "@/draw/tools/textEditing";
-import {
-	ERASERS,
-	PENMENUTOOLS,
-	SELECTMENUTOOLS,
-} from "@/draw/config/tools.config";
+import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
@@ -50,7 +49,7 @@ function applyStyle<T extends FabricObject = FabricObject>(
 	const prevStyles: Partial<T>[] = selectedObjectsRef.map((obj) => {
 		const saved: Partial<T> = {};
 		for (const key in style) {
-			// @ts-ignore
+			// @ts-expect-error
 			saved[key as keyof T] = obj[key as keyof T];
 		}
 		return saved;

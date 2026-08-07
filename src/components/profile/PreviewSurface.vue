@@ -46,11 +46,11 @@
 </template>
 
 <script setup lang="ts">
-import type { Customization } from "@/config/profile_options.config";
-import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
-import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
-import ConversationItem from "@/components/chat/ConversationItem.vue";
 import ChatToastItem from "@/components/chat/ChatToastItem.vue";
+import ConversationItem from "@/components/chat/ConversationItem.vue";
+import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
+import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
+import type { Customization } from "@/config/profile_options.config";
 
 defineProps<{
 	mode: "card" | "post" | "chat";

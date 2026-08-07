@@ -1,3 +1,4 @@
+import { resolveDrawMemoryProfile } from "./drawMemoryProfile";
 import {
 	DRAW_DEVICE_MEMORY_GB,
 	DRAW_HARDWARE_CONCURRENCY,
@@ -5,7 +6,6 @@ import {
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
 } from "./renderQuality.config";
-import { resolveDrawMemoryProfile } from "./drawMemoryProfile";
 
 export const DRAW_MEMORY_PROFILE = resolveDrawMemoryProfile({
 	mobile: IS_MOBILE_DEVICE,

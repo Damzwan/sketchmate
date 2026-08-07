@@ -65,152 +65,153 @@
 
 
 <script setup lang="ts">
-import { useToast } from '@/service/toast.service'
+import { AppReview } from "@capawesome/capacitor-app-review";
 import {
-  IonButton,
-  IonIcon,
-  IonModal,
-  IonRadio,
-  IonRadioGroup,
-  IonTextarea,
-  modalController
-} from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { mdiClose, mdiGiftOffOutline } from '@mdi/js'
-import { isNative, svg } from '@/helper/general.helper'
-import { ref } from 'vue'
-import discordSvg from '@/assets/discord.svg'
+	IonButton,
+	IonIcon,
+	IonModal,
+	IonRadio,
+	IonRadioGroup,
+	IonTextarea,
+	modalController,
+} from "@ionic/vue";
+import { mdiClose } from "@mdi/js";
 import {
-  addDoc,
-  collection,
-  getFirestore,
-  serverTimestamp
-} from '@firebase/firestore'
-import { useAuthStore } from '@/store/auth.store'
-import { discord_link } from '@/config/general.config'
-import { AppReview } from '@capawesome/capacitor-app-review'
-import { useSubscriptionStore } from '@/store/subscription.store'
-import { setFeedbackOptOut, submitFeedback } from '@/service/api/user.api'
-import { useInventoryStore } from '@/store/inventory.store'
-import { useShareToastStore } from '@/draw/sharing/shareToast.store'
+	addDoc,
+	collection,
+	getFirestore,
+	serverTimestamp,
+} from "firebase/firestore";
+import { storeToRefs } from "pinia";
+import { ref } from "vue";
+import discordSvg from "@/assets/discord.svg";
+import { discord_link } from "@/config/general.config";
+import { useShareToastStore } from "@/draw/sharing/shareToast.store";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
+import { setFeedbackOptOut, submitFeedback } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 enum FeedbackOptions {
-  like = 'like',
-  neutral = 'neutral',
-  dislike = 'dislike',
-  empty = 'empty',
+	like = "like",
+	neutral = "neutral",
+	dislike = "dislike",
+	empty = "empty",
 }
 
-const { feedbackMenuOpen } = storeToRefs(useMenuStore())
+const { feedbackMenuOpen } = storeToRefs(useMenuStore());
 
-const likeText = ref('')
-const dislikeText = ref('')
-const score = ref<FeedbackOptions>(FeedbackOptions.empty)
+const likeText = ref("");
+const dislikeText = ref("");
+const score = ref<FeedbackOptions>(FeedbackOptions.empty);
 
-const subscriptionStore = useSubscriptionStore()
-const { isPro } = storeToRefs(subscriptionStore)
+const subscriptionStore = useSubscriptionStore();
+const { isPro } = storeToRefs(subscriptionStore);
 
-const isSubmitting = ref(false)
-const isOptingOut = ref(false)
+const isSubmitting = ref(false);
+const isOptingOut = ref(false);
 
 async function submit() {
-  if (isSubmitting.value) return
-  isSubmitting.value = true
+	if (isSubmitting.value) return;
+	isSubmitting.value = true;
 
-  const { toast } = useToast()
-  if (
-    likeText.value == '' &&
-    dislikeText.value == '' &&
-    score.value == FeedbackOptions.empty
-  ) {
-    toast('Fill at least one field', { color: 'warning' })
-    isSubmitting.value = false
-    return
-  }
+	const { toast } = useToast();
+	if (
+		likeText.value == "" &&
+		dislikeText.value == "" &&
+		score.value == FeedbackOptions.empty
+	) {
+		toast("Fill at least one field", { color: "warning" });
+		isSubmitting.value = false;
+		return;
+	}
 
-  const db = getFirestore()
-  const { user } = useAuthStore()
+	const db = getFirestore();
+	const { user } = useAuthStore();
 
-  if (!user) {
-    isSubmitting.value = false
-    return
-  }
+	if (!user) {
+		isSubmitting.value = false;
+		return;
+	}
 
-  modalController.dismiss()
+	modalController.dismiss();
 
-  const feedbackData = {
-    likeText: likeText.value,
-    dislikeText: dislikeText.value,
-    score: score.value,
-    userId: user.auth_id,
-    version: __APP_VERSION__
-  }
+	const feedbackData = {
+		likeText: likeText.value,
+		dislikeText: dislikeText.value,
+		score: score.value,
+		userId: user.auth_id,
+		version: __APP_VERSION__,
+	};
 
-  resetForm()
+	resetForm();
 
-  try {
-    await addDoc(collection(db, 'feedback'), {
-      ...feedbackData,
-      timestamp: serverTimestamp()
-    })
+	try {
+		await addDoc(collection(db, "feedback"), {
+			...feedbackData,
+			timestamp: serverTimestamp(),
+		});
 
-    toast('Thank you for your feedback :)', { color: 'success' })
+		toast("Thank you for your feedback :)", { color: "success" });
 
-    // Earn the Contributor title. Backend is authoritative; reflect it
-    // locally and celebrate anything newly granted.
-    try {
-      const message = [
-        feedbackData.likeText && `LIKE: ${feedbackData.likeText}`,
-        feedbackData.dislikeText && `DISLIKE: ${feedbackData.dislikeText}`,
-        `SCORE: ${feedbackData.score}`
-      ]
-        .filter(Boolean)
-        .join('\n')
-      const { granted } = await submitFeedback({ message })
-      if (granted?.length) {
-        useInventoryStore().grantOptimistic(granted)
-        for (const id of granted) useShareToastStore().pushTitleToast(id)
-      }
-    } catch (e) {
-      console.error('[feedback] title grant failed', e)
-    }
+		// Earn the Contributor title. Backend is authoritative; reflect it
+		// locally and celebrate anything newly granted.
+		try {
+			const message = [
+				feedbackData.likeText && `LIKE: ${feedbackData.likeText}`,
+				feedbackData.dislikeText && `DISLIKE: ${feedbackData.dislikeText}`,
+				`SCORE: ${feedbackData.score}`,
+			]
+				.filter(Boolean)
+				.join("\n");
+			const { granted } = await submitFeedback({ message });
+			if (granted?.length) {
+				useInventoryStore().grantOptimistic(granted);
+				for (const id of granted) useShareToastStore().pushTitleToast(id);
+			}
+		} catch (e) {
+			console.error("[feedback] title grant failed", e);
+		}
 
-    if (feedbackData.score === FeedbackOptions.like && isNative()) {
-      await AppReview.requestReview()
-    }
-  } catch (e) {
-    console.error('Error adding feedback: ', e)
-    toast('Failed to send feedback. Please try again later.', {
-      color: 'danger'
-    })
-  } finally {
-    isSubmitting.value = false
-  }
+		if (feedbackData.score === FeedbackOptions.like && isNative()) {
+			await AppReview.requestReview();
+		}
+	} catch (e) {
+		console.error("Error adding feedback: ", e);
+		toast("Failed to send feedback. Please try again later.", {
+			color: "danger",
+		});
+	} finally {
+		isSubmitting.value = false;
+	}
 }
 
 async function handleOptOut() {
-  if (isOptingOut.value) return
-  isOptingOut.value = true
+	if (isOptingOut.value) return;
+	isOptingOut.value = true;
 
-  const { toast } = useToast()
+	const { toast } = useToast();
 
-  try {
-    await setFeedbackOptOut(true)
-    toast('Got it, I won\'t ask again', { color: 'success' })
-    feedbackMenuOpen.value = false
-  } catch (e) {
-    console.error('Failed to opt out:', e)
-    toast('Something went wrong. Please try again.', { color: 'danger' })
-  } finally {
-    isOptingOut.value = false
-  }
+	try {
+		await setFeedbackOptOut(true);
+		toast("Got it, I won't ask again", { color: "success" });
+		feedbackMenuOpen.value = false;
+	} catch (e) {
+		console.error("Failed to opt out:", e);
+		toast("Something went wrong. Please try again.", { color: "danger" });
+	} finally {
+		isOptingOut.value = false;
+	}
 }
 
 function resetForm() {
-  dislikeText.value = ''
-  likeText.value = ''
-  score.value = FeedbackOptions.empty
+	dislikeText.value = "";
+	likeText.value = "";
+	score.value = FeedbackOptions.empty;
 }
 </script>
 

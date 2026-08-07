@@ -1,14 +1,14 @@
-import { classRegistry, util } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
+import { classRegistry, util } from "fabric";
 import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
 import { BucketFillPath } from "@/draw/utils/BucketFillPath";
 import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
 import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
+import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
 import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
 import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
 import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
 import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
 import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
 import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
@@ -195,7 +195,7 @@ function drawingBounds(objects: any[]) {
 	let maxY = -Infinity;
 	for (const object of objects) {
 		object.setCoords?.();
-		const bounds = object.getBoundingRect(true, true);
+		const bounds = object.getBoundingRect();
 		if (
 			!Number.isFinite(bounds.left) ||
 			!Number.isFinite(bounds.top) ||

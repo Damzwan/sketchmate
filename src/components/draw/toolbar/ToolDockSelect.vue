@@ -71,63 +71,62 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useSelect } from '@/draw/tools/select.store'
-import { useDrawStore } from '@/draw/session/draw.store'
-import { useMenuStore } from '@/store/menu.store'
-import ToolButton from './ToolButton.vue'
-import { IonIcon } from '@ionic/vue'
-
+import { IonIcon } from "@ionic/vue";
 import {
-  mdiClose,
-  mdiDeleteOutline,
-  mdiPaletteOutline,
-  mdiFormatText,
-  mdiMenuSwapOutline,
-  mdiDotsVertical,
-  mdiUndo,
-  mdiRedo,
-  mdiPencilOutline
-} from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+	mdiClose,
+	mdiDeleteOutline,
+	mdiDotsVertical,
+	mdiFormatText,
+	mdiMenuSwapOutline,
+	mdiPaletteOutline,
+	mdiPencilOutline,
+	mdiRedo,
+	mdiUndo,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { Menu } from "@/types/menu.types";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { ObjectType } from "@/draw/objects/object.types";
-import { useDrawHistoryManager } from '@/draw/history/history.store'
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
+import ToolButton from "./ToolButton.vue";
 
-const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
-const { selectAction } = useDrawStore()
-const { openMenu } = useMenuStore()
-const { undoDisabled, redoDisabled } = storeToRefs(useDrawHistoryManager())
+const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect());
+const { selectAction } = useDrawStore();
+const { openMenu } = useMenuStore();
+const { undoDisabled, redoDisabled } = storeToRefs(useDrawHistoryManager());
 
 // Localized Computed Logic
 const containsImage = computed(() =>
-  selectedObjectsRef.value.map((obj) => obj.type).includes('image')
-)
+	selectedObjectsRef.value.map((obj) => obj.type).includes("image"),
+);
 const isText = computed(
-  () =>
-    selectedObjectsRef.value.length === 1 &&
-    selectedObjectsRef.value[0].type === ObjectType.text
-)
+	() =>
+		selectedObjectsRef.value.length === 1 &&
+		selectedObjectsRef.value[0].type === ObjectType.text,
+);
 const isImg = computed(
-  () =>
-    selectedObjectsRef.value.length === 1 &&
-    selectedObjectsRef.value[0].type === ObjectType.image
-)
+	() =>
+		selectedObjectsRef.value.length === 1 &&
+		selectedObjectsRef.value[0].type === ObjectType.image,
+);
 
 const fontFamily = computed(() =>
-  selectedObjectsRef.value[0]
-    ? ((selectedObjectsRef.value as any)[0]['fontFamily'] as string)
-    : undefined
-)
+	selectedObjectsRef.value[0]
+		? ((selectedObjectsRef.value as any)[0]["fontFamily"] as string)
+		: undefined,
+);
 
 // Actions
 const unselectObjects = () =>
-  selectAction(DrawAction.UnselectObjects, undefined)
+	selectAction(DrawAction.UnselectObjects, undefined);
 const removeSelected = () =>
-  selectAction(DrawAction.RemoveSelectedObjects, undefined)
+	selectAction(DrawAction.RemoveSelectedObjects, undefined);
 
-const undo = () => selectAction(DrawAction.Undo, undefined)
-const redo = () => selectAction(DrawAction.Redo, undefined)
+const undo = () => selectAction(DrawAction.Undo, undefined);
+const redo = () => selectAction(DrawAction.Redo, undefined);
 </script>

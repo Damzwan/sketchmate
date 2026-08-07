@@ -2,8 +2,8 @@ import {
 	BASE_LAYER_ID,
 	byLayerOrder,
 	type DrawLayer,
-	type LayerPolicy,
 	defaultSoloLayers,
+	type LayerPolicy,
 } from "@/draw/layers/layer.types";
 
 /**

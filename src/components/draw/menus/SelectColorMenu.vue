@@ -100,13 +100,6 @@
 </template>
 
 <script lang="ts" setup>
-import { svg } from "@/helper/general.helper";
-import {
-	mdiBorderColor,
-	mdiClose,
-	mdiFormatColorFill,
-	mdiPanoramaHorizontalOutline,
-} from "@mdi/js";
 import {
 	IonContent,
 	IonIcon,
@@ -115,18 +108,25 @@ import {
 	IonPopover,
 	IonRange,
 } from "@ionic/vue";
+import {
+	mdiBorderColor,
+	mdiClose,
+	mdiFormatColorFill,
+	mdiPanoramaHorizontalOutline,
+} from "@mdi/js";
+import { IText } from "fabric";
+import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
-import { useDrawStore } from "@/draw/session/draw.store";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { storeToRefs } from "pinia";
-import { useMenuStore } from "@/store/menu.store";
-import { useSelect } from "@/draw/tools/select.store";
-import { focusText, isText } from "@/draw/tools/textEditing";
-import { hexWithTransparencyToNormal } from "@/draw/utils/color.utils";
 import { BLACK } from "@/draw/config/canvas.config";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { isText } from "@/draw/tools/textEditing";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { IText } from "fabric";
+import { hexWithTransparencyToNormal } from "@/draw/utils/color.utils";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
 const props = defineProps<{
 	strokeColor?: string;

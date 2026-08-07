@@ -16,15 +16,15 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon } from '@ionic/vue'
+import { IonIcon } from "@ionic/vue";
 
 defineProps<{
-  icon: string,
-  active?: boolean,
-  disabled?: boolean,
-  customClass?: string,
-  iconClass?: string,
-  badge?: number
-}>()
-defineEmits(['click'])
+	icon: string;
+	active?: boolean;
+	disabled?: boolean;
+	customClass?: string;
+	iconClass?: string;
+	badge?: number;
+}>();
+defineEmits(["click"]);
 </script>

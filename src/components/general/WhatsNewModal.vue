@@ -101,18 +101,18 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonButton, IonIcon } from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import { useMenuStore } from "@/store/menu.store";
-import { svg } from "@/helper/general.helper";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiChatProcessingOutline,
-	mdiLayersOutline,
-	mdiWrenchCheckOutline,
 	mdiClose,
+	mdiLayersOutline,
 	mdiTrophyOutline,
+	mdiWrenchCheckOutline,
 } from "@mdi/js";
+import { storeToRefs } from "pinia";
 import bigbossImage from "@/assets/bigboss.jpg";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
 const menuStore = useMenuStore();
 const { isWhatsNewOpen } = storeToRefs(menuStore);

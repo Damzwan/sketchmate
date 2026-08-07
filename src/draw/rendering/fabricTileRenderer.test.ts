@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { Group, Rect } from "fabric";
+import { describe, expect, it, vi } from "vitest";
 import { isolatedTileRenderer } from "./fabricTileRenderer";
 
 /** Enough of a 2D context for fabric's Rect/Group render path. */

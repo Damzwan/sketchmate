@@ -139,36 +139,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { storeToRefs } from "pinia";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useMenuStore } from "@/store/menu.store";
-import ToolButton from "./ToolButton.vue";
-import {
-	mdiAccountGroupOutline,
-	mdiCloudCheckOutline,
-	mdiCloudSyncOutline,
-	mdiContentSaveEditOutline,
-	mdiDotsHorizontal,
-	mdiFullscreen,
-	mdiSend,
-} from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { Menu } from "@/types/menu.types";
-import SendHub from "../send/SendHub.vue";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
-import {
-	bulbOutline,
-	chatbubblesOutline,
-	gitBranchOutline,
-	hardwareChipOutline,
-	megaphoneOutline,
-	playCircleOutline,
-} from "ionicons/icons";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useToast } from "@/service/toast.service";
 import {
 	IonContent,
 	IonIcon,
@@ -179,9 +149,26 @@ import {
 	modalController,
 	type ToggleCustomEvent,
 } from "@ionic/vue";
-import { useDocumentStore } from "@/draw/document/document.store";
+import {
+	mdiAccountGroupOutline,
+	mdiCloudCheckOutline,
+	mdiCloudSyncOutline,
+	mdiContentSaveEditOutline,
+	mdiDotsHorizontal,
+	mdiFullscreen,
+	mdiSend,
+} from "@mdi/js";
+import {
+	bulbOutline,
+	chatbubblesOutline,
+	gitBranchOutline,
+	hardwareChipOutline,
+	megaphoneOutline,
+	playCircleOutline,
+} from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
 import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
-import SavePopover from "./SavePopover.vue";
 import {
 	DRAW_RENDER_BACKEND_QUERY_KEY,
 	type DrawRenderBackend,
@@ -191,9 +178,22 @@ import {
 import {
 	getWorkerProtocolMode,
 	setWorkerProtocolMode,
-	type WorkerProtocolMode,
 	WORKER_PROTOCOL_QUERY_KEY,
+	type WorkerProtocolMode,
 } from "@/draw/config/workerProtocol.config";
+import { useDocumentStore } from "@/draw/document/document.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { svg } from "@/helper/general.helper";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
+import SendHub from "../send/SendHub.vue";
+import SavePopover from "./SavePopover.vue";
+import ToolButton from "./ToolButton.vue";
 
 const emit = defineEmits(["toggle-fullscreen", "start-benchmark"]);
 

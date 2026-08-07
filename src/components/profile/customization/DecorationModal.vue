@@ -101,22 +101,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck, mdiLock } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed, ref, watch } from "vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
+import { buildItemId } from "@/config/catalog.config";
+import { usePickerPreview } from "@/config/preview.config";
 import {
+	type Customization,
 	DECORATIONS,
 	DEFAULT_DECORATION_ID,
-	type Customization,
 } from "@/config/profile_options.config";
-import { buildItemId } from "@/config/catalog.config";
+import { svg } from "@/helper/general.helper";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import AvatarDecoration from "./AvatarDecoration.vue";
-import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
-import { usePickerPreview } from "@/config/preview.config";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
 const pickerPreview = usePickerPreview();
 

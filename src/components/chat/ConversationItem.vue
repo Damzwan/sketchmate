@@ -140,9 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { IonIcon } from "@ionic/vue";
 import {
 	mdiAccountOff,
 	mdiChevronRight,
@@ -150,18 +148,12 @@ import {
 	mdiPalette,
 	mdiTrashCanOutline,
 } from "@mdi/js";
-import { IonIcon } from "@ionic/vue";
-import { svg } from "@/helper/general.helper";
-import { PopulatedConversation } from "@/types/server.types";
-import { useFriendStore } from "@/store/friend.store";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { computed } from "vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
-import {
-	resolveRelationship,
-	RELATIONSHIP_ACCENT,
-} from "@/config/relationship.config";
-import RelationshipJourney from "./RelationshipJourney.vue";
 import {
 	hydrateCustomization,
 	resolveFontEffectClass,
@@ -170,7 +162,15 @@ import {
 	resolveTheme,
 	resolveWorld,
 } from "@/config/profile_options.config";
+import {
+	RELATIONSHIP_ACCENT,
+	resolveRelationship,
+} from "@/config/relationship.config";
 import { conversationActivityAt } from "@/helper/chat.helper";
+import { svg } from "@/helper/general.helper";
+import { useFriendStore } from "@/store/friend.store";
+import { PopulatedConversation } from "@/types/server.types";
+import RelationshipJourney from "./RelationshipJourney.vue";
 
 dayjs.extend(relativeTime);
 
@@ -219,9 +219,7 @@ const fontEffectClass = computed(() =>
 // Every live row uses the same customization surface as the toolbar and toast.
 // Relationship urgency is still carried by the chip, border and journey rail;
 // dropping the theme on actionable rows made customized paper appear broken.
-const showTheme = computed(
-	() => !isBlocked.value && !isExpired.value,
-);
+const showTheme = computed(() => !isBlocked.value && !isExpired.value);
 // Paint the partner's theme surface (cardBg, often a gradient) + themed border,
 // overriding the default white resting-card look. The world layer sits on top
 // of it — see `onDarkWorld` for why that matters to the text colours.
@@ -236,9 +234,7 @@ const activeWorld = computed(() =>
 const palette = computed(() =>
 	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
 );
-const onDarkSurface = computed(
-	() => showTheme.value && palette.value.isDark,
-);
+const onDarkSurface = computed(() => showTheme.value && palette.value.isDark);
 const themeTextOnDark = computed(() => showTheme.value && palette.value.isDark);
 const themedNameColor = computed(() => palette.value.name);
 const themedDescColor = computed(() => palette.value.desc);

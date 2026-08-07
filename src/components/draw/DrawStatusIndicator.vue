@@ -23,12 +23,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useShareService } from "@/draw/sharing/shareService.store";
-import { useBucket } from "@/draw/tools/bucket.store";
+import { computed } from "vue";
 import { useDrawStore } from "@/draw/session/draw.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useBucket } from "@/draw/tools/bucket.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 const drawSyncer = useDrawSyncer();
@@ -42,7 +42,7 @@ const isActive = computed(
 		isSending.value ||
 		isLoadingCanvas.value ||
 		isSavingDrawing.value ||
-    isLoadingDrawing.value ||
+		isLoadingDrawing.value ||
 		isFilling.value,
 );
 

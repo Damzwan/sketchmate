@@ -133,8 +133,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { storeToRefs } from "pinia";
 import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiAccountCancelOutline,
@@ -143,30 +141,18 @@ import {
 	mdiAccountReactivateOutline,
 	mdiAlertCircleOutline,
 	mdiChatOutline,
+	mdiClose,
+	mdiFlagVariantOutline,
 	mdiHeartBroken,
 	mdiTimerSandComplete,
-	mdiFlagVariantOutline,
-	mdiClose,
 } from "@mdi/js";
-import { compareVersions, svg } from "@/helper/general.helper";
-
-import ProfileSheetView from "@/components/profile/ProfileSheetView.vue";
+import { storeToRefs } from "pinia";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import AmbientScope from "@/components/general/AmbientScope.vue";
 
-import { useAuthStore } from "@/store/auth.store";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import ProfileSheetView from "@/components/profile/ProfileSheetView.vue";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
-
-import {
-	blockUser,
-	unblockUser,
-	unfriendUser,
-} from "@/service/api/relationship.api";
-import { useToast } from "@/service/toast.service";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import {
 	hydrateCustomization,
 	resolveReadableCustomizationPalette,
@@ -174,8 +160,20 @@ import {
 	resolveWorld,
 } from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { compareVersions, svg } from "@/helper/general.helper";
+import {
+	blockUser,
+	unblockUser,
+	unfriendUser,
+} from "@/service/api/relationship.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 
 const MIN_CHAT_VERSION = "0.4.3";
 

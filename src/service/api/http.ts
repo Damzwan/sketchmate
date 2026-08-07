@@ -1,6 +1,7 @@
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { useModerationStore } from "@/store/moderation.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useModerationStore } from "@/store/moderation.store";
+
 const BASE_URL = import.meta.env.VITE_BACKEND as string;
 
 export async function request<T>(
@@ -29,23 +30,18 @@ export async function request<T>(
 
 	if (!response.ok) {
 		const errorText = await response.text();
+		const errorData = JSON.parse(errorText);
 
-		try {
-			const errorData = JSON.parse(errorText);
+		if (errorData.error === "capability_blocked") {
+			const modStore = useModerationStore();
+			const menuStore = useMenuStore();
 
-			if (errorData.error === "capability_blocked") {
-				const modStore = useModerationStore();
-				const menuStore = useMenuStore();
+			modStore.notifyCapabilityBlocked({
+				capability: errorData.capability,
+				restriction: errorData.restriction,
+			});
 
-				modStore.notifyCapabilityBlocked({
-					capability: errorData.capability,
-					restriction: errorData.restriction,
-				});
-
-				menuStore.moderationMenuOpen = true;
-			}
-		} catch (e) {
-			throw e;
+			menuStore.moderationMenuOpen = true;
 		}
 
 		throw new Error(

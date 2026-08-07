@@ -82,19 +82,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
-import { storeToRefs } from "pinia";
 import { mdiImageOffOutline, mdiTrashCanOutline } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { svg } from "@/helper/general.helper";
+import { fetchUserPosts, prepareChatBackground } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useInboxStore } from "@/store/inbox.store";
-import {
-	fetchUserPosts,
-	prepareChatBackground,
-} from "@/service/api/user.api";
-import { useToast } from "@/service/toast.service";
 import type { FeedPost } from "@/types/server.types";
 
 const props = defineProps<{
@@ -126,7 +123,11 @@ const posts = ref<FeedPost[]>([]);
 const postPage = ref(1);
 const postsAllLoaded = ref(false);
 const inboxStore = useInboxStore();
-const { inbox, allLoaded: inboxAllLoaded, hasFetchedInitial } = storeToRefs(inboxStore);
+const {
+	inbox,
+	allLoaded: inboxAllLoaded,
+	hasFetchedInitial,
+} = storeToRefs(inboxStore);
 const authStore = useAuthStore();
 const { toast } = useToast();
 

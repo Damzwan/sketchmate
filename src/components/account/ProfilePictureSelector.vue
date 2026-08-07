@@ -57,26 +57,34 @@
 
 <script lang="ts" setup>
 import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import Cropper from "cropperjs";
 import { ref } from "vue";
 import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
-import { compressImg, getRandomStockAvatar, setAppColors, svg } from "@/helper/general.helper";
-import { photoSwiperColorConfig, settingsModalColorConfig } from "@/config/colors.config";
-import Cropper from "cropperjs";
+import {
+	photoSwiperColorConfig,
+	settingsModalColorConfig,
+} from "@/config/colors.config";
+import {
+	getRandomStockAvatar,
+	setAppColors,
+	svg,
+} from "@/helper/general.helper";
 import "cropperjs/dist/cropper.css";
-import { mdiCamera, mdiClose } from "@mdi/js";
-import { useAuthStore } from "@/store/auth.store";
-import { useSubscriptionStore } from "@/store/subscription.store"; // Adjust path if needed
-import { storeToRefs } from "pinia";
-import { useToast } from "@/service/toast.service";
 import { Preferences } from "@capacitor/preferences";
-import { LocalStorage } from "@/types/storage.types";
+import { mdiCamera, mdiClose } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { compressImg } from "@/helper/image.helper";
 import { deleteProfileImg } from "@/service/api/user.api";
-import { useMenuStore } from '@/store/menu.store'
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store"; // Adjust path if needed
 import { Menu } from "@/types/menu.types";
+import { LocalStorage } from "@/types/storage.types";
 
 defineProps<{
-  img: string;
-  customization?: any;
+	img: string;
+	customization?: any;
 }>();
 
 const emits = defineEmits(["update:img", "upload", "openPaywall"]);
@@ -91,115 +99,121 @@ const imgRef = ref<HTMLImageElement>();
 const subscriptionStore = useSubscriptionStore();
 
 const showProAlert = async () => {
-  const alert = await alertController.create({
-    header: "Premium Feature",
-    message: "Animated GIF avatars are exclusive to Pro members. Upgrade to customize your profile!",
-    cssClass: "liquid-alert",
-    buttons: [
-      { text: "Maybe Later", role: "cancel", cssClass: "alert-button-cancel" },
-      {
-        text: "Get pro",
-        cssClass: "alert-button-confirm",
-        handler: () => {
-          const {openMenu} = useMenuStore()
-          openMenu(Menu.Shop)
-        }
-      },
-    ],
-  });
-  await alert.present();
+	const alert = await alertController.create({
+		header: "Premium Feature",
+		message:
+			"Animated GIF avatars are exclusive to Pro members. Upgrade to customize your profile!",
+		cssClass: "liquid-alert",
+		buttons: [
+			{ text: "Maybe Later", role: "cancel", cssClass: "alert-button-cancel" },
+			{
+				text: "Get pro",
+				cssClass: "alert-button-confirm",
+				handler: () => {
+					const { openMenu } = useMenuStore();
+					openMenu(Menu.Shop);
+				},
+			},
+		],
+	});
+	await alert.present();
 };
 
 const onImageChange = async (e: Event) => {
-  const target = e.target as HTMLInputElement;
-  if (!target.files || !target.files[0]) return;
+	const target = e.target as HTMLInputElement;
+	if (!target.files || !target.files[0]) return;
 
-  const file = target.files[0];
+	const file = target.files[0];
 
-  // Check if it's a GIF
-  if (file.type === "image/gif") {
-    // Intercept if they aren't Pro
-    if (!subscriptionStore.isPro) {
-      if (imgInput.value) imgInput.value.value = "";
-      await showProAlert();
-      return;
-    }
+	// Check if it's a GIF
+	if (file.type === "image/gif") {
+		// Intercept if they aren't Pro
+		if (!subscriptionStore.isPro) {
+			if (imgInput.value) imgInput.value.value = "";
+			await showProAlert();
+			return;
+		}
 
-    // Process valid Pro GIF upload
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        emits("update:img", event.target.result as string);
-        emits("upload", event.target.result as string, "image/gif");
-      }
-    };
-    reader.readAsDataURL(file);
-    if (imgInput.value) imgInput.value.value = "";
-    return;
-  }
+		// Process valid Pro GIF upload
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			if (event.target?.result) {
+				emits("update:img", event.target.result as string);
+				emits("upload", event.target.result as string, "image/gif");
+			}
+		};
+		reader.readAsDataURL(file);
+		if (imgInput.value) imgInput.value.value = "";
+		return;
+	}
 
-  // Handle standard images (JPEG, PNG, WEBP)
-  const reader = new FileReader();
-  reader.onload = async (event) => {
-    if (event.target?.result) {
-      const compressedImg = await compressImg(event.target.result as string, {
-        size: 1024,
-        returnType: "blob",
-      });
-      localImgUrl.value = URL.createObjectURL(compressedImg);
-      cropperMenuOpen.value = true;
-      if (imgInput.value) imgInput.value.value = "";
-    }
-  };
-  reader.readAsDataURL(file);
+	// Handle standard images (JPEG, PNG, WEBP)
+	const reader = new FileReader();
+	reader.onload = async (event) => {
+		if (event.target?.result) {
+			const compressedImg = await compressImg(event.target.result as string, {
+				size: 1024,
+				returnType: "blob",
+			});
+			localImgUrl.value = URL.createObjectURL(compressedImg);
+			cropperMenuOpen.value = true;
+			if (imgInput.value) imgInput.value.value = "";
+		}
+	};
+	reader.readAsDataURL(file);
 };
 
 function initCropper() {
-  setAppColors(photoSwiperColorConfig);
-  imgRef.value?.addEventListener("ready", () => (cropperLoading.value = false));
-  if (cropper) cropper.destroy();
-  cropper = new Cropper(imgRef.value!, {
-    aspectRatio: 1,
-    background: false,
-    viewMode: 2,
-  });
+	setAppColors(photoSwiperColorConfig);
+	imgRef.value?.addEventListener("ready", () => (cropperLoading.value = false));
+	if (cropper) cropper.destroy();
+	cropper = new Cropper(imgRef.value!, {
+		aspectRatio: 1,
+		background: false,
+		viewMode: 2,
+	});
 }
 
 function closeCropper() {
-  cropperMenuOpen.value = false;
-  cropperLoading.value = true;
-  setAppColors(settingsModalColorConfig);
-  if (cropper) cropper.destroy();
+	cropperMenuOpen.value = false;
+	cropperLoading.value = true;
+	setAppColors(settingsModalColorConfig);
+	if (cropper) cropper.destroy();
 }
 
 function apply() {
-  const imgUrl = cropper.getCroppedCanvas().toDataURL("image/webp");
-  closeCropper();
-  emits("update:img", imgUrl);
-  emits("upload", imgUrl, "image/webp");
+	const imgUrl = cropper.getCroppedCanvas().toDataURL("image/webp");
+	closeCropper();
+	emits("update:img", imgUrl);
+	emits("upload", imgUrl, "image/webp");
 }
 
 const confirmDelete = async () => {
-  const alert = await alertController.create({
-    header: "Remove Image?",
-    message: "Are you sure you want to revert to a stock avatar?",
-    cssClass: "liquid-alert",
-    buttons: [
-      { text: "Keep it", role: "cancel", cssClass: "alert-button-cancel" },
-      { text: "Remove", role: "destructive", cssClass: "alert-button-confirm", handler: () => deleteProfileImage() },
-    ],
-  });
-  await alert.present();
+	const alert = await alertController.create({
+		header: "Remove Image?",
+		message: "Are you sure you want to revert to a stock avatar?",
+		cssClass: "liquid-alert",
+		buttons: [
+			{ text: "Keep it", role: "cancel", cssClass: "alert-button-cancel" },
+			{
+				text: "Remove",
+				role: "destructive",
+				cssClass: "alert-button-confirm",
+				handler: () => deleteProfileImage(),
+			},
+		],
+	});
+	await alert.present();
 };
 
 function deleteProfileImage() {
-  const { user } = storeToRefs(useAuthStore());
-  const { toast } = useToast();
-  const stock_img = getRandomStockAvatar();
-  Preferences.set({ key: LocalStorage.img, value: stock_img });
-  deleteProfileImg({ _id: user.value!._id, stock_img });
-  user.value!.img = stock_img;
-  toast("Profile image removed");
+	const { user } = storeToRefs(useAuthStore());
+	const { toast } = useToast();
+	const stock_img = getRandomStockAvatar();
+	Preferences.set({ key: LocalStorage.img, value: stock_img });
+	deleteProfileImg({ _id: user.value!._id, stock_img });
+	user.value!.img = stock_img;
+	toast("Profile image removed");
 }
 </script>
 

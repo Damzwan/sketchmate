@@ -82,7 +82,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import {
 	actionSheetController,
 	alertController,
@@ -97,18 +96,19 @@ import {
 	mdiPencilOutline,
 	mdiShareVariantOutline,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { shareImg } from "@/helper/share.helper";
+import { computed, ref } from "vue";
+import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
+import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import CommentPreview from "@/components/photoswiper/CommentPreview.vue";
 import PhotoSwiperReactions from "@/components/photoswiper/PhotoSwiperReactions.vue";
 import { reactionImages } from "@/config/post.config";
-import { useModerationStore } from "@/store/moderation.store";
-import { useAuthStore } from "@/store/auth.store";
 import { useShareService } from "@/draw/sharing/shareService.store";
+import { svg } from "@/helper/general.helper";
+import { shareImg } from "@/helper/share.helper";
+import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useModerationStore } from "@/store/moderation.store";
 import { Menu } from "@/types/menu.types";
-import ReactionPopover from "@/components/general/ReactionPopover.vue";
-import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 
 const props = defineProps<{
 	currItem: any;

@@ -95,9 +95,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonAvatar, IonIcon } from "@ionic/vue";
 import { mdiChatOutline, mdiChevronLeft, mdiChevronRight } from "@mdi/js";
+import { computed } from "vue";
 import { senderImg, senderName, svg } from "@/helper/general.helper";
 
 // Two, deliberately. People opened fullscreen to look at the DRAWING — the peek

@@ -1,13 +1,13 @@
-import { FabricImage } from "fabric";
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { HistoryContext } from "@/draw/history/historyActions";
+import type { FabricImage } from "fabric";
 import * as fabric from "fabric";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import type { HistoryContext } from "@/draw/history/historyActions";
 
 export async function redoImgFilter(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.ImgFilterChanged>,
 ): Promise<HistoryAction<HistoryEvent.ImgFilterChanged>> {
-	const { canvas, getObjectById } = ctx;
+	const { getObjectById } = ctx;
 	const img = getObjectById(action.params.objectId) as FabricImage;
 
 	if (!img) return action;
@@ -44,7 +44,7 @@ export async function undoImgFilter(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.ImgFilterChanged>,
 ): Promise<HistoryAction<HistoryEvent.ImgFilterChanged>> {
-	const { canvas, getObjectById } = ctx;
+	const { getObjectById } = ctx;
 	const img = getObjectById(action.params.objectId) as FabricImage;
 
 	if (!img) return action;

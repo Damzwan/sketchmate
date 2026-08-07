@@ -79,8 +79,7 @@ let cachedRenderDpr = 0;
  */
 export function getRenderDpr(): number {
 	if (cachedRenderDpr) return cachedRenderDpr;
-	const raw =
-		(typeof window !== "undefined" && window.devicePixelRatio) || 1;
+	const raw = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
 	cachedRenderDpr = Math.max(1, Math.min(raw, MAX_RENDER_SCALE));
 	return cachedRenderDpr;
 }

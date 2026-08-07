@@ -116,25 +116,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { storeToRefs } from "pinia";
 import { useIntersectionObserver } from "@vueuse/core";
-
-import { useAuthStore } from "@/store/auth.store";
-import { usePostStore } from "@/store/post.store";
-import { useQuotaStore } from "@/store/quota.store";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { useToast } from "@/service/toast.service";
-import { logPostViews, deletePost, type FeedTab } from "@/service/api/post.api";
-import { FeedPost } from "@/types/server.types";
-
+import { storeToRefs } from "pinia";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
+import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import ReactionPopover from "@/components/general/ReactionPopover.vue";
-import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
+import { deletePost, type FeedTab, logPostViews } from "@/service/api/post.api";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { usePostStore } from "@/store/post.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { FeedPost } from "@/types/server.types";
 
 const authStore = useAuthStore();
 const postStore = usePostStore();
@@ -237,7 +235,7 @@ function pinScroll() {
 		scrollEl?.isConnected &&
 		Math.abs(scrollEl.scrollTop - savedScrollTop) > 2
 	)
-			scrollEl.scrollTop = savedScrollTop;
+		scrollEl.scrollTop = savedScrollTop;
 }
 
 function releaseScrollAnchor() {

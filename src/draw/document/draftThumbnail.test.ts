@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { exportBoundingBoxImage } from "@/draw/document/export";
 import { createDraftThumbnail } from "@/draw/document/draftThumbnail";
 import {
 	renderDraftThumbnailInWorker,
 	supportsDraftThumbnailWorker,
 } from "@/draw/document/draftThumbnailWorker";
+import { exportBoundingBoxImage } from "@/draw/document/export";
 
 vi.mock("@/draw/document/export", () => ({
 	exportBoundingBoxImage: vi.fn(),

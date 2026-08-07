@@ -36,37 +36,34 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from "pinia";
 import {
 	computed,
 	defineAsyncComponent,
 	onMounted,
-	ref,
 	onUnmounted,
+	ref,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { storeToRefs } from "pinia";
-import { v4 as uuidv4 } from "uuid";
-
-// Stores
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useSessionStore } from "@/store/session.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useShareService } from "@/draw/sharing/shareService.store";
-
+import ClaimAreaOverlay from "@/components/draw/ClaimAreaOverlay.vue";
+import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
+import DrawStatusIndicator from "@/components/draw/DrawStatusIndicator.vue";
+import MultiplayerAvatars from "@/components/draw/MultiplayerAvatars.vue";
+import DrawMenus from "@/components/draw/menus/DrawMenus.vue";
 // Components
 import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
-import MultiplayerAvatars from "@/components/draw/MultiplayerAvatars.vue";
-import ClaimAreaOverlay from "@/components/draw/ClaimAreaOverlay.vue";
-import DrawMenus from "@/components/draw/menus/DrawMenus.vue";
-import DrawStatusIndicator from "@/components/draw/DrawStatusIndicator.vue";
-import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
-
+// Stores
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 // Services & Sockets
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
-import { Menu } from "@/types/menu.types";
 import { useToast } from "@/service/toast.service";
+import { useMenuStore } from "@/store/menu.store";
+import { useSessionStore } from "@/store/session.store";
+import { Menu } from "@/types/menu.types";
+import { uuidv4 } from "@/utils/uuid";
 
 const route = useRoute();
 const router = useRouter();

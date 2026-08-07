@@ -179,9 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonPage, IonContent, IonIcon } from "@ionic/vue";
-import { computed, onMounted } from "vue";
-import { storeToRefs } from "pinia";
+import { IonContent, IonIcon, IonPage } from "@ionic/vue";
 import {
 	mdiAccountAlert,
 	mdiAccountQuestion,
@@ -200,10 +198,12 @@ import {
 	mdiShieldAlert,
 	mdiShieldCheck,
 } from "@mdi/js";
+import dayjs from "dayjs";
+import { storeToRefs } from "pinia";
+import { computed, onMounted } from "vue";
+import SubPageBar from "@/components/general/SubPageBar.vue";
 import { svg } from "@/helper/general.helper";
 import { useModerationStore } from "@/store/moderation.store";
-import SubPageBar from "@/components/general/SubPageBar.vue";
-import dayjs from "dayjs";
 
 const modStore = useModerationStore();
 const { standing } = storeToRefs(modStore);
@@ -346,7 +346,8 @@ function actionIcon(action: string): string {
 		action.includes("granted")
 	)
 		return mdiCheckCircle;
-	if (action.includes("denied") || action.includes("suspension")) return mdiCancel;
+	if (action.includes("denied") || action.includes("suspension"))
+		return mdiCancel;
 	return mdiAlert;
 }
 

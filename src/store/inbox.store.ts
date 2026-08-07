@@ -1,13 +1,13 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { InboxItem, CommentRes, GetInboxRes } from "@/types/server.types";
-import { useAuthStore } from "@/store/auth.store";
-import { useUserCacheStore } from "@/store/userCache.store";
 import {
 	getInbox,
 	getSingleInboxItem,
 	syncInboxItems,
 } from "@/service/api/inbox.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import type { CommentRes, GetInboxRes, InboxItem } from "@/types/server.types";
 
 export const useInboxStore = defineStore("inbox", () => {
 	const inbox = ref<InboxItem[]>([]);
@@ -31,6 +31,19 @@ export const useInboxStore = defineStore("inbox", () => {
 
 	const PAGE_SIZE = 30;
 
+	/**
+	 * Hard ceiling on retained inbox items.
+	 *
+	 * Every item carries its comment list and drives a decoded thumbnail, so an
+	 * unbounded list is the store that grows fastest during a long session. The
+	 * list is newest-first, and the tail is the cheap end to give up: paginating
+	 * again re-fetches it from the `lastDate` cursor. Prepends (socket sync)
+	 * therefore trim the tail, while pagination stops at the ceiling instead of
+	 * evicting the head — evicting the head would punch a hole in the middle of
+	 * what the user is currently scrolling through, which nothing can refill.
+	 */
+	const MAX_INBOX_ITEMS = 200;
+
 	function mergeUnique(
 		current: InboxItem[],
 		incoming: InboxItem[],
@@ -41,11 +54,14 @@ export const useInboxStore = defineStore("inbox", () => {
 				? [...incoming, ...current]
 				: [...current, ...incoming];
 		const seen = new Set<string>();
-		return merged.filter((item) => {
+		const deduped = merged.filter((item) => {
 			if (seen.has(item._id)) return false;
 			seen.add(item._id);
 			return true;
 		});
+		return deduped.length > MAX_INBOX_ITEMS
+			? deduped.slice(0, MAX_INBOX_ITEMS)
+			: deduped;
 	}
 
 	/**
@@ -85,6 +101,10 @@ export const useInboxStore = defineStore("inbox", () => {
 			inbox.value = reset
 				? mergeUnique([], retrieved.inboxItems, "after")
 				: mergeUnique(inbox.value, retrieved.inboxItems, "after");
+
+			// At the ceiling, stop paginating rather than evict what the user is
+			// looking at. `syncNewItems` still brings in anything newer.
+			if (inbox.value.length >= MAX_INBOX_ITEMS) allLoaded.value = true;
 
 			// Single source of truth for user data
 			useUserCacheStore().upsertMany(retrieved.userInfo);
@@ -169,6 +189,13 @@ export const useInboxStore = defineStore("inbox", () => {
 		return inboxById.value.has(inboxId);
 	}
 
+	function resetRuntimeState() {
+		inbox.value = [];
+		isInboxLoading.value = false;
+		allLoaded.value = false;
+		hasFetchedInitial.value = false;
+	}
+
 	return {
 		inbox,
 		inboxById,
@@ -183,5 +210,6 @@ export const useInboxStore = defineStore("inbox", () => {
 		findUserInInboxUsers,
 		removeFromLocalInbox,
 		hasItem,
+		resetRuntimeState,
 	};
 });

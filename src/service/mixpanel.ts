@@ -1,4 +1,4 @@
-import { IS_DEV, isNative } from "@/helper/general.helper";
+import { IS_DEV, isNative } from "@/helper/platform.helper";
 
 export enum mixpanelEvents {
 	login = "login",

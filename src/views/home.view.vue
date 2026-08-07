@@ -12,6 +12,7 @@
         <HomeQuickActions
           :is-under-age="isUnderAge"
           @action="handleQuickAction"
+          @pointerdown.capture="prefetchDrawView"
         />
 
         <!-- PUBLIC LOBBIES -->
@@ -43,47 +44,44 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
 	IonContent,
 	IonPage,
-	onIonViewDidLeave,
 	onIonViewDidEnter,
+	onIonViewDidLeave,
 	onIonViewWillEnter,
 	useIonRouter,
 } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import TopBar from "../components/general/TopBar.vue";
-import ActiveLobbies from "../components/home/ActiveLobbies.vue";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import {
-	refreshPublicLobbies,
-	startWatchingLobbies,
-} from "@/service/api/socket/drawSyncing.socket";
-import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+// Vector Assets & Lottie Files
+import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
+import draw_together from "@/assets/illustrations/home/draw_together.webp";
+import share from "@/assets/illustrations/home/share.webp";
+import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
+import CommunityFeed from "@/components/home/CommunityFeed.vue";
+import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";
+import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
 import MyDrafts from "@/components/home/MyDrafts.vue";
 import {
 	type DrawingDraftMetadata,
 	useDocumentStore,
 } from "@/draw/document/document.store";
-import CommunityFeed from "@/components/home/CommunityFeed.vue";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { masterAnimation } from "@/helper/animation.helper";
+import { isMobile, whenIdle } from "@/helper/platform.helper";
+import {
+	refreshPublicLobbies,
+	startWatchingLobbies,
+} from "@/service/api/socket/drawSyncing.socket";
+import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { useAuthStore } from "@/store/auth.store";
-import Lottie from "@/components/general/Lottie.vue";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-
-// Vector Assets & Lottie Files
-import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
-import draw_together from "@/assets/illustrations/home/draw_together.webp";
-import share from "@/assets/illustrations/home/share.webp";
-import balloonLottie from "@/assets/lottie/balloon.lottie";
-import { whenIdle } from "@/helper/general.helper";
-import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
-import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";
-import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import TopBar from "../components/general/TopBar.vue";
+import ActiveLobbies from "../components/home/ActiveLobbies.vue";
 
 const r = useIonRouter();
 
@@ -166,10 +164,22 @@ const mergedDrafts = computed<DrawingDraftMetadata[]>(() => {
 	return [...pending, ...real].sort((a, b) => b.updatedAt - a.updatedAt);
 });
 
+// `whenIdle` has a timeout, so on a device that never actually goes idle — a
+// low-end phone during startup — the draw graph gets parsed on top of boot
+// hydration. Prefetch on intent instead, and keep the idle path only for
+// devices with headroom.
+let drawPrefetched = false;
+const prefetchDrawView = () => {
+	if (drawPrefetched) return;
+	drawPrefetched = true;
+	import("@/views/draw.view.vue").catch(() => {});
+};
+
 onMounted(() => {
-	whenIdle(() => {
-		import("@/views/draw.view.vue").catch(() => {});
-	}, 1500);
+	const cores = navigator.hardwareConcurrency ?? 8;
+	if (!constrainedDevice && (!isMobile() || cores > 4)) {
+		whenIdle(prefetchDrawView, 1500);
+	}
 });
 
 onIonViewDidEnter(() => {

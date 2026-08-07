@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { pickTileTier } from "./tiles/tileGeometry";
 import {
+	clampToViewportZoom,
 	DEFAULT_OVERVIEW_TIER,
 	DEFAULT_ZOOM_TIERS,
-	clampToViewportZoom,
 	minimumTiledZoom,
 	minimumViewportZoom,
 	minimumViewportZoomFor,
@@ -63,9 +63,9 @@ describe("content-derived zoom floor", () => {
 	});
 
 	it("goes below the tier ladder entirely when the content needs it", () => {
-		expect(
-			minimumViewportZoomFor(0.02, DENSITY, RENDER_SCALE),
-		).toBeLessThan(minimumViewportZoom());
+		expect(minimumViewportZoomFor(0.02, DENSITY, RENDER_SCALE)).toBeLessThan(
+			minimumViewportZoom(),
+		);
 	});
 
 	it("does not shorten the reach of a coarse overview", () => {

@@ -1,9 +1,9 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
-import type { FeedPost, InboxItem } from "@/types/server.types";
+import { ref } from "vue";
+import { resolveTitleDef } from "@/config/profile_options.config";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
-import { resolveTitleDef } from "@/config/profile_options.config";
+import type { FeedPost, InboxItem } from "@/types/server.types";
 
 export type ShareToastKind =
 	| "drawing"

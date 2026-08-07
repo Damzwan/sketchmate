@@ -1,9 +1,9 @@
+import { Capacitor } from "@capacitor/core";
 import {
+	type Config,
 	DotLottie,
 	DotLottieWorker,
-	type Config,
 } from "@lottiefiles/dotlottie-web";
-import { Capacitor } from "@capacitor/core";
 
 /**
  * DotLottieWorker moves WASM decode + raster off the main thread (big win on a

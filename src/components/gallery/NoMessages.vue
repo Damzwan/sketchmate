@@ -14,15 +14,15 @@
 </template>
 
 <script lang="ts" setup>
-import { IonButton } from '@ionic/vue'
+import { IonButton } from "@ionic/vue";
 
 defineProps({
-  img: String,
-  title: String,
-  subtitle: String,
-  btnLink: String,
-  btnText: String
-})
+	img: String,
+	title: String,
+	subtitle: String,
+	btnLink: String,
+	btnText: String,
+});
 </script>
 
 <style scoped></style>

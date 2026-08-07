@@ -20,7 +20,7 @@
           <span class="text-xs text-black/80 uppercase tracking-widest font-sans font-black">is blocked</span>
         </h3>
         <div class="mt-6">
-          <ion-button color="dark" fill="outline" expand="block" @click="openUserActions(partner)">
+          <ion-button color="dark" fill="outline" expand="block" @click="partner && openUserActions(partner)">
             Manage Artist
           </ion-button>
         </div>
@@ -87,23 +87,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { storeToRefs } from "pinia";
 import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
-import { closeCircle } from "ionicons/icons";
 import { mdiAccountOff, mdiChatOutline, mdiDraw } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
-import ChatMessageBubble from "./ChatMessageBubble.vue";
-
-import { useAuthStore } from "@/store/auth.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useChatStore } from "@/store/chat.store";
-import { useFriendStore } from "@/store/friend.store";
 import { useIntersectionObserver } from "@vueuse/core";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { closeCircle } from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
 import ChatDrawInviteCard from "@/components/chat/ChatDrawInviteCard.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import ChatMessageBubble from "./ChatMessageBubble.vue";
 
 const props = defineProps<{ messages: any[]; isFetchingHistory: boolean }>();
 const emit = defineEmits(["inspect-profile", "join-session", "load-more"]);

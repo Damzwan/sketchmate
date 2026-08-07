@@ -61,17 +61,16 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from "vue-router";
-import { storeToRefs } from "pinia";
-import { IonModal, IonButton, IonIcon, useIonRouter } from "@ionic/vue";
-import dayjs from "dayjs";
+import { IonButton, IonIcon, IonModal, useIonRouter } from "@ionic/vue";
 import { mdiPauseOctagonOutline } from "@mdi/js";
-
+import dayjs from "dayjs";
+import { storeToRefs } from "pinia";
+import { useRouter } from "vue-router";
+import { masterAnimation } from "@/helper/animation.helper";
+import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
-import { svg } from "@/helper/general.helper";
 
 const router = useIonRouter();
 const modStore = useModerationStore();

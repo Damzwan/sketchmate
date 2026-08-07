@@ -1,6 +1,7 @@
 // service/api/notification.api.ts
+
+import type { Notification } from "@/types/server.types";
 import { request } from "./http";
-import { Notification } from "@/types/server.types";
 
 // ─── Feed ───────────────────────────────────────────────────────────────
 

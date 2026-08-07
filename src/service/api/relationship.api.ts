@@ -1,5 +1,5 @@
+import type { ChatStatus, NetworkUser } from "@/types/server.types";
 import { request } from "./http";
-import { NetworkUser, ChatStatus } from "@/types/server.types";
 
 // --- FOLLOW & NETWORK ---
 

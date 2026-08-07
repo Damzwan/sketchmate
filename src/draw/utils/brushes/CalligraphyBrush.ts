@@ -1,12 +1,15 @@
-import { BaseBrush, Canvas, Path, Point } from "fabric";
-import { enlivenStrokeProps, toObjectWithoutPath } from "@/draw/utils/brushes/brush.helpers";
+import { BaseBrush, Path, type Point } from "fabric";
+import {
+	enlivenStrokeProps,
+	toObjectWithoutPath,
+} from "@/draw/utils/brushes/brush.helpers";
 
 // ------------------------------------------------------------------
 // 1. DETERMINISTIC UTILITIES
 // ------------------------------------------------------------------
 
 export function seededRandom(seed: number) {
-	return function () {
+	return () => {
 		let t = (seed += 0x6d2b79f5);
 		t = Math.imul(t ^ (t >>> 15), t | 1);
 		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -24,7 +27,7 @@ export interface RawPoint {
 // 2. THE BRUSH CONTROLLER
 // ------------------------------------------------------------------
 
-// @ts-ignore
+// @ts-expect-error
 export class CalligraphyBrush extends BaseBrush {
 	width = 40;
 	private _rawPoints: RawPoint[] = [];
@@ -32,10 +35,6 @@ export class CalligraphyBrush extends BaseBrush {
 
 	// Explicit drawing state prevents the "menu switch ghost stroke" bug.
 	private _isDrawing: boolean = false;
-
-	constructor(canvas: Canvas) {
-		super(canvas);
-	}
 
 	onMouseDown(pointer: Point) {
 		this._isDrawing = true;
@@ -193,7 +192,10 @@ interface NibSample {
 // carrying a velocity-derived load. Smooth centreline = glassy edges; the
 // committed stroke is a VECTOR path (below), so it stays razor-crisp at any
 // stroke width or zoom — no raster blur.
-function buildCenterline(rawPoints: RawPoint[], baseWidth: number): NibSample[] {
+function buildCenterline(
+	rawPoints: RawPoint[],
+	baseWidth: number,
+): NibSample[] {
 	const pts: NibSample[] = [];
 	for (let i = 0; i < rawPoints.length; i++) {
 		const p = rawPoints[i];
@@ -267,7 +269,10 @@ function buildCalligraphyEdges(
 	rawPoints: RawPoint[],
 	seed: number,
 	baseWidth: number,
-): { left: { x: number; y: number }[]; right: { x: number; y: number }[] } | null {
+): {
+	left: { x: number; y: number }[];
+	right: { x: number; y: number }[];
+} | null {
 	const samples = buildCenterline(rawPoints, baseWidth);
 	if (samples.length < 2) return null;
 
@@ -399,7 +404,7 @@ export class CalligraphyStroke extends Path {
 		}
 	}
 
-	// @ts-ignore
+	// @ts-expect-error
 	toObject(additionalProperties: string[] = []) {
 		// Ship only the delta-encoded raw trace (x, y, time). The heavy `path`
 		// geometry is regenerated deterministically on the other side.

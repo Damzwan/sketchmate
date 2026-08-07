@@ -130,15 +130,15 @@ import {
 	toValue,
 	watch,
 } from "vue";
+import paper from "@/assets/textures/paper2.webp";
 import {
-	resolveEffect,
 	type ProfileEffectDef,
+	resolveEffect,
 } from "@/config/profile_options.config";
 import {
 	AMBIENT_FOREGROUND,
 	useAmbientPause,
 } from "@/store/ambientPause.store";
-import paper from "@/assets/textures/paper2.webp";
 
 const props = withDefaults(
 	defineProps<{

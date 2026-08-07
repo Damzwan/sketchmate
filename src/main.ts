@@ -1,7 +1,6 @@
+import { IonicVue } from "@ionic/vue";
 import { createApp } from "vue";
 import router from "./router";
-
-import { IonicVue } from "@ionic/vue";
 
 /* Core CSS required for Ionic components to work properly */
 import "@ionic/vue/css/core.css";
@@ -13,26 +12,26 @@ import "@/theme/main.css";
 import "@/theme/liquid-glass.css";
 import "@/theme/text_effects.css";
 
-import { createPinia } from "pinia";
-import mitt from "mitt";
-import App from "@/App.vue";
-import { addNotificationListeners } from "@/helper/notification.helper";
+import { Capacitor } from "@capacitor/core";
+import { StatusBar, Style } from "@capacitor/status-bar";
 import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import isToday from "dayjs/plugin/isToday";
+import isYesterday from "dayjs/plugin/isYesterday";
 import relativeTime from "dayjs/plugin/relativeTime";
+import mitt from "mitt";
+import { createPinia } from "pinia";
+import App from "@/App.vue";
+import { initFirebase } from "@/helper/firebase.helper";
+// --- Updated Helper Imports (P2.2 Split) ---
 import {
 	handleWebDeeplink,
-	initBilling,
-	initFirebase,
-	isMobile,
 	setupDeeplinkListener,
 	setupPwa,
 	setupWidget,
 } from "@/helper/general.helper";
-import { Capacitor } from "@capacitor/core";
-import { StatusBar, Style } from "@capacitor/status-bar";
-import duration from "dayjs/plugin/duration";
-import isToday from "dayjs/plugin/isToday";
-import isYesterday from "dayjs/plugin/isYesterday";
+import { addNotificationListeners } from "@/helper/notification.helper";
+import { isMobile } from "@/helper/platform.helper";
 
 const pinia = createPinia();
 initFirebase();
@@ -75,7 +74,8 @@ async function bootstrap() {
 	}
 
 	app.mount("#app");
-	initBilling();
+
+	// Eager synchronous setup
 	addNotificationListeners();
 	setupDeeplinkListener();
 	handleWebDeeplink();
@@ -85,6 +85,10 @@ async function bootstrap() {
 	if (Capacitor.isNativePlatform()) {
 		StatusBar.setStyle({ style: Style.Light });
 	}
+
+	import("@/helper/billing.helper").then(({ initBilling }) => {
+		initBilling();
+	});
 }
 
 void bootstrap();

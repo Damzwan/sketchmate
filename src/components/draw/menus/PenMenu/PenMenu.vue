@@ -113,31 +113,32 @@
 
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
+import { mdiArrowRight, mdiLock } from "@mdi/js";
+import { Canvas, Point } from "fabric";
 import { storeToRefs } from "pinia";
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { BrushType, DrawTool } from "@/draw/tools/tool.types";
-import { mdiLock, mdiArrowRight } from "@mdi/js";
-import { isNative, svg } from "@/helper/general.helper";
-import { useMenuStore } from "@/store/menu.store";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
-import BrushTile from "./BrushTile.vue";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
+import { buildItemId } from "@/config/catalog.config";
+import { BLACK, WHITE } from "@/draw/config/canvas.config";
+import {
+	PENMENUTOOLS,
+	penBrushMapping,
+	penIconMapping,
+} from "@/draw/config/tools.config";
 import { usePen } from "@/draw/tools/pen.store";
-import { Canvas, Point } from "fabric";
+import { BrushType, DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import {
 	hexWithOpacity,
 	isColorTooLight,
 	percentToAlphaHex,
 } from "@/draw/utils/color.utils";
-import { BLACK, WHITE } from "@/draw/config/canvas.config";
-import {
-	penBrushMapping,
-	penIconMapping,
-	PENMENUTOOLS,
-} from "@/draw/config/tools.config";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import { buildItemId } from "@/config/catalog.config";
+import { useMenuStore } from "@/store/menu.store";
+import BrushTile from "./BrushTile.vue";
 
 const { selectTool } = useToolSelection();
 const { selectedTool } = storeToRefs(useToolSelection());

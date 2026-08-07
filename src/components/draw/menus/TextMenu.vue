@@ -53,7 +53,7 @@
 </template>
 
 <script lang="ts" setup>
-import { svg } from "@/helper/general.helper";
+import { IonContent, IonIcon, IonItem, IonList, IonPopover } from "@ionic/vue";
 import {
 	mdiFormatAlignCenter,
 	mdiFormatAlignLeft,
@@ -61,16 +61,15 @@ import {
 	mdiFormatBold,
 	mdiFormatItalic,
 } from "@mdi/js";
-import { IonContent, IonIcon, IonItem, IonList, IonPopover } from "@ionic/vue";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { DrawAction } from "@/draw/actions/drawAction.types";
-import { TextAlign } from "@/draw/tools/tool.types";
+import { IText } from "fabric";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
-import { useMenuStore } from "@/store/menu.store";
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { useSelect } from "@/draw/tools/select.store";
-
-import { IText } from "fabric";
+import { TextAlign } from "@/draw/tools/tool.types";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
 const { selectAction } = useDrawStore();
 const { selectedObjectsRef } = storeToRefs(useSelect());

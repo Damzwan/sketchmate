@@ -231,48 +231,47 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, provide, ref, watch } from "vue";
-import { IonModal, IonContent, IonIcon, IonButton } from "@ionic/vue";
-import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
-import { storeToRefs } from "pinia";
-import { Purchases } from "@revenuecat/purchases-capacitor";
+import { IonButton, IonContent, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiArrowRight,
 	mdiCheckCircle,
 	mdiCrown,
 	mdiTreasureChestOutline,
 } from "@mdi/js";
+import { Purchases } from "@revenuecat/purchases-capacitor";
 import { chevronBackOutline } from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import { computed, nextTick, provide, ref, watch } from "vue";
 import bigbossImage from "@/assets/bigboss.jpg";
-
-import { isNative, svg } from "@/helper/general.helper";
-import { useMenuStore } from "@/store/menu.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
-import { useInventoryStore } from "@/store/inventory.store";
-import { useToast } from "@/service/toast.service";
-import { updateProfile } from "@/service/api/user.api";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import {
 	CATALOG,
 	CATALOG_BY_ID,
 	HIGHLIGHT_IDS,
-	type ShopSku,
 	type ItemCategory,
+	type ShopSku,
 } from "@/config/catalog.config";
-
-import ShopSupportNote from "./ShopSupportNote.vue";
-import ShopHero from "./ShopHero.vue";
-import ShopCardPack from "./ShopCardPack.vue";
-import ShopPreviewModal from "./ShopPreviewModal.vue";
-import ShopCardTheme from "./ShopCardTheme.vue";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
+import { updateProfile } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 import ShopCardBrush from "./ShopCardBrush.vue";
 import ShopCardDecoration from "./ShopCardDecoration.vue";
 import ShopCardEffect from "./ShopCardEffect.vue";
-import ShopCardWorld from "./ShopCardWorld.vue";
 import ShopCardFont from "./ShopCardFont.vue";
 import ShopCardFontEffect from "./ShopCardFontEffect.vue";
+import ShopCardPack from "./ShopCardPack.vue";
+import ShopCardTheme from "./ShopCardTheme.vue";
+import ShopCardWorld from "./ShopCardWorld.vue";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import { useAuthStore } from "@/store/auth.store";
+import ShopHero from "./ShopHero.vue";
+import ShopPreviewModal from "./ShopPreviewModal.vue";
+import ShopSupportNote from "./ShopSupportNote.vue";
 
 // Shop cards animate (foreground) while browsing — but the moment a preview
 // modal opens, freeze the whole grid behind it so ALL the GPU/CPU goes to the
@@ -290,7 +289,8 @@ const inventoryStore = useInventoryStore();
 const userStore = useAuthStore();
 const { toast } = useToast();
 
-const { isShopOpen, shopScrollTarget, shopEquipTarget } = storeToRefs(menuStore);
+const { isShopOpen, shopScrollTarget, shopEquipTarget } =
+	storeToRefs(menuStore);
 const user = computed(() => userStore.user);
 const isLoading = ref(true);
 // Shop content waits on ALL of: RC prices, subscription status resolved, and
@@ -309,11 +309,7 @@ function withPrice(sku: ShopSku) {
 	return skusWithPrices.value[sku.id] || sku;
 }
 
-const CHAT_CATEGORIES = new Set<ItemCategory>([
-	"theme",
-	"font",
-	"font_effect",
-]);
+const CHAT_CATEGORIES = new Set<ItemCategory>(["theme", "font", "font_effect"]);
 const isChatCompatibleSku = (sku: ShopSku) =>
 	sku.kind === "bundle"
 		? sku.grants.every((grant) =>
@@ -334,8 +330,9 @@ const featuredPacks = computed(() =>
 
 const highlights = computed(() =>
 	HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
-		.filter((sku): sku is ShopSku =>
-			!!sku && (shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku)),
+		.filter(
+			(sku): sku is ShopSku =>
+				!!sku && (shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku)),
 		)
 		.map(withPrice),
 );
@@ -429,13 +426,12 @@ const activeItems = computed(() => {
 		return shuffledSingleIds
 			.map((id) => CATALOG_BY_ID[id])
 			.filter(
-				(sku) =>
-					shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku),
+				(sku) => shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku),
 			)
 			.map(withPrice);
-	return visibleCatalog.value.filter(
-		(s) => s.kind === "single" && s.category === activeCategory.value,
-	).map(withPrice);
+	return visibleCatalog.value
+		.filter((s) => s.kind === "single" && s.category === activeCategory.value)
+		.map(withPrice);
 });
 
 const ownedSkus = computed(() =>
@@ -511,13 +507,14 @@ const equipSku = async (patch: Record<string, any>) => {
 		return;
 	}
 	const target = shopEquipTarget.value;
-	const supportedPatch = target === "chat"
-		? Object.fromEntries(
-				Object.entries(patch).filter(([key]) =>
-					["themeId", "fontId", "fontEffectId"].includes(key),
-				),
-			)
-		: patch;
+	const supportedPatch =
+		target === "chat"
+			? Object.fromEntries(
+					Object.entries(patch).filter(([key]) =>
+						["themeId", "fontId", "fontEffectId"].includes(key),
+					),
+				)
+			: patch;
 	if (Object.keys(supportedPatch).length === 0) {
 		toast("That item is for profiles or drawing tools.");
 		return;
@@ -529,7 +526,9 @@ const equipSku = async (patch: Record<string, any>) => {
 	previewSku.value = null;
 	try {
 		await updateProfile({ [field]: next } as any);
-		toast(target === "chat" ? "Equipped to Chat! ✨" : "Equipped! ✨", { color: "success" });
+		toast(target === "chat" ? "Equipped to Chat! ✨" : "Equipped! ✨", {
+			color: "success",
+		});
 	} catch (e) {
 		(u as any)[field] = prev;
 		toast("Couldn't equip that. Please try again.", { color: "danger" });
@@ -539,14 +538,14 @@ const equipSku = async (patch: Record<string, any>) => {
 watch(
 	isShopOpen,
 	async (open) => {
-	if (!open) return;
-	if (
-		shopEquipTarget.value === "chat" &&
-		activeCategory.value !== "all" &&
-		!CHAT_CATEGORIES.has(activeCategory.value as ItemCategory)
-	) {
-		activeCategory.value = "all";
-	}
+		if (!open) return;
+		if (
+			shopEquipTarget.value === "chat" &&
+			activeCategory.value !== "all" &&
+			!CHAT_CATEGORIES.has(activeCategory.value as ItemCategory)
+		) {
+			activeCategory.value = "all";
+		}
 		if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
 		if (shopScrollTarget.value) {
 			const targetItem = shopScrollTarget.value;

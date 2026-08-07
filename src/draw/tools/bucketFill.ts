@@ -1,14 +1,14 @@
-import { Canvas, FabricObject } from "fabric";
-import { usePen } from "@/draw/tools/pen.store";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import { type Canvas, FabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
-import { Rect } from "@/draw/utils/QuadTree";
-import { useToast } from "@/service/toast.service";
 import type {
 	FloodFillRequest,
 	FloodFillResponse,
 } from "@/draw/tools/bucketFill.worker";
+import { usePen } from "@/draw/tools/pen.store";
+import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import type { Rect } from "@/draw/utils/QuadTree";
+import { useToast } from "@/service/toast.service";
 
 type Point = { x: number; y: number };
 
@@ -260,7 +260,7 @@ export async function bucketFill(
 	const { brushColorWithOpacity } = usePen();
 
 	// Fix precision floating issues in Fabric generation
-	// @ts-ignore
+	// @ts-expect-error
 	FabricObject.NUM_FRACTION_DIGITS = 1;
 
 	const brushColor = brushColorWithOpacity();

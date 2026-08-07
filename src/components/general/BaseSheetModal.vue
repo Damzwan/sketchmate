@@ -58,9 +58,9 @@
 </template>
 
 <script setup lang="ts">
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { mdiChevronLeft, mdiClose } from "@mdi/js";
 import { provide } from "vue";
-import { IonModal, IonButton, IonIcon } from "@ionic/vue";
-import { mdiClose, mdiChevronLeft } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
 

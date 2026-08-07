@@ -67,12 +67,6 @@
 <script setup lang="ts">
 import { AppReview } from "@capawesome/capacitor-app-review";
 import {
-	addDoc,
-	collection,
-	getFirestore,
-	serverTimestamp,
-} from "@firebase/firestore";
-import {
 	IonButton,
 	IonIcon,
 	IonModal,
@@ -81,7 +75,13 @@ import {
 	IonTextarea,
 	modalController,
 } from "@ionic/vue";
-import { mdiClose, mdiGiftOffOutline } from "@mdi/js";
+import { mdiClose } from "@mdi/js";
+import {
+	addDoc,
+	collection,
+	getFirestore,
+	serverTimestamp,
+} from "firebase/firestore";
 import { storeToRefs } from "pinia";
 import { ref } from "vue";
 import discordSvg from "@/assets/discord.svg";

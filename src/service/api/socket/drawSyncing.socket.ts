@@ -1,11 +1,9 @@
 import { socket } from "@/service/api/socket/socket.service";
 import { storeToRefs } from "pinia";
-import {
-	PublicLobby,
-	useDrawSyncer,
-} from "@/draw/sync/session.store";
+import { PublicLobby, useDrawSyncer } from "@/draw/sync/session.store";
 import router from "@/router";
 import { useAuthStore } from "@/store/auth.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useChatStore } from "@/store/chat.store";
 import { Menu } from "@/types/menu.types";
@@ -21,7 +19,7 @@ import { fetchPublicLobbies } from "@/service/api/user.api";
  * registered lazily (see socket.service).
  */
 
-export function socketJoinRoom({
+export async function socketJoinRoom({
 	roomId,
 	intent,
 }: {
@@ -38,6 +36,15 @@ export function socketJoinRoom({
 
 	if (useAuthStore().onlineUpdateRequired()) {
 		useMenuStore().openMenu(Menu.UpgradeOnline);
+		isTryingToJoin.value = false;
+		return;
+	}
+
+	// Every route into a shared room funnels through here — chat invites, deep
+	// links, push notifications, the room menu — so the parental switch and the
+	// safety reminder are enforced once, at the choke point.
+	if (!(await useParentalStore().ensureCanExchange("rooms"))) {
+		isTryingToJoin.value = false;
 		return;
 	}
 

@@ -30,7 +30,7 @@
       </div>
 
       <section
-        v-if="!isUnderAge || hasMates"
+        v-if="!isUnderAge || canPickMates"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
         :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }"
         @click="toggleSection('direct')"
@@ -40,13 +40,13 @@
             <div class="flex items-center gap-2">
               <ion-icon :icon="imagesOutline" class="text-secondary text-[24px] shrink-0" />
               <p class="text-xl font-bold text-black leading-none pt-1">
-                {{ hasMates ? 'Gallery & Mates' : 'Save to Gallery' }}
+                {{ canPickMates ? 'Gallery & Mates' : 'Save to Gallery' }}
               </p>
             </div>
 
             <p class="text-sm text-black/80 mt-2 pl-[32px]">
               {{
-                hasMates
+                canPickMates
                   ? 'Save your drawing and send it directly to mates.'
                   : 'Store it in your personal gallery.'
               }}
@@ -66,7 +66,7 @@
         </div>
 
         <div
-          v-if="isSaveAndSend && hasMates"
+          v-if="isSaveAndSend && canPickMates"
           class="pt-2 border-t border-primary/20 animate-fade-in"
           @click.stop
         >
@@ -184,7 +184,21 @@
         </div>
       </section>
 
-      <section v-if="isUnderAge && !hasMates"
+      <!-- Child account whose parent hasn't switched mate-sending on: this
+           drawing can still be saved, it just can't leave the device. -->
+      <section v-if="mateSendLocked && hasMates"
+               class="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3 cursor-pointer"
+               @click="openParentalControls">
+        <ion-icon :icon="svg(mdiShieldLockOutline)" class="text-2xl shrink-0 text-amber-600" />
+        <div class="flex-1 min-w-0">
+          <p class="font-black text-base text-amber-900 leading-tight">Sending to mates is off</p>
+          <p class="text-sm text-amber-900/90 mt-1 leading-snug">
+            A parent or guardian can turn it on in Settings → Parental Controls. Tap here if you're a parent.
+          </p>
+        </div>
+      </section>
+
+      <section v-if="isUnderAge && !canPickMates"
                class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
                :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }" @click="toggleSection('direct')">
         <div class="flex items-center justify-between">
@@ -364,6 +378,7 @@ import {
 	mdiMagnify,
 	mdiClose,
 	mdiShareVariant, // Added icon import
+	mdiShieldLockOutline,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { svg } from "@/helper/general.helper";
@@ -371,6 +386,7 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 
 import { useAuthStore } from "@/store/auth.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { MAX_SEND_MATES, useMateSelection } from "@/draw/sharing/mateSelection";
@@ -403,6 +419,7 @@ dayjs.extend(duration);
 const router = useIonRouter();
 
 const { user, isUnderAge } = storeToRefs(useAuthStore());
+const parental = useParentalStore();
 const friendStore = useFriendStore();
 const chatStore = useChatStore();
 const userCache = useUserCacheStore();
@@ -485,6 +502,17 @@ const hasMates = computed(
 		allConnectedPartners.value.length > 0,
 );
 
+// A child account can always save to its own gallery; putting the drawing in
+// someone else's hands is what needs a parent's switch.
+const mateSendLocked = computed(
+	() => parental.isChildAccount && !parental.isAllowed("mate_send"),
+);
+const canPickMates = computed(() => hasMates.value && !mateSendLocked.value);
+
+function openParentalControls() {
+	void parental.openControls();
+}
+
 const fetchedMates = computed(() => {
 	// An empty search can use active conversations immediately, before the
 	// paginated network request lands. A real search stays server-scoped.
@@ -516,11 +544,7 @@ const displayMates = computed(() => {
 				b._id,
 				b.last_interaction_at,
 			) -
-			recentActivityForPartner(
-				activeChats.value,
-				a._id,
-				a.last_interaction_at,
-			);
+			recentActivityForPartner(activeChats.value, a._id, a.last_interaction_at);
 		if (recentDelta !== 0) return recentDelta;
 		const aOnline = isOnline(a._id) ? 1 : 0;
 		const bOnline = isOnline(b._id) ? 1 : 0;
@@ -712,9 +736,19 @@ async function shareOutsideApp() {
 async function executeShares() {
 	if (noActionSelected.value || shareService.isSending) return;
 
+	// Anyone other than the author is a recipient, so this is the point the
+	// parental switch and the safety reminder have to clear.
+	const mateRecipients = isSaveAndSend.value ? Array.from(selected.value) : [];
+	if (
+		mateRecipients.length > 0 &&
+		!(await parental.ensureCanExchange("mate_send"))
+	) {
+		return;
+	}
+
 	const directRecipients =
 		isSaveAndSend.value && user.value
-			? [...Array.from(selected.value), user.value._id]
+			? [...mateRecipients, user.value._id]
 			: [];
 
 	const wantsPost = isPublicPost.value && !isUnderAge.value;

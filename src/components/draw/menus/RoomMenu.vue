@@ -103,7 +103,29 @@
 
     <!-- ROOM GATEWAY / INACTIVE ROOM VIEW -->
     <div v-else class="space-y-6 animate-fade-in pt-1">
+      <!-- Child account: a shared canvas is freeform media exchange, so it
+           waits on a parent's switch. -->
+      <div
+        v-if="roomsLocked"
+        class="bg-amber-100/90 border border-amber-300/60 p-5 rounded-[1.5rem] flex flex-col gap-3 shadow-sm"
+      >
+        <div class="flex items-start gap-3">
+          <ion-icon :icon="svg(mdiShieldLockOutline)" class="text-3xl text-amber-600 shrink-0" />
+          <div class="text-amber-900 leading-tight">
+            <p class="text-[11px] font-black uppercase tracking-widest mb-1 opacity-80">Locked</p>
+            <p class="text-[13px] font-medium opacity-90">
+              Drawing together shares everything on the canvas with the other artists. A parent or
+              guardian needs to turn this on first.
+            </p>
+          </div>
+        </div>
+        <ion-button shape="round" color="warning" size="small" class="self-start" @click="openParentalControls">
+          I'm a parent
+        </ion-button>
+      </div>
+
       <ion-button
+        v-if="!roomsLocked"
         expand="block"
         color="secondary"
         shape="round"
@@ -113,14 +135,14 @@
         Create New Room
       </ion-button>
 
-      <div class="flex items-center gap-4 opacity-70 px-6">
+      <div v-if="!roomsLocked" class="flex items-center gap-4 opacity-70 px-6">
         <div class="flex-1 h-px bg-black"></div>
         <span class="text-sm font-black uppercase tracking-widest">Or Join</span>
         <div class="flex-1 h-px bg-black"></div>
       </div>
 
       <!-- Enter Code Panel -->
-      <div class="bg-background border border-default-light p-6 rounded-[2rem] flex flex-col items-center gap-5">
+      <div v-if="!roomsLocked" class="bg-background border border-default-light p-6 rounded-[2rem] flex flex-col items-center gap-5">
         <h3 class="font-black text-black/80 uppercase tracking-widest w-full text-left">
           Enter Room Code
         </h3>
@@ -186,13 +208,19 @@
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref } from "vue";
 import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
-import { mdiAccountPlus, mdiCamera, mdiShareVariant } from "@mdi/js";
+import {
+	mdiAccountPlus,
+	mdiCamera,
+	mdiShareVariant,
+	mdiShieldLockOutline,
+} from "@mdi/js";
 import QrcodeVue from "qrcode.vue";
 
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useAuthStore } from "@/store/auth.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useScanner } from "@/service/scanner.service";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { generateRandomCode, isNative, svg } from "@/helper/general.helper";
@@ -223,6 +251,13 @@ const {
 } = storeToRefs(drawSyncerStore);
 const { roomMenuOpen } = storeToRefs(useMenuStore());
 const { user, isUnderAge } = storeToRefs(useAuthStore());
+const parental = useParentalStore();
+const roomsLocked = computed(
+	() => parental.isChildAccount && !parental.isAllowed("rooms"),
+);
+function openParentalControls() {
+	void parental.openControls();
+}
 const { startScanning } = useScanner();
 const { openUserActions } = useUserContextSheet();
 

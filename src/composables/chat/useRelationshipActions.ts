@@ -7,6 +7,7 @@ import {
 } from "@/service/api/relationship.api";
 import { PopulatedConversation } from "@/types/server.types";
 import { useToast } from "@/service/toast.service";
+import { useParentalStore } from "@/store/parental.store";
 
 /**
  * Every mutation on the Invite → Trial → Mates journey, in one place.
@@ -36,10 +37,21 @@ export function useRelationshipActions(getChat: () => any) {
 		}
 	}
 
+	/**
+	 * Every step that ends with two people connected runs through the parental
+	 * gate first: on a child account a new connection is a new channel for
+	 * exchanging personal information, so it needs adult consent and the
+	 * safety reminder. Declining/ignoring is never gated.
+	 */
+	async function connectionAllowed() {
+		return useParentalStore().ensureCanExchange("mate_add");
+	}
+
 	/** Accept / ignore an incoming sketch invite (pending_invite). */
-	function respondToInvite(action: "accept" | "decline") {
+	async function respondToInvite(action: "accept" | "decline") {
 		const chat = getChat();
 		if (!chat?._id) return;
+		if (action === "accept" && !(await connectionAllowed())) return;
 		return chatStore.respondToRequest(chat._id, action);
 	}
 
@@ -47,6 +59,7 @@ export function useRelationshipActions(getChat: () => any) {
 	async function requestMate() {
 		const chat = getChat();
 		if (!chat?.relationship_id) return;
+		if (!(await connectionAllowed())) return;
 		try {
 			await requestMatership(chat._id);
 			patchLocal({
@@ -81,6 +94,7 @@ export function useRelationshipActions(getChat: () => any) {
 	async function acceptMate() {
 		const chat = getChat();
 		if (!chat?.relationship_id) return;
+		if (!(await connectionAllowed())) return;
 		try {
 			const { conversation } = (await acceptMatership(
 				chat.relationship_id,

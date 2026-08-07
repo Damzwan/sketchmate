@@ -135,12 +135,7 @@ import {
 	ref,
 	watch,
 } from "vue";
-import {
-	alertController,
-	useBackButton,
-	useIonRouter,
-	IonIcon,
-} from "@ionic/vue";
+import { useBackButton, useIonRouter, IonIcon } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useThrottleFn } from "@vueuse/core";
 import { mdiChevronDown } from "@mdi/js";
@@ -160,6 +155,7 @@ import {
 } from "@/config/profile_options.config";
 
 import { useAuthStore } from "@/store/auth.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
@@ -215,7 +211,9 @@ const chatTheme = computed(() => resolveTheme(chatCustomization.value.themeId));
 const chatPalette = computed(() =>
 	resolveReadableCustomizationPalette(chatTheme.value),
 );
-const chatFontFamily = computed(() => resolveFontFamily(chatCustomization.value.fontId));
+const chatFontFamily = computed(() =>
+	resolveFontFamily(chatCustomization.value.fontId),
+);
 const chatFontEffectClass = computed(() =>
 	resolveFontEffectClass(chatCustomization.value.fontEffectId),
 );
@@ -510,46 +508,13 @@ function onWillPresent() {
 		chatWidget.activeTab = "lobby";
 	}
 	scrollToBottom(true);
-	maybeShowSafetyReminder();
-}
-
-// ── Families policy: online-safety reminder ────────────────────────────────
-// Under-age accounts get a clear, prominent safety notice BEFORE they can
-// exchange messages/media — once per device, re-shown after 30 days.
-const SAFETY_ACK_KEY = "sm_chat_safety_ack";
-const SAFETY_ACK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-async function maybeShowSafetyReminder() {
-	if (!authStore.isUnderAge) return;
-	try {
-		const last = Number(localStorage.getItem(SAFETY_ACK_KEY) || 0);
-		if (Date.now() - last < SAFETY_ACK_TTL_MS) return;
-	} catch {
-		/* storage unavailable → show the reminder */
+	// Families policy: the online-safety reminder for child accounts now lives
+	// in the parental store, which shows it once per 30 days across every
+	// exchange surface (chat, mate adding, drawing sends, shared rooms) rather
+	// than only here. Opening a conversation is the earliest moment for chat.
+	if (chatWidget.activeTab !== "overview") {
+		void useParentalStore().ensureCanExchange("mate_chat");
 	}
-	const alert = await alertController.create({
-		header: "Stay safe online",
-		cssClass: "liquid-alert",
-		backdropDismiss: false,
-		message:
-			"Chatting online has real-world risks. Only chat with people you know in person, " +
-			"never share personal information (like your full name, address, school or photos of yourself), " +
-			"and tell a trusted adult if anything feels wrong. You can report or block anyone from their profile.",
-		buttons: [
-			{
-				text: "I understand",
-				role: "confirm",
-				handler: () => {
-					try {
-						localStorage.setItem(SAFETY_ACK_KEY, String(Date.now()));
-					} catch {
-						/* fine — it'll show again next open */
-					}
-				},
-			},
-		],
-	});
-	await alert.present();
 }
 
 // Measured from the visual viewport rather than from Capacitor's reported

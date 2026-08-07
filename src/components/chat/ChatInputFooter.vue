@@ -33,7 +33,26 @@
          instead of replacing it (the two padding utilities would have fought). -->
     <!-- shrink-0 lives HERE now, not on the root: the input bar is the one part
          of this footer that must never be compressed or clipped away. -->
-    <div class="px-2 pt-1.5 chat-footer-pad chat-widget-chrome shrink-0">
+    <!-- Child account whose parent hasn't switched chat on: the composer is
+         replaced outright rather than left to fail on send. -->
+    <div
+      v-if="chatLocked"
+      class="px-3 pt-2 chat-footer-pad chat-widget-chrome shrink-0"
+    >
+      <button
+        type="button"
+        class="w-full bg-amber-100/90 border border-amber-300/60 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+        @click="openParentalControls"
+      >
+        <ion-icon :icon="svg(mdiShieldLockOutline)" class="text-2xl text-amber-600 shrink-0" />
+        <span class="text-amber-900 leading-tight">
+          <span class="block text-[13px] font-black">Chat is switched off</span>
+          <span class="block text-[12px] opacity-90">A parent or guardian can turn it on — tap here.</span>
+        </span>
+      </button>
+    </div>
+
+    <div v-else class="px-2 pt-1.5 chat-footer-pad chat-widget-chrome shrink-0">
       <div class="flex items-center gap-0.5">
 
         <ion-button
@@ -102,6 +121,7 @@ import {
 	mdiDraw,
 	mdiLoginVariant,
 	mdiSend,
+	mdiShieldLockOutline,
 } from "@mdi/js";
 import { generateRandomCode, svg } from "@/helper/general.helper";
 
@@ -114,6 +134,7 @@ import {
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useAuthStore } from "@/store/auth.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
@@ -176,7 +197,9 @@ const showRelationshipBanner = computed(() => {
 	);
 });
 
-const handleInviteClick = (ev: Event) => {
+const handleInviteClick = async (ev: Event) => {
+	// A shared room is freeform media exchange, gated separately from chat.
+	if (!(await parental.ensureCanExchange("rooms"))) return;
 	if (activeTab.value === "lobby") emit("open-invite-popover", ev);
 	else openPrivateInviteSheet();
 };
@@ -243,9 +266,23 @@ const startDrawingTogether = async (friendId: string) => {
 	}, 400);
 };
 
-const handleSend = () => {
+const parental = useParentalStore();
+
+const chatLocked = computed(
+	() => parental.isChildAccount && !parental.isAllowed("mate_chat"),
+);
+
+function openParentalControls() {
+	void parental.openControls();
+}
+
+const handleSend = async () => {
 	const text = inputText.value.trim();
 	if (!text) return;
+	// Families policy: adult consent + an acknowledged safety reminder gate the
+	// first outgoing message on a child account, and the reminder returns every
+	// 30 days after that.
+	if (!(await useParentalStore().ensureCanExchange("mate_chat"))) return;
 	if (activeTab.value === "lobby") {
 		sendLobbyMessage(text);
 	} else if (partner.value?._id) {

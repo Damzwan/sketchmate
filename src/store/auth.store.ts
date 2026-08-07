@@ -76,8 +76,14 @@ export const useAuthStore = defineStore("auth", () => {
 
 	// --- DERIVED ---
 	const hasConfirmedAge = computed(() => !!user.value?.date_of_birth);
+	// Default-DENY: an account whose age we haven't confirmed is treated as a
+	// child account until it tells us otherwise. Anything else leaves a window
+	// (guest sign-in, a failed DOB save, a legacy row) where social features are
+	// wide open on a possibly-under-13 account — exactly what the Families
+	// policy forbids. `hasConfirmedAge` is what UI should use to phrase copy.
 	const isUnderAge = computed(() => {
-		if (!user.value?.date_of_birth) return false;
+		if (!user.value) return false;
+		if (!user.value.date_of_birth) return true;
 		return !isOldEnough(user.value.date_of_birth);
 	});
 
@@ -112,10 +118,7 @@ export const useAuthStore = defineStore("auth", () => {
 
 			const currentPath = router.currentRoute.value.path;
 			const isDevBenchmark = import.meta.env.DEV && currentPath === "/bench";
-			if (
-				currentPath !== `/${FRONTEND_ROUTES.login}` &&
-				!isDevBenchmark
-			) {
+			if (currentPath !== `/${FRONTEND_ROUTES.login}` && !isDevBenchmark) {
 				ionRouter.replace(FRONTEND_ROUTES.login, masterAnimation);
 			}
 			return;
@@ -303,12 +306,12 @@ export const useAuthStore = defineStore("auth", () => {
 				useFriendStore().initializeSocialGraph(),
 				useQuotaStore().refresh(true),
 				useChatStore().loadActiveChats(),
-					useModerationStore().initFromUser(u),
-					useInAppNotificationStore().loadInitial(),
-					refreshPublicLobbies(),
-					useInventoryStore().hydrateFromUser(user.value),
-					syncCurrentTimezone(),
-				]);
+				useModerationStore().initFromUser(u),
+				useInAppNotificationStore().loadInitial(),
+				refreshPublicLobbies(),
+				useInventoryStore().hydrateFromUser(user.value),
+				syncCurrentTimezone(),
+			]);
 
 			if (opts.arrivedFromLogin) {
 				// Await the fingerprint instead of reading the ref. It's populated by

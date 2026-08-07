@@ -140,6 +140,18 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			});
 
 			menuStore.openMenu(Menu.ModerationMenu);
+		} else if (reason === "PARENTAL_LOCKED") {
+			// Server backstop for the client-side parental gate: reachable when a
+			// parent switched rooms off on another device mid-session.
+			toast(message || "A parent or guardian needs to turn this on first.", {
+				color: "warning",
+				duration: ToastDuration.long,
+			});
+		} else if (reason === "AGE_RESTRICTED") {
+			toast("Public lobbies are available from age 13.", {
+				color: "warning",
+				duration: ToastDuration.long,
+			});
 		} else if (reason && message) {
 			toast(message, { color: "danger", duration: ToastDuration.long });
 		} else {

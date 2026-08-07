@@ -209,6 +209,27 @@ export interface CapabilityBlockedError {
 // USER & PROFILE
 // =============================================================================
 
+/**
+ * Google Play Families policy: peer-to-peer features on an under-age account
+ * are OFF until a parent/guardian passes the adult gate and switches them on
+ * individually. Absent/false always means "not allowed" — never default a
+ * missing flag to true.
+ */
+export interface ParentalControls {
+	/** ISO date an adult last opened the controls through the adult gate. */
+	reviewed_at?: string;
+	/** Adding mates by QR / personal link (exchanges name + avatar). */
+	allow_mate_add?: boolean;
+	/** 1:1 chat with mates already added. */
+	allow_mate_chat?: boolean;
+	/** Sending drawings to mates. */
+	allow_mate_send?: boolean;
+	/** Shared drawing rooms with mates. */
+	allow_rooms?: boolean;
+	/** ISO date the child last acknowledged the online-safety reminder. */
+	safety_ack_at?: string;
+}
+
 export interface User {
 	is_admin?: boolean;
 	_id: string;
@@ -237,6 +258,8 @@ export interface User {
 	// System / Auth
 	subscriptions: NotificationSubscription[];
 	date_of_birth?: string;
+	/** Adult-managed switches for under-age accounts. See ParentalControls. */
+	parental?: ParentalControls;
 	last_seen_version?: string;
 	/** Private IANA timezone used for local-time server scheduling. */
 	timezone?: string;

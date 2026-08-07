@@ -17,6 +17,28 @@
 
     <div v-show="!isScanning" class="space-y-6 animate-fade-in pt-1">
 
+      <!-- PARENTAL LOCK: adding mates exchanges name + profile picture, so on a
+           child account it stays off until a parent switches it on. -->
+      <div
+        v-if="mateAddLocked"
+        class="bg-amber-100/90 border border-amber-300/60 p-5 rounded-[1.5rem] flex flex-col gap-3 shadow-sm"
+      >
+        <div class="flex items-start gap-3">
+          <ion-icon :icon="svg(mdiShieldLockOutline)" class="text-3xl text-amber-600 shrink-0" />
+          <div class="text-amber-900 leading-tight">
+            <p class="text-[11px] font-black uppercase tracking-widest mb-1 opacity-80">Locked</p>
+            <p class="text-[13px] font-medium opacity-90">
+              Adding mates shares your name and profile picture. A parent or guardian needs to
+              turn this on before you can share or scan a code.
+            </p>
+          </div>
+        </div>
+        <ion-button shape="round" color="warning" size="small" class="self-start" @click="openParentalControls">
+          I'm a parent
+        </ion-button>
+      </div>
+
+      <template v-else>
       <!-- PERSONAL QR CODE -->
       <div class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between relative mt-1 backdrop-blur-md">
         <div class="flex flex-col z-10 w-full pr-4 min-w-0">
@@ -135,6 +157,7 @@
         <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" class="mr-2" />
         Scan a Mate
       </ion-button>
+      </template>
 
       <!-- This sheet is subtitled "Grow Your Network" but had no way to SEE
            that network — the list lived behind the profile tab's stat buttons
@@ -174,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
 	IonAvatar,
 	IonButton,
@@ -194,6 +217,7 @@ import {
 	mdiSend,
 	mdiShareVariant,
 	mdiShieldAlertOutline,
+	mdiShieldLockOutline,
 } from "@mdi/js";
 
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
@@ -204,6 +228,7 @@ import { createPersonalShareLink, shareUrl } from "@/helper/share.helper";
 import { isNative, svg } from "@/helper/general.helper";
 import { storeToRefs } from "pinia";
 import { useMenuStore } from "@/store/menu.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { searchMate } from "@/service/api/user.api";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
@@ -226,7 +251,25 @@ const { startScanning, stopScanning, resetScanning } = useScanner(video);
 const { connectionMenuOpen } = storeToRefs(useMenuStore());
 const { openUserActions } = useUserContextSheet();
 
+const parental = useParentalStore();
+
 const router = useIonRouter();
+
+const mateAddLocked = computed(
+	() => parental.isChildAccount && !parental.isAllowed("mate_add"),
+);
+
+function openParentalControls() {
+	void parental.openControls();
+}
+
+// The QR code and personal link are on screen the moment this sheet opens, so
+// the safety reminder has to clear before it renders — not on a later tap.
+watch(connectionMenuOpen, async (open) => {
+	if (!open || mateAddLocked.value) return;
+	const ok = await parental.ensureCanExchange("mate_add");
+	if (!ok) onDismiss();
+});
 
 const qrURL = computed(() =>
 	createPersonalShareLink(user.value?._id || "", "/home"),

@@ -12,6 +12,7 @@
     <LazyMount :when="isLoggedIn && viewProfileMenuOpen"><UserContextSheet/></LazyMount>
     <LazyMount :when="feedbackMenuOpen"><FeedbackMenu /></LazyMount>
     <LazyMount :when="isLoggedIn && dateOfBirthOpen"><DateOfBirthConfirmation /></LazyMount>
+    <LazyMount :when="isLoggedIn && parentalControlsOpen"><ParentalControlsModal /></LazyMount>
     <LazyMount :when="isLoggedIn && showConfetti"><Confetti /></LazyMount>
     <LazyMount :when="isLoggedIn && !!receivedBalloon"><ReceivedBalloon /></LazyMount>
     <LazyMount :when="balloonMenuOpen"><BalloonMenu/></LazyMount>
@@ -49,6 +50,7 @@ import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
 import { useBalloonStore } from "@/store/balloon.store";
 import { useShareToastStore } from "@/draw/sharing/shareToast.store";
@@ -74,6 +76,9 @@ const FeedbackMenu = defineAsyncComponent(
 );
 const DateOfBirthConfirmation = defineAsyncComponent(
 	() => import("@/components/general/DateOfBirthConfirmation.vue"),
+);
+const ParentalControlsModal = defineAsyncComponent(
+	() => import("@/components/settings/ParentalControlsModal.vue"),
 );
 const Confetti = defineAsyncComponent(
 	() => import("@/components/subscription/Confetti.vue"),
@@ -146,6 +151,7 @@ const {
 const { open: photoSwiperOpen } = storeToRefs(usePhotoSwiper());
 const { isExpanded: chatPanelOpen } = storeToRefs(useChatWidgetStore());
 const { isOpen: dateOfBirthOpen } = storeToRefs(useDateOfBirthModalStore());
+const { controlsOpen: parentalControlsOpen } = storeToRefs(useParentalStore());
 const { showConfetti } = storeToRefs(useSubscriptionStore());
 const { receivedBalloon } = storeToRefs(useBalloonStore());
 const { toasts: shareToasts, isSending: shareIsSending } = storeToRefs(

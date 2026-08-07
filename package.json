@@ -20,7 +20,9 @@
 		"prepare": "husky install",
 		"lint:fix": "biome check . --write",
 		"typecheck": "vue-tsc --noEmit",
-		"verify": "biome check . && vue-tsc --noEmit && vitest run && vite build"
+		"verify": "biome check . && vue-tsc --noEmit && vitest run && vite build && node scripts/checkBudget.mjs",
+		"budget": "node scripts/checkBudget.mjs",
+		"mem": "node scripts/memProfile.mjs"
 	},
 	"dependencies": {
 		"@capacitor-firebase/authentication": "^8.1.0",

@@ -65,7 +65,50 @@ The ordering is deliberate: **guardrails before changes, cheap wins before risky
 
 ---
 
-## 3. P0 — Guardrails (do first, nothing else is measurable without it)
+## 3. P0 — Guardrails — **DONE (2026-08-07, branch `chore/p0-guardrails`)**
+
+| Item | Status |
+|---|---|
+| P0.1 `vue-tsc --noEmit` green | **Done** — 0 errors (was 62) |
+| P0.2 One linter (Biome) | **Done** — ESLint + 7 packages removed |
+| P0.3 Pre-commit hook | **Done** — no longer `git add .` |
+| P0.4 `verify` script + CI + budget | **Done** — `.github/workflows/verify.yml`, `scripts/checkBudget.mjs` |
+| P0.5 Device memory harness | **Partial** — `scripts/memProfile.mjs` written; not yet run (no low-end device; use a constrained emulator) |
+
+`pnpm verify` = Biome → `vue-tsc --noEmit` → Vitest (317) → build → budget. Exits 0.
+
+### Findings the gate surfaced
+
+Type errors were not cosmetic. Real bugs fixed while getting to zero:
+
+- **Rectangle shape creation threw.** `shapeActions.ts` built a plain `{x,y,w,h}` object literal instead of a `Rect`, so `o.set(...)` failed. `Rect` was imported and unused — the branch had never worked since the refactor.
+- **Double-send window in `SendHub`.** `shareService.isSending = true` assigned to a `computed`, a silent no-op, so the guard was false through `getDataToSend()` and a 400 ms timer. Added a `setSending` action.
+- **`RoomMenu`** assigned to the `publicLobbyName` computed — also a no-op.
+- **`Shortcut.manual`** was referenced in `shortcutManager` but missing from the enum: the Help-menu shortcut was dead. Added as `"?"`.
+- **`fmtCountdown` / `BalloonMenu`** fed optional `reset_at` to `new Date()` → Invalid Date → NaN countdown.
+- **`eraser.store`** read a store-level brush ref inside a queued async commit that could run after disposal.
+- **`yielder.ts`**: three `@ts-ignore` covered the wrong lines (a directive only applies to the next line, and the `if` spanned four).
+- **`colors.config`** typed `colorsPerRoute` as `Record<FRONTEND_ROUTES, …>` while defining 4 of 12 routes.
+- **Stale Fabric 5 API**: `fabric/fabric-impl` type imports, and `getBoundingRect(true, true)` at 25 call sites — Fabric 7 ignores both args.
+- **Dead files deleted**: `CustomizationCard.vue` (unreferenced; imported a component removed in `75ac0a0`), `workers/tile.worker.ts` (unreferenced; superseded by `tileBakery.worker.ts`).
+
+### Environment defect worth knowing about
+
+`node_modules/typescript@5.9.3` had been **hand-edited**: one line deleted from `lib.es2022.array.d.ts` (removing `Array.prototype.at`) and a mangled parameter name in `lib.dom.d.ts`. That alone produced 9 phantom "Property 'at' does not exist" errors that no config change could fix. Repaired by reinstalling. A frozen-install CI job would never have shown these — which is part of the argument for having one.
+
+### Biome caveats recorded in `biome.json`
+
+Biome does not parse Vue templates. `noUnusedVariables`, `noUnusedImports`, `noUnusedFunctionParameters` and `useImportType` are therefore **off for `*.vue`** — with them on, the autofixer renames or deletes bindings that the template uses. (`useImportType` also crashes Biome 2.4.15 on `src/views/draw.view.vue`.) `noVueDuplicateKeys` is off for `*.vue` too: it is an Options-API rule and misfires on `<script setup>` props.
+
+Deferred to P4 as churn without bug value: `noDoubleEquals` (55 — the `!= undefined` idiom here is deliberate and "fixing" it would change behaviour), `useIterableCallbackReturn` (48), `useOptionalChain` (19), `useLiteralKeys` (16), `noAssignInExpressions` (15), `useTemplate` (8).
+
+### Baseline now enforced
+
+`scripts/checkBudget.mjs` fails the build above **1,474 kB raw / 365 kB gzip** eager cold-start payload, or a single chunk over 1,098 kB. Budgets ratchet down only.
+
+---
+
+## 3b. P0 detail (as planned)
 
 ### P0.1 Make `vue-tsc` green and keep it green
 

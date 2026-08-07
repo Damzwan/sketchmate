@@ -19,6 +19,12 @@ export type LobbyChatItem =
 	| (BaseLobbyItem & {
 			type: "message";
 			message: string;
+			/**
+			 * Censored twin of `message`, sent down with the lobby-message payload.
+			 * Lobby chat is never persisted, so the server computes it per emit
+			 * instead of storing it — see the server's profanity.service.
+			 */
+			message_filtered?: string;
 			isOptimistic?: boolean;
 			status?: MessageStatus;
 			createdAt?: string;

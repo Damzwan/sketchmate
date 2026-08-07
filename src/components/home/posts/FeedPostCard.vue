@@ -299,7 +299,7 @@
               class="truncate tracking-tight"
               :class="isTexturedEffect ? 'font-bold' : 'text-black/80'"
               :style="{ color: isTexturedEffect ? strongText : mutedText, textShadow: textureHalo }"
-            >{{ comment.message }}</span>
+            >{{ safeText(comment.message, comment.message_filtered) }}</span>
           </div>
 
           <!-- Only when there are genuinely more comments than we're previewing -->
@@ -366,6 +366,7 @@ import {
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/sharing/shareService.store";
 import { svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 import router from "@/router";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useMenuStore } from "@/store/menu.store";

@@ -168,6 +168,7 @@ import {
 } from "@/config/relationship.config";
 import { conversationActivityAt } from "@/helper/chat.helper";
 import { svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 import { useFriendStore } from "@/store/friend.store";
 import { PopulatedConversation } from "@/types/server.types";
 import RelationshipJourney from "./RelationshipJourney.vue";
@@ -255,7 +256,7 @@ const lastMessage = computed(() => {
 			return `${partner.value?.name || "Someone"} caught a balloon 🎈`;
 		return "New activity";
 	}
-	if (msg.content) return msg.content;
+	if (msg.content) return safeText(msg.content, msg.content_filtered);
 	if (msg.shared_post_id) return "Shared a post";
 	return "Sent a sketch";
 });

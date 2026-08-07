@@ -85,7 +85,7 @@
 
             <!-- Message Text -->
             <p class="text-sm text-black/85 mt-1 leading-snug break-words">
-              {{ comment.message }}
+              {{ safeText(comment.message, comment.message_filtered) }}
             </p>
 
             <!-- Context Options Button -->
@@ -159,6 +159,7 @@ import { nextTick, ref, watch } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 import { fetchPostComments, postComment } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";

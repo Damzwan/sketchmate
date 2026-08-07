@@ -385,43 +385,51 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		invitations.value = updatedInvitations;
 	});
 
-	socket.on("lobby-message", async ({ message, member, timestamp, id }) => {
-		const drawSyncer = useDrawSyncer();
-		const authStore = useAuthStore();
+	// `message_filtered` has to be destructured explicitly — anything not named
+	// here is dropped before the item reaches the store, which is why the word
+	// filter had no effect in rooms.
+	socket.on(
+		"lobby-message",
+		async ({ message, message_filtered, member, timestamp, id }) => {
+			const drawSyncer = useDrawSyncer();
+			const authStore = useAuthStore();
 
-		if (isBlocked(member.user_id || member._id)) {
-			return;
-		}
+			if (isBlocked(member.user_id || member._id)) {
+				return;
+			}
 
-		const isMe = member._id === authStore.user?._id;
+			const isMe = member._id === authStore.user?._id;
 
-		if (isMe && id) {
-			drawSyncer.resolveOptimisticLobbyMessage(id, {
-				type: "message",
-				message,
-				member,
-				timestamp,
-				createdAt: timestamp,
-				_id: id,
-				status: "sent",
-				isOptimistic: true,
-			});
-			return;
-		}
+			if (isMe && id) {
+				drawSyncer.resolveOptimisticLobbyMessage(id, {
+					type: "message",
+					message,
+					message_filtered,
+					member,
+					timestamp,
+					createdAt: timestamp,
+					_id: id,
+					status: "sent",
+					isOptimistic: true,
+				});
+				return;
+			}
 
-		// If it's a message from someone else, just push it normally
-		drawSyncer.pushLobbyItems([
-			{
-				type: "message",
-				message,
-				member,
-				timestamp,
-				createdAt: timestamp,
-				_id: id,
-				isOptimistic: false,
-			},
-		]);
-	});
+			// If it's a message from someone else, just push it normally
+			drawSyncer.pushLobbyItems([
+				{
+					type: "message",
+					message,
+					message_filtered,
+					member,
+					timestamp,
+					createdAt: timestamp,
+					_id: id,
+					isOptimistic: false,
+				},
+			]);
+		},
+	);
 
 	socket.on("disconnect", () => {
 		const store = useDrawSyncer();

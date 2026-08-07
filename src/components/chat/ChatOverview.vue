@@ -212,6 +212,7 @@ import { useDrawSyncer } from "@/draw/sync/session.store";
 import { masterAnimation } from "@/helper/animation.helper";
 import { compareConversationActivity } from "@/helper/chat.helper";
 import { svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -310,7 +311,7 @@ const lastLobbyMessage = computed(() => {
 		(item) => item.type === "message",
 	);
 	return lastChatMessage?.type === "message"
-		? lastChatMessage.message
+		? safeText(lastChatMessage.message, lastChatMessage.message_filtered)
 		: undefined;
 });
 

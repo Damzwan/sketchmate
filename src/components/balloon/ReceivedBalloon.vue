@@ -66,7 +66,7 @@
                           class="cabin-sketch-regular font-bold text-white drop-shadow-md"
                           :class="isSuperShortScreen ? 'text-sm' : 'text-base sm:text-lg'"
                         >
-                          "{{ balloonStore.receivedBalloon.message }}"
+                          "{{ safeText(balloonStore.receivedBalloon.message, balloonStore.receivedBalloon.message_filtered) }}"
                         </span>
                       </template>
 
@@ -186,6 +186,7 @@ import balloonLottie from "@/assets/lottie/balloon.lottie";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import Lottie from "@/components/general/Lottie.vue";
 import { svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 import { useBalloonStore } from "@/store/balloon.store";
 import { useModerationStore } from "@/store/moderation.store";
 

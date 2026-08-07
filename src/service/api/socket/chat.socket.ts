@@ -3,6 +3,7 @@ import {
 	hydrateCustomization,
 	resolveTitle,
 } from "@/config/profile_options.config";
+import { safeText } from "@/helper/profanity.helper";
 import { getPartialUsers } from "@/service/api/user.api";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
@@ -81,7 +82,12 @@ export function registerChatHandlers(socket: Socket) {
 					notifText = "New activity";
 				}
 			} else if (payload.message.content) {
-				notifText = payload.message.content;
+				// Same twin the bubble will render — a toast is the first place the
+				// message is seen, so it can't be the one surface that leaks it.
+				notifText = safeText(
+					payload.message.content,
+					payload.message.content_filtered,
+				);
 			} else if (payload.message.shared_post_id) {
 				notifText = "Shared a post";
 			} else if (payload.message.shared_inbox_item_id) {

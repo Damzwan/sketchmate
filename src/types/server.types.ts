@@ -241,6 +241,8 @@ export interface User {
 	/** Home feed visibility: 'off' (hidden), 'mates' (connections only) or
 	    'open' (connections + global discovery). Defaults to 'open'. */
 	feed_level?: "off" | "mates" | "open";
+	/** Render the server's censored twin of user text. Defaults on (undefined = on). */
+	profanity_filter?: boolean;
 	stats: UserStats;
 
 	// Moderation — both optional so legacy clients don't crash if absent.
@@ -415,6 +417,8 @@ export interface InboxComment {
 	inbox_id: string;
 	sender: string;
 	message: string;
+	/** Censored twin of `message`; present only when the text matched the filter. */
+	message_filtered?: string;
 	date: string;
 	status: "active" | "removed";
 	reports_count: number;
@@ -423,6 +427,8 @@ export interface InboxComment {
 export interface Comment {
 	sender: string;
 	message: string;
+	/** Censored twin of `message`; present only when the text matched the filter. */
+	message_filtered?: string;
 	_id: string;
 	date: string;
 	status?: "active" | "removed";
@@ -439,6 +445,8 @@ export interface BasePostComment {
 	post_id: string;
 	author_id: string;
 	message: string;
+	/** Censored twin of `message`; present only when the text matched the filter. */
+	message_filtered?: string;
 	createdAt: string;
 	updatedAt: string;
 
@@ -518,6 +526,8 @@ export interface Balloon {
 	_id: string;
 	sender: string;
 	message: string;
+	/** Censored twin of `message`; present only when the text matched the filter. */
+	message_filtered?: string;
 	drawingJsonUrl: string;
 	img: string;
 	thumbnail: string;
@@ -552,6 +562,8 @@ export interface BaseMessage {
 	conversation_id: string;
 	sender_id: string;
 	content: string;
+	/** Censored twin of `content`; present only when the text matched the filter. */
+	content_filtered?: string;
 	is_invite: boolean;
 	createdAt: string;
 	updatedAt: string;

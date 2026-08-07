@@ -20,6 +20,7 @@ import { storeToRefs } from "pinia";
 import { computed, defineAsyncComponent, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { safeText } from "@/helper/profanity.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -106,7 +107,12 @@ watch(
 		chatStore.addNotification({
 			tabId: `lobby-${senderId}`,
 			subtitle: latest.member?.name || "Lobby",
-			text: latest.content || latest.message,
+			// Lobby messages carry `message`/`message_filtered`; the twin comes
+			// down in the socket payload since lobby chat is never persisted.
+			text: safeText(
+				latest.content || latest.message,
+				latest.content_filtered ?? latest.message_filtered,
+			),
 			img: latest.member?.img || "",
 			senderId: latest.member?._id,
 			isTrial: false,

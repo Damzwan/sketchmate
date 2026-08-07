@@ -51,6 +51,26 @@
       </template>
     </SettingCard>
 
+    <SettingCard :icon="profanityFilterOn ? mdiCommentCheckOutline : mdiCommentRemoveOutline" :interactive="false">
+      <template #label>
+        <span class="flex items-center gap-1 font-bold text-base text-black">
+          <span>Hide bad words</span>
+          <button id="profanity-info" class="flex items-center justify-center p-1 rounded-full cursor-pointer active:bg-black/5 transition-colors">
+            <ion-icon :icon="svg(mdiInformationOutline)" class="text-base text-black/50" />
+          </button>
+        </span>
+      </template>
+      <template #trailing>
+        <ion-toggle
+          mode="ios"
+          color="secondary"
+          :checked="profanityFilterOn"
+          :disabled="profanityToggleBusy"
+          @ionChange="handleProfanityChange"
+        />
+      </template>
+    </SettingCard>
+
     <div class="w-full bg-tertiary border border-primary/40 rounded-[1.5rem] p-3 shadow-sm">
       <div class="flex items-center gap-3 mb-3">
         <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-secondary/10">
@@ -84,6 +104,16 @@
       </div>
     </ion-popover>
 
+    <ion-popover trigger="profanity-info" trigger-action="click" class="cabin-sketch-regular">
+      <div class="p-4 text-lg text-black bg-background border border-primary/20 rounded-2xl">
+        <p class="font-bold mb-1 border-b border-secondary/20 pb-1 text-secondary">Hide bad words</p>
+        <p class="mt-1 leading-snug">
+          Swears in chats, rooms and comments show up as ****.
+          <strong class="block mt-1 text-sm text-black/60">Only changes what you see — nobody is told, and nothing you write is changed.</strong>
+        </p>
+      </div>
+    </ion-popover>
+
     <ion-popover trigger="notif-info" trigger-action="click" class="cabin-sketch-regular">
       <div class="p-4 text-lg text-black bg-background border border-primary/20 rounded-2xl">
         <p class="font-bold text-lg mb-1 border-b border-secondary/20 pb-1 text-secondary">Why enable Alerts?</p>
@@ -112,6 +142,8 @@ import {
 	mdiBalloon,
 	mdiBellOff,
 	mdiBellRing,
+	mdiCommentCheckOutline,
+	mdiCommentRemoveOutline,
 	mdiInformationOutline,
 	mdiViewDashboardOutline,
 } from "@mdi/js";
@@ -135,6 +167,13 @@ const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore());
 const notificationToggleBusy = ref(false);
 const balloonToggleBusy = ref(false);
 const feedLevelBusy = ref(false);
+const profanityToggleBusy = ref(false);
+
+// Undefined means on: accounts created before this setting existed have no
+// field, and "unknown" should read as filtered for an audience this young.
+const profanityFilterOn = computed(
+	() => user.value?.profanity_filter !== false,
+);
 
 type FeedLevel = "off" | "mates" | "open";
 const feedLevel = computed<FeedLevel>(() => user.value?.feed_level ?? "open");
@@ -165,6 +204,28 @@ async function handleFeedLevelChange(event: CustomEvent) {
 		useToast().toast("Could not update feed preference", { color: "danger" });
 	} finally {
 		feedLevelBusy.value = false;
+	}
+}
+
+async function handleProfanityChange(event: ToggleCustomEvent) {
+	if (!user.value) return;
+	const desired = event.detail.checked;
+	if (desired === profanityFilterOn.value) return;
+	if (profanityToggleBusy.value) return;
+
+	profanityToggleBusy.value = true;
+	const previous = user.value.profanity_filter;
+	// Optimistic: every message already on screen re-renders against the twin
+	// the server sent with it, so the switch is instant and needs no refetch.
+	user.value.profanity_filter = desired;
+
+	try {
+		await updateUser({ _id: user.value._id, profanity_filter: desired });
+	} catch (e) {
+		if (user.value) user.value.profanity_filter = previous;
+		useToast().toast("Could not update word filter", { color: "danger" });
+	} finally {
+		profanityToggleBusy.value = false;
 	}
 }
 

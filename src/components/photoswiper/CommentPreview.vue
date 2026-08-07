@@ -62,7 +62,7 @@
                    renders a real ellipsis on the last line, so it's visible that
                    there IS more rather than the text just stopping. -->
               <p class="text-[12.5px] cabin-sketch-regular text-white/85 leading-snug line-clamp-3 break-words">
-                {{ comment.message }}
+                {{ safeText(comment.message, comment.message_filtered) }}
               </p>
             </div>
           </div>
@@ -99,6 +99,7 @@ import { IonAvatar, IonIcon } from "@ionic/vue";
 import { mdiChatOutline, mdiChevronLeft, mdiChevronRight } from "@mdi/js";
 import { computed } from "vue";
 import { senderImg, senderName, svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 
 // Two, deliberately. People opened fullscreen to look at the DRAWING — the peek
 // exists to show the conversation is alive, not to replace the comment drawer.

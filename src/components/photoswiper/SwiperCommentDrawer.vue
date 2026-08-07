@@ -72,7 +72,7 @@
             </div>
 
             <p class="text-sm text-black/85 mt-1 leading-snug break-words">
-              {{ comment.message }}
+              {{ safeText(comment.message, comment.message_filtered) }}
             </p>
           </div>
 
@@ -142,6 +142,7 @@ import dayjs from "dayjs";
 import { computed, nextTick, ref, watch } from "vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { svg } from "@/helper/general.helper";
+import { safeText } from "@/helper/profanity.helper";
 import { deleteInboxComment, getInboxComments } from "@/service/api/inbox.api";
 import { fetchPostComments, postComment } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";

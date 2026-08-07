@@ -3,7 +3,14 @@
        padding and the composer's top padding, so the last bubble sat ~40px
        clear of the input bar — the thread read as detached from the composer
        rather than continuous with it. -->
-  <div @touchmove.stop class="space-y-3 pb-1 flex flex-col justify-end min-h-full animate-tab-in">
+  <div
+    @touchmove.stop
+    @pointerdown="messageActions.onPointerDown"
+    @pointermove="messageActions.onPointerMove"
+    @pointerup="messageActions.onPointerUp"
+    @pointercancel="messageActions.onPointerCancel"
+    class="space-y-3 pb-1 flex flex-col justify-end min-h-full animate-tab-in"
+  >
 
     <!-- Blocked User Interface Callout Box -->
     <div v-if="isBlocked" class="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in">
@@ -94,6 +101,7 @@ import { closeCircle } from "ionicons/icons";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import ChatDrawInviteCard from "@/components/chat/ChatDrawInviteCard.vue";
+import { useMessageActions } from "@/composables/chat/useMessageActions";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { svg } from "@/helper/general.helper";
@@ -120,6 +128,14 @@ const { activeChats } = storeToRefs(chatStore);
 const { pendingRequests } = storeToRefs(friendStore);
 
 const topSentinel = ref<HTMLElement | null>(null);
+
+// One long-press handler for the whole thread, not one per bubble — see the
+// composable's header for why that matters on this list.
+const messageActions = useMessageActions({
+	messages: () => props.messages,
+	currentUserId: () => user.value?._id,
+	isLobby: () => activeTab.value === "lobby",
+});
 
 useIntersectionObserver(
 	topSentinel,

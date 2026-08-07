@@ -16,7 +16,14 @@
     </div>
     <div v-else-if="!isMe" class="w-8 shrink-0"></div>
 
-    <div class="flex flex-col max-w-[75%] overflow-visible" :class="{ 'items-end': isMe }">
+    <!-- `data-msg-id` is what the thread-level long-press handler resolves back
+         to a message (see composables/chat/useMessageActions). An attribute, not
+         a listener, so adding message actions costs this list nothing per row. -->
+    <div
+      class="flex flex-col max-w-[75%] overflow-visible"
+      :class="{ 'items-end': isMe }"
+      :data-msg-id="msg._id || msg.id"
+    >
       <ChatMediaMessage
         v-if="isMediaMessage"
         :msg="msg"
@@ -51,7 +58,7 @@
         </div>
 
         <div class="cabin-sketch-regular leading-snug break-words pr-2">
-          {{ msg.content || msg.message }}
+          {{ displayText }}
         </div>
 
         <div class="text-xs mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
@@ -73,6 +80,7 @@ import dayjs from "dayjs";
 import { computed } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useSenderStyle } from "@/composables/chat/useSenderStyle";
+import { safeText } from "@/helper/profanity.helper";
 import ChatMediaMessage from "./ChatMediaMessage.vue";
 
 const props = defineProps<{
@@ -95,6 +103,16 @@ const resolvedFontFamily = computed(() => senderStyle.value.fontFamily);
 const displayTitle = computed(() => senderStyle.value.title);
 const isMediaMessage = computed(
 	() => !!(props.msg.shared_post_id || props.msg.shared_inbox_item_id),
+);
+
+// DMs carry `content`/`content_filtered`; lobby messages carry
+// `message`/`message_filtered`. Both twins were produced server-side at write
+// time, so this is a field pick — the filter toggle costs nothing per bubble.
+const displayText = computed(() =>
+	safeText(
+		props.msg.content || props.msg.message,
+		props.msg.content_filtered ?? props.msg.message_filtered,
+	),
 );
 
 const statusTick = computed(() => {

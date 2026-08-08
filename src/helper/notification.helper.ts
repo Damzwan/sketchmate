@@ -15,7 +15,6 @@ import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useCompetitionStore } from "@/store/competition.store";
 import { useInboxStore } from "@/store/inbox.store";
-import { useMenuStore } from "@/store/menu.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -428,20 +427,10 @@ const handlers: Partial<Record<NotificationType, NotificationHandler>> = {
 		pushToRoute(FRONTEND_ROUTES.competition);
 	},
 	[NotificationType.competition_results]: async (data) => {
-		if (!data.competition_id) {
-			await pushToRoute(FRONTEND_ROUTES.competition);
-			return;
-		}
-		useCompetitionStore().targetResults(data.competition_id);
-		useMenuStore().isCompetitionResultsOpen = true;
+		await useCompetitionStore().openResults(data.competition_id);
 	},
 	[NotificationType.competition_win]: async (data) => {
-		if (!data.competition_id) {
-			await pushToRoute(FRONTEND_ROUTES.competition);
-			return;
-		}
-		useCompetitionStore().targetResults(data.competition_id);
-		useMenuStore().isCompetitionResultsOpen = true;
+		await useCompetitionStore().openResults(data.competition_id);
 	},
 	[NotificationType.moderation_strike]: async () => {
 		pushToRoute(FRONTEND_ROUTES.moderation);

@@ -7,6 +7,7 @@ import {
 	IMPRESSION_FLUSH_MS,
 	phaseFor,
 } from "@/config/competition.config";
+import router from "@/router";
 import {
 	type Competition,
 	type CompetitionEntry,
@@ -25,7 +26,9 @@ import {
 	type ThemesResponse,
 } from "@/service/api/competition.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 import { useAuthStore } from "./auth.store";
+import { useMenuStore } from "./menu.store";
 
 /**
  * Weekly competition state.
@@ -402,6 +405,28 @@ export const useCompetitionStore = defineStore("competition", () => {
 		presentedResults.value = null;
 	}
 
+	/**
+	 * Open the winners moment for a specific week, from anywhere.
+	 *
+	 * Routes to the competition page first. A results notification is an
+	 * invitation to look at the week, not just at a podium — closing the modal
+	 * should leave the user on the entries, not back on the notification list
+	 * with nothing to do next.
+	 *
+	 * Order matters: the page runs `refresh()` on enter, and a week rollover
+	 * makes that clear the presented results. Awaiting it (coalesced, so this
+	 * joins the page's own call rather than issuing a second) before setting the
+	 * target is what stops the page from wiping the thing we just asked for.
+	 */
+	async function openResults(competitionId?: string): Promise<void> {
+		const path = `/${FRONTEND_ROUTES.competition}`;
+		if (router.currentRoute.value.path !== path) await router.push(path);
+
+		await refresh();
+		targetResults(competitionId);
+		useMenuStore().isCompetitionResultsOpen = true;
+	}
+
 	async function loadPresentedResults(): Promise<void> {
 		const targetId = resultsTargetId.value ?? competition.value?._id;
 		if (!targetId) return;
@@ -609,6 +634,7 @@ export const useCompetitionStore = defineStore("competition", () => {
 		flushImpressions,
 		loadResults,
 		targetResults,
+		openResults,
 		loadPresentedResults,
 		clearResultsPresentation,
 		requestArchive,

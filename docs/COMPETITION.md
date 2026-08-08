@@ -678,6 +678,15 @@ Entry points, all deliberate:
 `last_seen_results_week` is now only written when the user actually opens and
 closes the modal, so the card keeps flagging the result until they look.
 
+Results and win notifications (push and in-app alike) go through
+`competitionStore.openResults(id)`, which **routes to the competition page
+first** and then opens the modal over it — closing it leaves the user on that
+week's entries rather than back on the notification list with nothing to do
+next. It awaits `refresh()` before setting the target because the page runs its
+own refresh on enter, and a week rollover in there clears the presented
+results; that ordering is what stops the page from wiping the podium the
+notification just asked for.
+
 Content, in this order — the order is the point:
 
 1. **The artwork, big.** Not a grid, not a stat. The drawing first.
@@ -801,8 +810,8 @@ by `payload.kind`, and **none of them counts against the 3/week push cap** —
 
 | `payload.kind` | Sent to | When | Tap opens |
 |---|---|---|---|
-| `win` | each winner | at announce | winners modal, personal variant |
-| `results` | every other entrant and voter | at announce | winners modal |
+| `win` | each winner | at announce | competition page + winners modal, personal variant |
+| `results` | every other entrant and voter | at announce | competition page + winners modal |
 | `submissions_closed` | everyone who entered | first tick after `submissions_close_at` | competition page |
 | `entry_comment` | the entry's artist | on each comment, merged per entry | the fullscreen viewer on that drawing, comments open, **in place** |
 

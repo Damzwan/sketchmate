@@ -112,7 +112,6 @@ import { svg } from "@/helper/general.helper";
 import { useCompetitionStore } from "@/store/competition.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 import { useInboxStore } from "@/store/inbox.store";
-import { useMenuStore } from "@/store/menu.store";
 import { usePostStore } from "@/store/post.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { Notification } from "@/types/server.types";
@@ -317,12 +316,10 @@ async function handleTap() {
 					break;
 				}
 
-				if (competitionId) {
-					useCompetitionStore().targetResults(competitionId);
-					useMenuStore().isCompetitionResultsOpen = true;
-				} else {
-					r.push(FRONTEND_ROUTES.competition, masterAnimation);
-				}
+				// Results and wins land on the competition page with the winners
+				// modal over it, so closing the modal leaves the user on the week
+				// rather than back here with nothing to do next.
+				void useCompetitionStore().openResults(competitionId);
 				break;
 			}
 			if (

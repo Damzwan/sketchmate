@@ -217,6 +217,50 @@
         </div>
       </section>
 
+      <!-- WEEKLY COMPETITION — absent entirely in a week with nothing open, so
+           the sheet is unchanged in the normal case. Accent comes from the
+           competition itself, so this visibly matches the home card the user
+           tapped to get here. -->
+      <section
+        v-if="showCompetition"
+        class="border rounded-2xl p-3 shadow-sm transition-all"
+        :style="competitionSectionStyle"
+        :class="[
+          { 'ring-2': isCompetition },
+          competitionDisabled ? 'opacity-55 cursor-not-allowed' : 'cursor-pointer md:hover:scale-[1.01]'
+        ]"
+        @click="!competitionDisabled && toggleSection('competition')"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex-1 pr-3 min-w-0">
+            <div class="flex items-center gap-2">
+              <ion-icon :icon="svg(mdiTrophyOutline)" class="text-[20px] shrink-0" :style="{ color: competitionAccent.ink }" />
+              <p class="text-base font-black text-black leading-none truncate">Weekly Competition</p>
+            </div>
+
+            <div class="text-xs text-black/75 mt-1 pl-[28px] flex gap-1 min-w-0">
+              <span class="font-black truncate">{{ competitionStore.competition?.theme }}</span>
+              <span class="shrink-0" :style="{ color: competitionAccent.ink }">
+                · {{ competitionStore.hasEntered ? 'Already entered' : `${competitionCountdown} left` }}
+              </span>
+            </div>
+          </div>
+
+          <div
+            class="w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shrink-0"
+            :style="{ borderColor: competitionAccent.ink, background: isCompetition ? competitionAccent.ink : 'transparent' }"
+          >
+            <ion-icon v-if="isCompetition" :icon="svg(mdiCheck)" class="text-white w-4 h-4 font-black" />
+          </div>
+        </div>
+
+        <div v-if="isCompetition" class="pt-4 mt-3 border-t border-black/10 animate-fade-in" @click.stop>
+          <textarea v-model="competitionCaption" placeholder="Say something about it... (optional)"
+                    class="w-full bg-black/5 border border-black/10 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:font-normal placeholder:text-black/70 h-20"
+                    maxlength="100" />
+        </div>
+      </section>
+
       <section v-if="!isUnderAge" class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
                :class="[
           { 'ring-2 ring-secondary/50': isPublicPost },
@@ -370,6 +414,7 @@ import {
 	mdiShieldLockOutline,
 	mdiSprout,
 	mdiStar,
+	mdiTrophyOutline,
 } from "@mdi/js";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
@@ -386,6 +431,7 @@ import {
 // @ts-expect-error
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { formatRemaining, resolveAccent } from "@/config/competition.config";
 import {
 	hydrateCustomization,
 	resolveFontFamily,
@@ -404,6 +450,7 @@ import { shareImg } from "@/helper/share.helper"; // Added share helper
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
+import { useCompetitionStore } from "@/store/competition.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useParentalStore } from "@/store/parental.store";
@@ -457,9 +504,44 @@ function toggleMate(id: string) {
 const isBalloon = ref(
 	!isUnderAge.value && shareService.preSelected === "balloon",
 );
+const competitionPreselected = shareService.preSelected === "competition";
 const isSaveAndSend = ref(
-	isUnderAge.value || shareService.preSelected !== "balloon",
+	!competitionPreselected &&
+		(isUnderAge.value || shareService.preSelected !== "balloon"),
 );
+
+const competitionStore = useCompetitionStore();
+
+const isCompetition = ref(competitionPreselected);
+const competitionCaption = ref("");
+
+// Only render when there is something to enter. `canEnter` already covers the
+// age gate and the submissions window.
+const showCompetition = computed(
+	() =>
+		!isUnderAge.value &&
+		!!competitionStore.competition &&
+		competitionStore.canSubmit,
+);
+const competitionDisabled = computed(() => competitionStore.hasEntered);
+
+const competitionAccent = computed(() =>
+	resolveAccent(competitionStore.accent),
+);
+
+const competitionSectionStyle = computed(() => {
+	const a = competitionAccent.value;
+	return {
+		background: `linear-gradient(135deg, ${a.from}33 0%, ${a.to}33 100%)`,
+		borderColor: `${a.ink}40`,
+		"--tw-ring-color": `${a.ink}80`,
+	};
+});
+
+const competitionCountdown = computed(() => {
+	const close = competitionStore.competition?.submissions_close_at;
+	return close ? formatRemaining(close, now.value) : "";
+});
 
 const isPublicPost = ref(false);
 const postCaption = ref("");
@@ -667,6 +749,10 @@ onMounted(async () => {
 	void fetchMates(true);
 	attachMateObserver();
 
+	// Cheap and coalesced in the store — the sheet may be the first surface that
+	// needs to know whether a competition is open.
+	if (!isUnderAge.value) void competitionStore.refresh();
+
 	ensureTicker();
 
 	const canvas = drawStore.getCanvas();
@@ -674,6 +760,10 @@ onMounted(async () => {
 		() => createPreview(canvas),
 		canvas.getObjects().length > 1000 ? 250 : 50,
 	);
+});
+
+watch(competitionDisabled, (disabled) => {
+	if (disabled) isCompetition.value = false;
 });
 
 onUnmounted(() => {
@@ -687,7 +777,11 @@ onBeforeUnmount(() => {
 });
 
 const noActionSelected = computed(
-	() => !isSaveAndSend.value && !isPublicPost.value && !isBalloon.value,
+	() =>
+		!isSaveAndSend.value &&
+		!isPublicPost.value &&
+		!isBalloon.value &&
+		!isCompetition.value,
 );
 
 const goBack = (e: Event) => {
@@ -695,12 +789,19 @@ const goBack = (e: Event) => {
 	nav?.pop();
 };
 
-function toggleSection(section: "direct" | "post" | "balloon") {
-	if ((section === "post" || section === "balloon") && isUnderAge.value) return;
+function toggleSection(section: "direct" | "post" | "balloon" | "competition") {
+	if (
+		(section === "post" ||
+			section === "balloon" ||
+			section === "competition") &&
+		isUnderAge.value
+	)
+		return;
 
 	if (section === "direct") isSaveAndSend.value = !isSaveAndSend.value;
 	if (section === "post") isPublicPost.value = !isPublicPost.value;
 	if (section === "balloon") isBalloon.value = !isBalloon.value;
+	if (section === "competition") isCompetition.value = !isCompetition.value;
 }
 
 function goToPro() {
@@ -758,6 +859,10 @@ async function executeShares() {
 	const enableRemixSnapshot = postEnableRemix.value;
 	const wantsBalloon = isBalloon.value && !isUnderAge.value;
 	const balloonSnapshot = balloonNote.value;
+	const wantsCompetition = isCompetition.value && showCompetition.value;
+	const competitionSnapshot = {
+		caption: competitionCaption.value,
+	};
 
 	shareService.setSending(true);
 
@@ -804,6 +909,15 @@ async function executeShares() {
 						.then(() => {
 							quotaStore.decrementPost();
 						}),
+				);
+			}
+
+			if (wantsCompetition) {
+				tasks.push(() =>
+					shareService.submitCompetitionEntry(
+						processedData,
+						competitionSnapshot,
+					),
 				);
 			}
 

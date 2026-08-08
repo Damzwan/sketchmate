@@ -3,6 +3,11 @@
 **Written 2026-08-01.** Companion to `DRAW_ENGINE_PERF.md` (worker-era findings)
 and `DRAW_ENGINE_STABILITY_AUDIT.md` (memory/import findings).
 
+For the later build-versus-Fabric decision and staged dependency plan, see
+[`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). It preserves
+this review's conclusion that tiling should stay while separating that decision
+from whether Fabric must remain the canonical object runtime.
+
 Scope: `src/draw/**` with the **`main` render backend assumed**
 (`resolveDrawRenderBackend` defaults to `"main"`,
 [renderBackend.config.ts:35](../src/draw/config/renderBackend.config.ts#L35)).

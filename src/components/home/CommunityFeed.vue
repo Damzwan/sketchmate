@@ -118,11 +118,12 @@
 <script setup lang="ts">
 import { useIntersectionObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
+import { useOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 import { deletePost, type FeedTab, logPostViews } from "@/service/api/post.api";
@@ -192,100 +193,14 @@ const REACTION_POPOVER_SPACING = 10;
 // it. Hold both scrollTop and Chromium's scroll anchor for the full overlay
 // lifetime, then keep pinning through the dismissal/update frames.
 const rootEl = ref<HTMLElement | null>(null);
-let scrollEl: HTMLElement | null = null;
-let savedScrollTop = 0;
-let previousOverflowAnchor: string | null = null;
-let scrollGuardFrame: number | null = null;
-let scrollGuardUntil = 0;
-let releaseAnchorWhenGuardEnds = false;
-
-async function resolveScrollEl(): Promise<HTMLElement | null> {
-	if (scrollEl?.isConnected) return scrollEl;
-	const content = rootEl.value?.closest("ion-content") as any;
-	scrollEl = content?.getScrollElement
-		? await content.getScrollElement()
-		: null;
-	return scrollEl;
-}
-
-function blurOverlayTrigger() {
-	const active = document.activeElement;
-	if (active instanceof HTMLElement && active !== document.body) active.blur();
-}
-
-async function captureOverlayScroll() {
-	const el = await resolveScrollEl();
-	if (!el) return;
-
-	if (scrollGuardFrame !== null) cancelAnimationFrame(scrollGuardFrame);
-	scrollGuardFrame = null;
-	scrollGuardUntil = 0;
-	releaseAnchorWhenGuardEnds = false;
-
-	savedScrollTop = el.scrollTop;
-	if (previousOverflowAnchor === null) {
-		previousOverflowAnchor = el.style.overflowAnchor;
-		el.style.overflowAnchor = "none";
-	}
-	blurOverlayTrigger();
-}
-
-function pinScroll() {
-	if (
-		scrollEl?.isConnected &&
-		Math.abs(scrollEl.scrollTop - savedScrollTop) > 2
-	)
-		scrollEl.scrollTop = savedScrollTop;
-}
-
-function releaseScrollAnchor() {
-	if (scrollEl?.isConnected && previousOverflowAnchor !== null) {
-		scrollEl.style.overflowAnchor = previousOverflowAnchor;
-	}
-	previousOverflowAnchor = null;
-}
-
-function stopScrollGuard(releaseAnchor = true) {
-	if (scrollGuardFrame !== null) cancelAnimationFrame(scrollGuardFrame);
-	scrollGuardFrame = null;
-	scrollGuardUntil = 0;
-	releaseAnchorWhenGuardEnds = false;
-	if (releaseAnchor) releaseScrollAnchor();
-}
-
-function guardScroll(duration = 500, releaseAnchorAfter = false) {
-	scrollGuardUntil = Math.max(scrollGuardUntil, performance.now() + duration);
-	releaseAnchorWhenGuardEnds ||= releaseAnchorAfter;
-	if (scrollGuardFrame !== null) return;
-
-	const tick = () => {
-		pinScroll();
-		if (performance.now() < scrollGuardUntil) {
-			scrollGuardFrame = requestAnimationFrame(tick);
-			return;
-		}
-
-		scrollGuardFrame = null;
-		if (releaseAnchorWhenGuardEnds) releaseScrollAnchor();
-		releaseAnchorWhenGuardEnds = false;
-	};
-	scrollGuardFrame = requestAnimationFrame(tick);
-}
-
-function cancelScrollGuardOnInteraction() {
-	if (!popoverOpen.value && !feedFullscreenOpen) stopScrollGuard();
-}
-const scrollIntentListenerOptions: AddEventListenerOptions = {
-	capture: true,
-	passive: true,
-};
+const { captureOverlayScroll, guardScroll, stopScrollGuard, endOverlay } =
+	useOverlayScrollGuard(rootEl);
 
 function closeReactionPopover() {
 	popoverOpen.value = false;
 	// `close` is emitted on ion-popover's didDismiss. At this point the
 	// animation is over, so only cover the final focus-restoration frames.
-	stopScrollGuard(false);
-	guardScroll(48, true);
+	endOverlay();
 }
 
 const openComments = (post: FeedPost) => {
@@ -522,47 +437,7 @@ function reloadIfDirty() {
 
 defineExpose({ reloadIfDirty });
 
-onMounted(() => {
-	// Warm the scroll-element handle so the reaction picker can read/pin scroll
-	// synchronously on first use.
-	void resolveScrollEl();
-
-	// Ionic overlays remain above the feed during their leave animation. Listen
-	// at document capture level so the first touch after close can cancel the
-	// guard even if that fading overlay, rather than this section, receives it.
-	document.addEventListener(
-		"pointerdown",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.addEventListener(
-		"touchstart",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.addEventListener(
-		"wheel",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-});
-
 onUnmounted(() => {
-	document.removeEventListener(
-		"pointerdown",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.removeEventListener(
-		"touchstart",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.removeEventListener(
-		"wheel",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
 	stopScrollGuard();
 	stopAllPostObservers();
 	void flushViewSync();

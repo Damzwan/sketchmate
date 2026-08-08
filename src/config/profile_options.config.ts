@@ -43,6 +43,13 @@ export const TITLES: Title[] = [
 		howTo: "Make any purchase.",
 	},
 	{
+		id: "champion",
+		name: "Competition Winner",
+		emoji: "🏆",
+		desc: "Won a weekly art competition",
+		howTo: "Win any category in a weekly competition.",
+	},
+	{
 		id: "creator",
 		name: "Creator",
 		emoji: "🙏️",

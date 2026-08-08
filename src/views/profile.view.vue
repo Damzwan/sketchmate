@@ -30,9 +30,23 @@
             show-stats
           />
 
-          <ProfilePost :posts="userPosts" :loading="loadingPosts" />
+          <div class="mt-7 p-1 rounded-2xl bg-primary/15 grid grid-cols-2 gap-1 border border-primary/20">
+            <button
+              v-for="tab in profileTabs"
+              :key="tab.id"
+              type="button"
+              class="h-11 rounded-xl text-sm font-black transition-all"
+              :class="profileTab === tab.id ? 'bg-tertiary text-black shadow-sm' : 'text-black/55 md:hover:bg-tertiary/60'"
+              @click="profileTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
 
-          <ion-infinite-scroll @ionInfinite="loadMorePosts" :disabled="!hasMoreUserPosts">
+          <ProfilePost v-if="profileTab === 'posts'" :posts="userPosts" :loading="loadingPosts" />
+          <ProfileCompetitions v-else :user="user" />
+
+          <ion-infinite-scroll v-if="profileTab === 'posts'" @ionInfinite="loadMorePosts" :disabled="!hasMoreUserPosts">
             <ion-infinite-scroll-content loading-spinner="bubbles" />
           </ion-infinite-scroll>
         </div>
@@ -56,6 +70,7 @@ import TopBar from "@/components/general/TopBar.vue";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
+import ProfileCompetitions from "@/components/profile/ProfileCompetitions.vue";
 import ProfilePost from "@/components/profile/ProfilePost.vue";
 import { masterAnimation } from "@/helper/animation.helper";
 import { useToast } from "@/service/toast.service";
@@ -75,6 +90,11 @@ const { openMenu } = useMenuStore();
 
 const loadingAccount = ref(true);
 const loadingPosts = ref(false);
+const profileTab = ref<"posts" | "competitions">("posts");
+const profileTabs = [
+	{ id: "posts" as const, label: "Posts" },
+	{ id: "competitions" as const, label: "Competitions" },
+];
 
 // World lotties measure their canvas via getBoundingClientRect at mount. When a
 // world edit re-renders them while this page is `ion-page-hidden` (display:none),

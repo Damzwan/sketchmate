@@ -159,6 +159,21 @@
           </button>
         </div>
 
+        <!-- Competition wins. Only shown once there is one — an empty trophy
+             row reads as a taunt, not a stat. -->
+        <div
+          v-if="competitionWins > 0"
+          class="w-full mt-4 flex justify-center"
+        >
+          <span
+            class="px-3 py-1.5 rounded-full text-xs font-black tracking-wide border transition-colors duration-500"
+            :style="{ borderColor: theme.cardBorderColor, color: theme.accentColor }"
+          >
+            <ion-icon :icon="svg(mdiTrophyOutline)" class="align-middle mr-1" />
+            {{ competitionWins }} competition {{ competitionWins === 1 ? "win" : "wins" }}
+          </span>
+        </div>
+
         <div
           v-if="effectiveCustomization.signaturePath || allowSketchEdit"
           class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500 relative"
@@ -246,6 +261,7 @@ import {
 	mdiCog,
 	mdiDraw,
 	mdiPalette,
+	mdiTrophyOutline,
 } from "@mdi/js";
 import { computed, ref } from "vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
@@ -360,6 +376,12 @@ const cardStyle = computed(() => ({
 
 const getStatCount = (key: "mates" | "followers" | "following") =>
 	props.user.stats?.[key] || 0;
+
+// Public payloads flatten it to `competition_wins`; the logged-in user object
+// keeps the nested shape. Read both rather than making every caller normalise.
+const competitionWins = computed(
+	() => props.user?.competition_wins ?? props.user?.competition?.wins ?? 0,
+);
 const signatureStrokeWidth = computed(() =>
 	calculateSignatureStroke(effectiveCustomization.value.signatureViewBox),
 );

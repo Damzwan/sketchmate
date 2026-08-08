@@ -3,6 +3,7 @@
     <CircularLoader class="z-50" v-if="!isRouterReady" bg-color="bg-background" />
     <ion-router-outlet />
     <LazyMount :when="isLoggedIn && isWhatsNewOpen"><WhatsNewModal /></LazyMount>
+    <LazyMount :when="isLoggedIn && isCompetitionResultsOpen"><WinnersModal /></LazyMount>
     <!-- Toast listeners stay live after login; the heavy panel loads on first open. -->
     <LazyMount :when="isLoggedIn"><ChatToasts /></LazyMount>
     <LazyMount :when="isLoggedIn && chatPanelOpen"><ChatPanel /></LazyMount>
@@ -62,6 +63,9 @@ const GlobalToast = defineAsyncComponent(
 );
 const WhatsNewModal = defineAsyncComponent(
 	() => import("@/components/general/WhatsNewModal.vue"),
+);
+const WinnersModal = defineAsyncComponent(
+	() => import("@/components/competition/WinnersModal.vue"),
 );
 const PhotoSwiper = defineAsyncComponent(
 	() => import("@/components/photoswiper/PhotoSwiper.vue"),
@@ -146,6 +150,7 @@ const {
 	viewProfileMenuOpen,
 	moderationMenuOpen,
 	isWhatsNewOpen,
+	isCompetitionResultsOpen,
 } = storeToRefs(useMenuStore());
 
 const { open: photoSwiperOpen } = storeToRefs(usePhotoSwiper());

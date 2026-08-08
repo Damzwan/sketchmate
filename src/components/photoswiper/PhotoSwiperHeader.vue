@@ -6,7 +6,7 @@
       </ion-button>
     </ion-buttons>
 
-    <div v-if="type === 'post'" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
+    <div v-if="type === 'post' || type === 'competition'" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
       <!-- UserAvatar rather than a plain <img>: the fullscreen viewer is the
            one place a post was shown without its author's frame/decoration,
            so a customised artist lost their look exactly where the artwork is
@@ -79,7 +79,7 @@ import { senderImg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	currItem: any;
-	type: "post" | "inbox";
+	type: "post" | "inbox" | "competition";
 	userLookup?: (userId: string) => any;
 }>();
 

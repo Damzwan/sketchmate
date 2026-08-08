@@ -9,6 +9,10 @@ export enum NotificationType {
 	moderation_content = "moderation_content",
 	mate_request = "mate_request",
 	request_accepted = "request_accepted",
+	competition_theme = "competition_theme",
+	competition_last_call = "competition_last_call",
+	competition_results = "competition_results",
+	competition_win = "competition_win",
 
 	// Legacy — remove with legacy config
 	match = "match",
@@ -128,7 +132,9 @@ export type ReportableType =
 	| "inbox_drawing"
 	| "inbox_comment"
 	| "lobby_message"
-	| "lobby_drawing";
+	| "lobby_drawing"
+	| "competition_entry"
+	| "competition_comment";
 
 export type ReportStatus = "pending" | "auto_actioned" | "upheld" | "dismissed";
 
@@ -373,6 +379,12 @@ export interface BasePost {
 	status: ContentModerationStatus;
 	moderation?: ContentModerationMeta;
 	reaction_counts: Record<string, number>;
+	/** Set when this drawing also won a weekly competition. */
+	competition_win?: {
+		week_key: string;
+		category_label: string;
+		theme?: string;
+	};
 }
 
 export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
@@ -923,6 +935,7 @@ export type NotificationKind =
 	// Content lifecycle notice — quarantined / removed / restored, discriminated
 	// by payload.status. Mirrors NotificationKind on the server.
 	| "moderation_content"
+	| "competition"
 	| "lobby_invitation"
 	| "announcement";
 

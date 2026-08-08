@@ -12,6 +12,12 @@ built the way it is, where it hurts today, and what to do next.
 > limitations" and "Roadmap" sections below **predate the tileBakery worker
 > landing**; the perf doc supersedes them on worker status.
 
+> **Fabric.js dependency decision (2026-08-08):** see
+> [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). The
+> recommendation is to keep this tile architecture, contain Fabric behind an
+> adapter, and move to canonical compact records plus native per-type renderers.
+> It explicitly rejects a big-bang rewrite and an ad-hoc Fabric source fork.
+
 ---
 
 ## Table of contents

@@ -9,6 +9,8 @@
 
         <AgeGatedBanner />
 
+        <CompetitionCard />
+
         <HomeQuickActions
           :is-under-age="isUnderAge"
           @action="handleQuickAction"
@@ -39,6 +41,9 @@
         />
 
       </div>
+
+      <!-- Dev-only cycle controls: force phases, seed entries, announce now. -->
+      <CompetitionDevPanel v-if="isDev && !isUnderAge" />
     </ion-content>
   </ion-page>
 </template>
@@ -53,13 +58,21 @@ import {
 	useIonRouter,
 } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+	computed,
+	defineAsyncComponent,
+	onBeforeUnmount,
+	onMounted,
+	ref,
+	watch,
+} from "vue";
 // Vector Assets & Lottie Files
 import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
 import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
 import CommunityFeed from "@/components/home/CommunityFeed.vue";
+import CompetitionCard from "@/components/home/CompetitionCard.vue";
 import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";
 import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
 import MyDrafts from "@/components/home/MyDrafts.vue";
@@ -77,6 +90,7 @@ import {
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useAuthStore } from "@/store/auth.store";
+import { useCompetitionStore } from "@/store/competition.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -89,6 +103,11 @@ const drawSyncerStore = useDrawSyncer();
 const { publicLobbies } = storeToRefs(drawSyncerStore);
 const { openMenu } = useMenuStore();
 const { isUnderAge } = storeToRefs(useAuthStore());
+
+const isDev = import.meta.env.DEV;
+const CompetitionDevPanel = defineAsyncComponent(
+	() => import("@/components/competition/CompetitionDevPanel.vue"),
+);
 
 const documentStore = useDocumentStore();
 const { pendingDraftsList, removedDraftIds } = storeToRefs(documentStore);
@@ -184,6 +203,10 @@ onMounted(() => {
 
 onIonViewDidEnter(() => {
 	fetchDrafts();
+
+	// Cheap and coalesced; the card's phase and countdown must be right the
+	// moment the user lands here, not a beat later.
+	if (!isUnderAge.value) void useCompetitionStore().refresh();
 
 	// Re-pull the community feed if the feed-level preference changed while we
 	// were away (e.g. flipped off→open in Settings). CommunityFeed owns the feed

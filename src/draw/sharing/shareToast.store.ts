@@ -11,6 +11,7 @@ export type ShareToastKind =
 	| "balloon"
 	| "saved"
 	| "title"
+	| "competition"
 	| "shared";
 
 export interface ShareToast {
@@ -120,6 +121,25 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		});
 	}
 
+	function pushCompetitionToast(params: {
+		thumbnail?: string;
+		replaced?: boolean;
+		/** "quota" when the entry landed but the cross-post could not. */
+		postSkipped?: string;
+	}) {
+		push({
+			id: `toast-${Date.now()}`,
+			kind: "competition",
+			title: params.replaced ? "Entry replaced" : "You're in!",
+			subtitle:
+				params.postSkipped === "quota"
+					? "Entered — no posts left today, so it wasn't shared to the feed"
+					: "Entered in this week's competition",
+			thumbnail: params.thumbnail,
+			emoji: "🏆",
+		});
+	}
+
 	function pushBalloonToast(params: { message: string }) {
 		push({
 			id: `toast-${Date.now()}`,
@@ -169,6 +189,7 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		getInboxItem, // Expose these to component
 		getPost,
 		pushBalloonToast,
+		pushCompetitionToast,
 		pushSavedToast,
 		pushTitleToast,
 	};

@@ -13,7 +13,9 @@ import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useCompetitionStore } from "@/store/competition.store";
 import { useInboxStore } from "@/store/inbox.store";
+import { useMenuStore } from "@/store/menu.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -417,6 +419,30 @@ const handlers: Partial<Record<NotificationType, NotificationHandler>> = {
 		navigateToChat(d.conversation_id),
 	[NotificationType.balloon_match]: async (d) =>
 		navigateToChat(d.conversation_id),
+	// Theme/last-call pushes open the live page. Results carry the exact
+	// competition id and open that week's winners, even after Monday rollover.
+	[NotificationType.competition_theme]: async () => {
+		pushToRoute(FRONTEND_ROUTES.competition);
+	},
+	[NotificationType.competition_last_call]: async () => {
+		pushToRoute(FRONTEND_ROUTES.competition);
+	},
+	[NotificationType.competition_results]: async (data) => {
+		if (!data.competition_id) {
+			await pushToRoute(FRONTEND_ROUTES.competition);
+			return;
+		}
+		useCompetitionStore().targetResults(data.competition_id);
+		useMenuStore().isCompetitionResultsOpen = true;
+	},
+	[NotificationType.competition_win]: async (data) => {
+		if (!data.competition_id) {
+			await pushToRoute(FRONTEND_ROUTES.competition);
+			return;
+		}
+		useCompetitionStore().targetResults(data.competition_id);
+		useMenuStore().isCompetitionResultsOpen = true;
+	},
 	[NotificationType.moderation_strike]: async () => {
 		pushToRoute(FRONTEND_ROUTES.moderation);
 	},

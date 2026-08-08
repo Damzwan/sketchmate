@@ -4,6 +4,11 @@ Companion to [`DRAW_ENGINE.md`](./DRAW_ENGINE.md) (how it works) and
 [`DRAW_ENGINE_PERF.md`](./DRAW_ENGINE_PERF.md) (ANR/crash remediation, 21
 review passes).
 
+The later Fabric dependency decision is documented in
+[`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). Its
+strangler plan builds on this document's record/worker and module-boundary work;
+it does not replace the tile architecture or its correctness invariants.
+
 **This doc covers the next class of problems: the ones the user SEES.** Blur,
 shift, ghosting, white seams, and a zoom range that is wrong at both ends. Plus
 the worker's remaining structural cost, and the measurement harness that should

@@ -62,11 +62,13 @@
             :type="config.type ?? 'inbox'"
             :show-comments="showComments"
             :can-reply="canReply"
+            :can-vote="canVote"
             :can-delete="canDelete"
             :user-lookup="config.userLookup"
             @open-comments="isCommentDrawerOpen = true"
             @update:show-comments="showComments = $event"
             @reply="handleReply"
+            @vote="handleVote"
             @delete="handleDelete"
             @react="handleReact"
           />
@@ -121,6 +123,7 @@ import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawe
 import { playSelectionTick } from "@/config/post.config";
 import { EventBus } from "@/main";
 import router from "@/router";
+import { fetchCompetitionComments } from "@/service/api/competition.api";
 import { fetchPostComments } from "@/service/api/post.api";
 import { useAuthStore } from "@/store/auth.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
@@ -171,6 +174,13 @@ const canReply = computed(() => {
 	const c = config.value.canReply;
 	if (!c || !currItem.value) return false;
 	if (typeof c === "function") return c(currItem.value, user.value);
+	return true;
+});
+
+const canVote = computed(() => {
+	const value = config.value.canVote;
+	if (!value || !currItem.value) return false;
+	if (typeof value === "function") return value(currItem.value, user.value);
 	return true;
 });
 
@@ -272,9 +282,19 @@ function onDidDismiss() {
  */
 async function prefetchComments() {
 	const item = currItem.value;
-	if (!item || config.value.type !== "post" || item.commentsLoaded) return;
+	if (
+		!item ||
+		!(["post", "competition"] as const).includes(
+			config.value.type as "post" | "competition",
+		) ||
+		item.commentsLoaded
+	)
+		return;
 	try {
-		const res = await fetchPostComments(item._id, COMMENT_PREVIEW_LIMIT);
+		const res =
+			config.value.type === "competition"
+				? await fetchCompetitionComments(item._id, COMMENT_PREVIEW_LIMIT)
+				: await fetchPostComments(item._id, COMMENT_PREVIEW_LIMIT);
 		item.comments = res.comments || [];
 		item.commentsLoaded = true;
 	} catch (e) {
@@ -326,6 +346,10 @@ function handleReply() {
 	}
 }
 
+function handleVote() {
+	config.value.onVote?.(currItem.value);
+}
+
 function handleDelete() {
 	if (config.value.onDelete) {
 		config.value.onDelete(currItem.value);
@@ -351,7 +375,8 @@ let suppressNextTap = false;
  * Inspecting the drawing and reacting to it are different intents that share
  * one gesture surface, so the press has to know which one is in flight.
  *
- * Two signals, both read at fire time (400ms in) rather than at pointerdown,
+ * Two signals, both read when the deliberately slower press fires rather than
+ * at pointerdown,
  * because that's when the user's intent is actually knowable:
  *
  *  - MULTI-TOUCH. A pinch is two fingers, and the first of them looks exactly
@@ -438,7 +463,7 @@ onLongPress(
 		longPressPopoverOpen.value = true;
 	},
 	{
-		delay: 400,
+		delay: 650,
 		// No `prevent` here, unlike FeedPostCard: this surface owns swipe and
 		// pinch-zoom, and preventing the default on pointerdown kills both.
 		// distanceThreshold cancels the press as soon as the finger travels, so a

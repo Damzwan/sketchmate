@@ -1,6 +1,9 @@
 .cabin-sketch-regular {
 	font-family: "Cabin Sketch", sans-serif;
-	font-weight: 400;
+	/* Let font-bold/font-black choose a real registered face. Keeping 400 on
+	 * this class tied the utility in specificity and produced different winners
+	 * across the desktop and mobile CSS engines. */
+	font-synthesis: none;
 	text-rendering: optimizeLegibility;
 }
 
@@ -33,6 +36,24 @@
 	font-family: "Cabin Sketch";
 	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
 	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+/* Cabin Sketch ships only regular and bold. Map heavier UI utilities to the
+ * real bold outlines instead of letting WebKit synthesize 800/900 differently. */
+@font-face {
+	font-family: "Cabin Sketch";
+	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
+	font-weight: 800;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Cabin Sketch";
+	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
+	font-weight: 900;
 	font-style: normal;
 	font-display: swap;
 }

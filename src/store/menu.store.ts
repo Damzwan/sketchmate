@@ -35,6 +35,10 @@ export const useMenuStore = defineStore("menu", () => {
 	const isOnlineUpgradeMenuOpen = ref(false);
 	const isPaywallOpen = ref(false);
 	const isWhatsNewOpen = ref(false);
+	// The weekly winners moment. Lives here (not in competition.store) so
+	// ambientPause and the modal-priority checks can see it like any other
+	// full-screen overlay.
+	const isCompetitionResultsOpen = ref(false);
 
 	const shopScrollTarget = ref<string | null>(null);
 	const shopEquipTarget = ref<"profile" | "chat">("profile");
@@ -160,6 +164,7 @@ export const useMenuStore = defineStore("menu", () => {
 		shopEquipTarget,
 		openShop,
 		isWhatsNewOpen,
+		isCompetitionResultsOpen,
 		resetRuntimeState,
 	};
 });

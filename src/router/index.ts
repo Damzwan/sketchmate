@@ -57,6 +57,11 @@ const routes: Array<RouteRecordRaw> = [
 		path: `/${FRONTEND_ROUTES.notifications}`,
 		component: () => import("@/views/notification.view.vue"),
 	},
+	{
+		// Lazy on purpose: the entry grid must not be in the app-start chunk.
+		path: `/${FRONTEND_ROUTES.competition}`,
+		component: () => import("@/views/competition.view.vue"),
+	},
 ];
 
 const router = createRouter({

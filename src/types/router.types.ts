@@ -11,4 +11,5 @@ export enum FRONTEND_ROUTES {
 	customization = "customize",
 	moderation = "moderation",
 	notifications = "notifications",
+	competition = "competition",
 }

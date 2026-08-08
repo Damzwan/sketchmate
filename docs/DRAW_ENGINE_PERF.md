@@ -1,5 +1,10 @@
 # Draw engine — ANR / crash remediation plan
 
+> **Architecture follow-up (2026-08-08):**
+> [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md) evaluates
+> replacing Fabric itself. Its recommendation keeps the tile/overview/compositor
+> work in this document and migrates object ownership/rendering incrementally.
+
 Companion to [`DRAW_ENGINE.md`](./DRAW_ENGINE.md). That doc says *how the engine
 works*. This one says **why 0.4.3 still ANRs and crashes on Android, what to fix,
 and in what order.**

@@ -15,7 +15,11 @@
     </div>
 
     <!-- Effect: live effect over a mid-tone card so light/cracks read -->
-    <div v-else-if="category === 'effect'" class="w-full h-full effect-stage">
+    <div
+      v-else-if="category === 'effect'"
+      class="w-full h-full effect-stage"
+      :class="{ 'effect-stage--prism': refId === 'shimmer-rainbow' }"
+    >
       <ProfileEffect v-if="effectDef" :def="effectDef" :preview="true" />
     </div>
 
@@ -138,5 +142,8 @@ onMounted(async () => {
 /* Mid slate so subtle white effects (e.g. shattered glass) stay visible. */
 .effect-stage {
   background: linear-gradient(135deg, #4a5568, #2d3748);
+}
+.effect-stage--prism {
+  background: linear-gradient(135deg, #70456f, #345f7b 55%, #776b37);
 }
 </style>

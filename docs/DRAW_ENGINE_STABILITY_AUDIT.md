@@ -5,6 +5,11 @@
 **Scope:** `src/draw/**`, with the saved-drawing import path investigated first  
 **Status:** First corrective pass implemented; device profiling and the remaining roadmap are open
 
+> **Architecture follow-up (2026-08-08):** see
+> [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). It agrees
+> that tiling should stay, but makes the chunked record model a staged path for
+> removing Fabric from settled/off-screen objects and common worker render paths.
+
 ## Executive conclusion
 
 The tile-based renderer is directionally appropriate for SketchMate. An infinite,

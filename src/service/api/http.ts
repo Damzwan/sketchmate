@@ -30,7 +30,13 @@ export async function request<T>(
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		const errorData = JSON.parse(errorText);
+		let errorData: Record<string, any> = {};
+		try {
+			errorData = JSON.parse(errorText);
+		} catch {
+			// Koa can return plain-text validation errors. Preserve the useful
+			// server message instead of masking it with a JSON parse exception.
+		}
 
 		if (errorData.error === "capability_blocked") {
 			const modStore = useModerationStore();
@@ -45,7 +51,10 @@ export async function request<T>(
 		}
 
 		throw new Error(
-			errorText || `Request failed with status ${response.status}`,
+			errorData.message ||
+				errorData.error ||
+				errorText ||
+				`Request failed with status ${response.status}`,
 		);
 	}
 

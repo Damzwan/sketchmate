@@ -6,7 +6,8 @@
     :class="[radiusClass, { 'fx-frozen': paused }]"
     :style="{
     isolation: 'isolate',
-    visibility: (!onScreen && hasMounted) ? 'hidden' : 'visible'
+    visibility: (!onScreen && hasMounted) ? 'hidden' : 'visible',
+    background: previewBackground
   }"
     aria-hidden="true"
   >
@@ -248,6 +249,15 @@ const shimmerStyle = computed(() => {
 		background: `linear-gradient(115deg, transparent 40%, ${def.value.color || "rgba(255,255,255,0.4)"} 50%, transparent 60%)`,
 	};
 });
+
+// A moving prism sweep is nearly transparent between passes. In small shop and
+// prize previews that looked like the effect had failed to load, so preview
+// surfaces keep a quiet rainbow base underneath the live sweep.
+const previewBackground = computed(() =>
+	props.preview && def.value.kind === "shimmer" && def.value.color === "rainbow"
+		? "linear-gradient(135deg, rgba(255,0,150,.28), rgba(0,200,255,.30), rgba(255,200,0,.28))"
+		: undefined,
+);
 </script>
 
 <style scoped>

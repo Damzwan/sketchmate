@@ -50,6 +50,7 @@ export const useAmbientPause = defineStore("ambientPause", () => {
 			menu.isPaywallOpen ||
 			menu.isShopOpen ||
 			menu.isWhatsNewOpen ||
+			menu.isCompetitionResultsOpen ||
 			manualHolds.value > 0,
 	);
 

@@ -143,6 +143,14 @@ onMounted(() => {
 		if (sessionStore.queryParams?.has("type")) {
 			sessionStore.queryParams.delete("type");
 		}
+	} else if (type.value === "competition") {
+		shareService.preSelected = "competition";
+		delete newQuery.type;
+		routeNeedsUpdate = true;
+
+		if (sessionStore.queryParams?.has("type")) {
+			sessionStore.queryParams.delete("type");
+		}
 	} else {
 		shareService.preSelected = "mate";
 	}

@@ -143,6 +143,11 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
+import {
+	deleteCompetitionComment,
+	fetchCompetitionComments,
+	postCompetitionComment,
+} from "@/service/api/competition.api";
 import { deleteInboxComment, getInboxComments } from "@/service/api/inbox.api";
 import { fetchPostComments, postComment } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";
@@ -152,7 +157,7 @@ import { usePostStore } from "@/store/post.store";
 const props = defineProps<{
 	open: boolean;
 	currItem: any;
-	type: "post" | "inbox";
+	type: "post" | "inbox" | "competition";
 	user: any;
 	userLookup?: (userId: string) => any;
 	onComment?: (item: any, message: string) => Promise<any>;
@@ -175,6 +180,7 @@ const newComment = ref("");
 const hasMore = ref(false);
 
 const isPost = computed(() => props.type === "post");
+const isCompetition = computed(() => props.type === "competition");
 
 // --- VueUse Infinite Scroll setup
 useInfiniteScroll(
@@ -228,7 +234,9 @@ watch(
 		try {
 			const res = isPost.value
 				? await fetchPostComments(props.currItem._id, 20)
-				: await getInboxComments(props.currItem._id, 20);
+				: isCompetition.value
+					? await fetchCompetitionComments(props.currItem._id, 20)
+					: await getInboxComments(props.currItem._id, 20);
 
 			comments.value = res.comments;
 			hasMore.value = res.hasMore;
@@ -299,6 +307,14 @@ async function submitComment() {
 				...(props.currItem.comments || []),
 				res.comment,
 			];
+		} else if (isCompetition.value) {
+			const res = await postCompetitionComment(props.currItem._id, message);
+			comments.value.push(res.comment);
+			props.currItem.comment_count = (props.currItem.comment_count ?? 0) + 1;
+			props.currItem.comments = [
+				...(props.currItem.comments || []),
+				res.comment,
+			];
 		} else if (props.onComment) {
 			await props.onComment(props.currItem, message);
 		}
@@ -323,7 +339,9 @@ async function loadOlderComments() {
 	try {
 		const res = isPost.value
 			? await fetchPostComments(props.currItem._id, 20, oldestDate)
-			: await getInboxComments(props.currItem._id, 20, oldestDate);
+			: isCompetition.value
+				? await fetchCompetitionComments(props.currItem._id, 20, oldestDate)
+				: await getInboxComments(props.currItem._id, 20, oldestDate);
 
 		const newComments = res.comments.filter(
 			(c: any) => !comments.value.some((existing) => existing._id === c._id),
@@ -391,7 +409,11 @@ async function openCommentActions(comment: any) {
 			icon: svg(mdiFlagVariantOutline),
 			handler: () => {
 				moderationStore.openReport({
-					type: isPost.value ? "comment" : "inbox_comment",
+					type: isPost.value
+						? "comment"
+						: isCompetition.value
+							? "competition_comment"
+							: "inbox_comment",
 					id: comment._id,
 					label: `${getAuthorName(comment)}'s comment`,
 				});
@@ -430,6 +452,8 @@ async function confirmDeleteComment(comment: any) {
 								props.currItem._id,
 								comment._id,
 							);
+						} else if (isCompetition.value) {
+							await deleteCompetitionComment(props.currItem._id, comment._id);
 						} else {
 							await deleteInboxComment(props.currItem._id, comment._id);
 						}

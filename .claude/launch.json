@@ -4,7 +4,10 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173,
       "autoPort": true
     },
@@ -19,6 +22,17 @@
         "/private/tmp/claude-501/-Users-dv-Projects-sketchmate/f3d74c18-22c9-4cff-a99d-c4d53ede15ef/scratchpad/cropflip"
       ],
       "port": 8899
+    },
+    {
+      "name": "platform",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "/Users/dv/Projects/sketchmate-platform"
+      ],
+      "port": 3000
     }
   ]
 }

@@ -11,11 +11,17 @@ import {
 	getBalloonUploadUrls,
 	publishBalloon,
 } from "@/service/api/balloon.api";
+import {
+	enterCompetition,
+	getCompetitionUploadUrls,
+} from "@/service/api/competition.api";
 import { getInboxUploadUrls, publishInboxItem } from "@/service/api/inbox.api";
 import { getPostUploadUrls, publishPost } from "@/service/api/post.api";
 import { recordEngagementAction } from "@/service/api/user.api";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
+import { useCompetitionStore } from "@/store/competition.store";
 import { useInboxStore } from "@/store/inbox.store";
 import { useMenuStore } from "@/store/menu.store";
 import { usePostStore } from "@/store/post.store";
@@ -27,6 +33,10 @@ export interface PostSettings {
 	caption: string;
 	enable_comments: boolean;
 	enable_remix: boolean;
+}
+
+export interface CompetitionSettings {
+	caption: string;
 }
 
 export type ShareableItem =
@@ -46,7 +56,7 @@ export const useShareService = defineStore("shareService", () => {
 		toasts.isSending = value;
 	}
 	const quota = useQuotaStore();
-	const preSelected = ref<"mate" | "balloon" | "post">("mate");
+	const preSelected = ref<"mate" | "balloon" | "post" | "competition">("mate");
 	const { user } = storeToRefs(useAuthStore());
 
 	const activeShareItem = ref<ShareableItem | null>(null);
@@ -192,6 +202,54 @@ export const useShareService = defineStore("shareService", () => {
 		toasts.pushPostToast({ post });
 	}
 
+	/**
+	 * Enter the weekly competition. Same export → upload → publish shape as the
+	 * other three destinations, so `SendHub` can fire it as one more task in the
+	 * existing batch.
+	 *
+	 * Competition entries remain separate from community posts. If the artist
+	 * wants both, they make those two explicit publishing choices in SendHub.
+	 */
+	async function submitCompetitionEntry(
+		data: DrawingExportInput,
+		settings: CompetitionSettings,
+	): Promise<void> {
+		const competition = useCompetitionStore();
+		const active = competition.competition;
+		if (!active) throw new Error("No active competition");
+
+		const blobs = await exportDrawingBlobs(data);
+
+		const urls = await getCompetitionUploadUrls();
+		const uploaded = await uploadAssets(urls, blobs);
+
+		const res = await enterCompetition(active._id, {
+			drawing_url: uploaded.drawing_url,
+			image_url: uploaded.image_url,
+			thumbnail_url: uploaded.thumbnail_url,
+			aspect_ratio: blobs.aspect_ratio,
+			caption: settings.caption,
+			share_to_feed: false,
+		});
+
+		competition.applyOwnEntry({
+			_id: res.entry._id,
+			thumbnail_url: res.entry.thumbnail_url,
+		});
+
+		trackEvent(mixpanelEvents.competitionEntrySubmit, {
+			shared_to_feed: !!res.post_id,
+			replaced: res.replaced,
+			has_caption: !!settings.caption,
+		});
+
+		toasts.pushCompetitionToast({
+			thumbnail: res.entry.thumbnail_url,
+			replaced: res.replaced,
+			postSkipped: res.post_skipped,
+		});
+	}
+
 	async function releaseBalloon(
 		data: DrawingExportInput,
 		message: string,
@@ -245,6 +303,7 @@ export const useShareService = defineStore("shareService", () => {
 		setSending,
 		sendToMates,
 		publishCommunityPost,
+		submitCompetitionEntry,
 		releaseBalloon,
 		runBatch,
 		preSelected,

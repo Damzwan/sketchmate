@@ -98,17 +98,21 @@ import {
 	mdiHeart,
 	mdiPencilOutline,
 	mdiShieldAlertOutline,
+	mdiTrophyOutline,
 } from "@mdi/js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { computed } from "vue";
+import { useCompetitionEntryViewer } from "@/composables/competition/useCompetitionEntryViewer";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { masterAnimation } from "@/helper/animation.helper";
 import { svg } from "@/helper/general.helper";
+import { useCompetitionStore } from "@/store/competition.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 import { useInboxStore } from "@/store/inbox.store";
+import { useMenuStore } from "@/store/menu.store";
 import { usePostStore } from "@/store/post.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { Notification } from "@/types/server.types";
@@ -191,6 +195,18 @@ const typeConfig = computed(() => {
 				icon: mdiBullhorn,
 				verb: () => "",
 			};
+		case "competition":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon:
+					props.notification.payload?.kind === "entry_comment"
+						? mdiChatOutline
+						: mdiTrophyOutline,
+				verb: (n: number) =>
+					n === 1
+						? "commented on your competition entry"
+						: `and ${n - 1} others commented on your entry`,
+			};
 		default:
 			return {
 				color: "var(--ion-color-medium)",
@@ -216,6 +232,14 @@ const headline = computed(() => {
 	if (props.notification.type === "announcement") {
 		return props.notification.payload?.title ?? "Announcement";
 	}
+	if (props.notification.type === "competition") {
+		// A comment is a person doing something; everything else on this type is
+		// the system talking, so it leads with its own title.
+		if (props.notification.payload?.kind === "entry_comment") {
+			return props.notification.actors[0]?.name ?? "Someone";
+		}
+		return props.notification.payload?.title ?? "Weekly competition";
+	}
 	return props.notification.actors[0]?.name ?? "Someone";
 });
 
@@ -230,6 +254,12 @@ const body = computed(() => {
 		return props.notification.payload?.body ?? "";
 	}
 	if (props.notification.type === "announcement") {
+		return props.notification.payload?.body ?? "";
+	}
+	if (props.notification.type === "competition") {
+		if (props.notification.payload?.kind === "entry_comment") {
+			return typeConfig.value.verb(props.notification.actor_count);
+		}
 		return props.notification.payload?.body ?? "";
 	}
 	return typeConfig.value.verb(props.notification.actor_count);
@@ -252,6 +282,7 @@ const openSharedInboxItem = async (_id: string) => {
 
 const r = useIonRouter();
 const { openUserActions } = useUserContextSheet();
+const { openEntryById } = useCompetitionEntryViewer();
 
 async function handleTap() {
 	await store.markRead(props.notification._id);
@@ -268,6 +299,32 @@ async function handleTap() {
 			if (n.target_id) openUserActions({ _id: n.target_id });
 			break;
 		case "system":
+			if (n.type === "competition") {
+				const competitionId = n.payload?.competition_id;
+				const entryId = n.payload?.entry_id;
+
+				// A comment opens the drawing it was left on, right here — reading a
+				// reply is not a reason to move the user off the notification list
+				// and strand them on the competition page when they close it.
+				if (n.payload?.kind === "entry_comment" && entryId) {
+					void openEntryById(entryId, true);
+					break;
+				}
+
+				// Submissions closing is a state change on the page, not a podium.
+				if (n.payload?.kind === "submissions_closed") {
+					r.push(FRONTEND_ROUTES.competition, masterAnimation);
+					break;
+				}
+
+				if (competitionId) {
+					useCompetitionStore().targetResults(competitionId);
+					useMenuStore().isCompetitionResultsOpen = true;
+				} else {
+					r.push(FRONTEND_ROUTES.competition, masterAnimation);
+				}
+				break;
+			}
 			if (
 				n.type === "moderation_strike" ||
 				n.type === "moderation_lifted" ||

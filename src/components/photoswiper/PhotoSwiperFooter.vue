@@ -33,6 +33,15 @@
         <ion-icon :icon="svg(mdiPencilOutline)" />
       </button>
 
+      <button
+        v-if="type === 'competition' && canVote"
+        @click="$emit('vote')"
+        class="swiper-action-btn swiper-vote-btn"
+        aria-label="Vote for this competition entry"
+      >
+        <ion-icon :icon="svg(mdiVoteOutline)" />
+      </button>
+
       <!-- Always opens the full thread. "Comments" means ONE thing across the
            whole viewer — this button and the peek panel body both land in the
            drawer. Showing/hiding the peek is the panel's own affordance (its X
@@ -57,7 +66,7 @@
         <ion-icon :icon="svg(mdiShareVariantOutline)" />
       </button>
 
-      <button @click="openOverflow" class="swiper-action-btn">
+      <button v-if="showOverflow" @click="openOverflow" class="swiper-action-btn">
         <ion-icon :icon="svg(mdiDotsHorizontal)" />
       </button>
     </div>
@@ -95,6 +104,7 @@ import {
 	mdiFlagVariantOutline,
 	mdiPencilOutline,
 	mdiShareVariantOutline,
+	mdiVoteOutline,
 } from "@mdi/js";
 import { computed, ref } from "vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
@@ -112,9 +122,10 @@ import { Menu } from "@/types/menu.types";
 
 const props = defineProps<{
 	currItem: any;
-	type: "post" | "inbox";
+	type: "post" | "inbox" | "competition";
 	showComments: boolean;
 	canReply: boolean | undefined;
+	canVote: boolean | undefined;
 	canDelete: boolean;
 	userLookup?: (userId: string) => any;
 }>();
@@ -123,6 +134,7 @@ const emit = defineEmits([
 	"open-comments",
 	"update:showComments",
 	"reply",
+	"vote",
 	"delete",
 	"react",
 ]);
@@ -135,6 +147,12 @@ const displayCommentCount = computed(() => props.currItem.comment_count || 0);
 const popoverOpen = ref(false);
 const popoverEvent = ref<Event | null>(null);
 const showReactionSheet = ref(false);
+const showOverflow = computed(() => {
+	if (props.canDelete) return true;
+	const userId = useAuthStore().user?._id;
+	if (props.type === "inbox") return props.currItem.sender !== userId;
+	return props.currItem.author_id !== userId;
+});
 
 function openReactionPopover(e: any) {
 	popoverEvent.value = e;
@@ -158,7 +176,10 @@ function handleShare() {
 		shareService.setActiveShareItem({ type: "post", data: props.currItem });
 		menuStore.openMenu(Menu.SharePostMenu);
 	} else {
-		const imgUrl = props.currItem.image;
+		const imgUrl =
+			props.type === "competition"
+				? props.currItem.image_url
+				: props.currItem.image;
 		if (imgUrl) shareImg(imgUrl);
 	}
 }
@@ -169,7 +190,12 @@ async function openOverflow() {
 
 	if (props.canDelete) {
 		buttons.push({
-			text: props.type === "post" ? "Delete Post" : "Delete Drawing",
+			text:
+				props.type === "post"
+					? "Delete Post"
+					: props.type === "competition"
+						? "Delete Entry"
+						: "Delete Drawing",
 			role: "destructive",
 			icon: svg(mdiDeleteOutline),
 			handler: () => confirmDelete(),
@@ -202,10 +228,31 @@ async function openOverflow() {
 				});
 			},
 		});
+	} else if (
+		props.type === "competition" &&
+		props.currItem.author_id !== userId
+	) {
+		buttons.push({
+			text: "Report Entry",
+			role: "destructive",
+			icon: svg(mdiFlagVariantOutline),
+			handler: () => {
+				moderationStore.openReport({
+					type: "competition_entry",
+					id: props.currItem._id,
+					label: `${props.currItem.author?.name || "this artist"}'s entry`,
+				});
+			},
+		});
 	}
 
 	const sheet = await actionSheetController.create({
-		header: props.type === "post" ? "Post Options" : "Drawing Options",
+		header:
+			props.type === "post"
+				? "Post Options"
+				: props.type === "competition"
+					? "Entry Options"
+					: "Drawing Options",
 		cssClass: "normal-action-sheet",
 		buttons,
 	});
@@ -214,7 +261,12 @@ async function openOverflow() {
 
 async function confirmDelete() {
 	const alert = await alertController.create({
-		header: props.type === "post" ? "Delete Post?" : "Delete Drawing?",
+		header:
+			props.type === "post"
+				? "Delete Post?"
+				: props.type === "competition"
+					? "Delete Entry?"
+					: "Delete Drawing?",
 		subHeader: "This can't be undone.",
 		message: "Are you sure?",
 		cssClass: "liquid-alert",
@@ -237,6 +289,9 @@ async function confirmDelete() {
 
 .swiper-action-btn {
   @apply flex items-center justify-center p-2.5 rounded-2xl text-white text-[28px] transition-all active:scale-75 cursor-pointer hover:scale-105;
+}
+.swiper-vote-btn {
+  @apply bg-secondary text-white shadow-lg shadow-secondary/30;
 }
 
 

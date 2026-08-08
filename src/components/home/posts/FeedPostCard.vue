@@ -129,6 +129,16 @@
 
         <div class="absolute inset-0 z-[5] pointer-events-none dynamic-edge-vignette" />
 
+        <!-- Competition win. Denormalised onto the post at announce time, so
+             this costs no lookup. The badge follows the artwork wherever it
+             goes — that visibility is half the reward. -->
+        <div
+          v-if="post.competition_win"
+          class="absolute top-2 left-2 z-20 px-2.5 py-1 rounded-full bg-amber-300/95 text-amber-950 text-[11px] font-black shadow-sm pointer-events-none"
+        >
+          🏆 {{ post.competition_win.category_label }}
+        </div>
+
         <img
           :src="post.image_url"
           class="relative z-10 w-full object-contain transition-opacity duration-500 max-h-[50vh]"
@@ -560,7 +570,7 @@ onLongPress(
 		playSelectionTick();
 		emit("open-reaction-popover", { event: e, post: props.post });
 	},
-	{ delay: 400, modifiers: { prevent: true } },
+	{ delay: 650, distanceThreshold: 12, modifiers: { prevent: true } },
 );
 
 // Fullscreen this one post. The swiper takes a collection + index, so a single

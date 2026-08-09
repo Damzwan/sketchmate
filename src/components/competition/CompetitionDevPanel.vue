@@ -158,7 +158,7 @@ async function run(action: DevAction) {
 		message.value = `${action.label} failed: ${(e as Error).message.slice(0, 120)}`;
 	} finally {
 		// Every action changes server state the UI reads — always re-pull.
-		await store.refresh();
+		await store.refresh(true);
 		busy.value = false;
 	}
 }

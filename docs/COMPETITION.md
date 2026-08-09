@@ -32,6 +32,18 @@ The home card is live, so the feature is user-visible behind the kill switch
 have `reward_items` set — until the admin page exists (Phase 9), that is done
 directly on the competition document or via the dev create route.
 
+The unattended creator never backdates a missing competition into the middle
+of a week. It may recover the current week during the first six hours after
+Monday 00:00 UTC; after that it schedules the following Monday and the client
+shows it as an upcoming competition with a countdown. Compressed `test-*`
+cycles are deliberately exempt and always start immediately.
+
+For a controlled first release, set `COMPETITION_LAUNCH_AT` to the intended
+Monday 00:00 UTC ISO timestamp. If it is accidentally set to another point in
+the week, the server rounds it forward to the next Monday. Before that boundary
+old real competitions are ignored by `/current`, while `test-*` cycles continue
+to work normally.
+
 ---
 
 ## Table of contents
@@ -971,6 +983,11 @@ Together with the results hold ([§3](#3-weekly-cycle)), a test cycle now walks
 itself: open → voting → closed → scored → announced → winners moment → grace
 expires → back to the real week.
 
+The dev panel forces a fresh `/current` request after every mutation. This is
+important when a create action finishes while a home-screen refresh that began
+before it is still in flight; joining that older request would otherwise leave
+the controls and UI displaying the previous competition.
+
 ### 11.2 Dev routes — `/dev/competition`
 
 Modelled on the existing `devModeration.router.ts` (same shape, same
@@ -1277,12 +1294,24 @@ independently landable on top.
 
 ## 14. Rollout
 
-1. Phases 1–2 behind the kill switch, no client surface. Verify the cron opens
-   and closes a week correctly against a shortened test cycle.
-2. Phase 3 + 4 to internal/admin accounts only (`is_admin`), one full real week.
-3. Phase 5 — run one complete cycle end to end, including a manual
+1. Keep `COMPETITION_ENABLED=0` while preparing the first week. In the admin
+   page, schedule the first available Monday with its theme and rewards. Set
+   `COMPETITION_LAUNCH_AT` to that Monday (for example
+   `2026-08-10T00:00:00.000Z`). This is the public launch boundary; do not use an
+   arbitrary release timestamp.
+2. Deploy or enable the client before that Monday if desired. Once
+   `COMPETITION_ENABLED` is enabled, users see the upcoming theme and countdown,
+   but entry and voting endpoints remain closed until `starts_at`.
+3. If no week was scheduled manually, the backend follows the same rule: during
+   the first six hours of Monday it may recover that Monday; later in the week
+   it creates next Monday instead. A Friday release therefore never opens a
+   three-day competition.
+4. Verify the cron opens and closes a week correctly against a shortened test
+   cycle. Test cycles still begin now and do not change the public launch slot.
+5. Phase 3 + 4 to internal/admin accounts only (`is_admin`), one full real week.
+6. Phase 5 — run one complete cycle end to end, including a manual
    `Announce now`, before any user sees a results modal.
-4. Enable for all 13+ users. Watch entry count, vote count per voter, and
+7. Enable for all 13+ users. Watch entry count, vote count per voter, and
    `_reward_shop_open` → purchase.
-5. Phases 6–9 land after two clean public weeks. Notifications last, on purpose:
+8. Phases 6–9 land after two clean public weeks. Notifications last, on purpose:
    they amplify whatever the feature already is, good or bad.

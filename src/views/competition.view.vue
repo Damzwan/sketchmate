@@ -61,7 +61,12 @@
             </div>
           </div>
 
-          <div v-if="entries.length === 0 && !store.isLoadingEntries" class="rounded-3xl border border-dashed border-primary/50 bg-tertiary px-6 py-10 text-center">
+          <div v-if="store.phase === 'scheduled'" class="rounded-3xl border border-primary/30 bg-tertiary px-6 py-8 text-center">
+            <p class="text-lg font-black text-black">Entries open with the competition</p>
+            <p class="text-sm font-bold text-black/80 mt-1">Come back when the countdown reaches zero.</p>
+          </div>
+
+          <div v-else-if="entries.length === 0 && !store.isLoadingEntries" class="rounded-3xl border border-dashed border-primary/50 bg-tertiary px-6 py-10 text-center">
             <p class="text-lg font-black text-black">{{ store.canSubmit ? 'No entries yet' : 'Nothing was entered' }}</p>
             <button v-if="store.canSubmit" type="button" class="mt-3 px-4 py-2 rounded-full bg-secondary text-white font-black text-sm cursor-pointer transition-all active:scale-95 md:hover:scale-[1.04]" @click="goDraw">
               Start drawing the first entry
@@ -181,7 +186,11 @@ import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import SubPageBar from "@/components/general/SubPageBar.vue";
 import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
 import { useOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
-import { formatRemaining, resolveAccent } from "@/config/competition.config";
+import {
+	formatRemaining,
+	phaseFor,
+	resolveAccent,
+} from "@/config/competition.config";
 import { masterAnimation } from "@/helper/animation.helper";
 import {
 	ArchivedCompetition,
@@ -263,13 +272,26 @@ const phaseLabel = computed(() => {
 });
 const now = ref(Date.now());
 let ticker: ReturnType<typeof setInterval> | null = null;
+let boundaryRefreshStarted = false;
 const countdown = computed(() => {
 	if (!store.deadline || store.phase === "announced") return "Complete";
 	return formatRemaining(store.deadline, now.value);
 });
 function startTicker() {
 	if (ticker || ambientPaused.value) return;
-	ticker = setInterval(() => (now.value = Date.now()), 1000);
+	ticker = setInterval(() => {
+		now.value = Date.now();
+		if (
+			!boundaryRefreshStarted &&
+			competition.value &&
+			phaseFor(competition.value, now.value) !== store.phase
+		) {
+			boundaryRefreshStarted = true;
+			void store.refresh(true).finally(() => {
+				boundaryRefreshStarted = false;
+			});
+		}
+	}, 1000);
 }
 function stopTicker() {
 	if (ticker) clearInterval(ticker);
@@ -531,6 +553,7 @@ onIonViewDidEnter(async () => {
 });
 onIonViewDidLeave(() => {
 	stopTicker();
+	boundaryRefreshStarted = false;
 	observer?.disconnect();
 	store.flushImpressions();
 });

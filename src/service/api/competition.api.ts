@@ -119,7 +119,9 @@ export interface CompetitionResultRow {
 }
 
 export async function fetchCurrentCompetition() {
-	return await request<CurrentCompetitionResponse>("/competition/current");
+	return await request<CurrentCompetitionResponse>("/competition/current", {
+		cache: "no-store",
+	});
 }
 
 export async function getCompetitionUploadUrls() {

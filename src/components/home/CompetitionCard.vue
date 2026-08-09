@@ -140,6 +140,8 @@ const eyebrow = computed(() => {
 			return "Votes are being counted";
 		case "open":
 			return store.hasEntered ? "You're in" : "This week's theme";
+		case "scheduled":
+			return "Next competition";
 		default:
 			return "Starting soon";
 	}
@@ -162,6 +164,10 @@ const subline = computed(() => {
 	}
 	if (displayPhase.value === "closed")
 		return "Results will be announced shortly.";
+	if (displayPhase.value === "scheduled") {
+		const remaining = formatRemaining(store.competition.starts_at, now.value);
+		return `${remaining} until entries open · Win rewards`;
+	}
 
 	const deadline =
 		displayPhase.value === "open"
@@ -182,6 +188,7 @@ const cta = computed(() => {
 	}
 	if (displayPhase.value === "voting") return "Vote now";
 	if (displayPhase.value === "closed") return "See the entries";
+	if (displayPhase.value === "scheduled") return "See what's coming";
 	return store.hasEntered ? "See the entries" : "Draw your entry";
 });
 

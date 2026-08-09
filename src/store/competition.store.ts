@@ -160,6 +160,7 @@ export const useCompetitionStore = defineStore("competition", () => {
 
 	const deadline = computed(() => {
 		if (!competition.value) return null;
+		if (phase.value === "scheduled") return competition.value.starts_at;
 		return phase.value === "open"
 			? competition.value.submissions_close_at
 			: competition.value.ends_at;
@@ -182,8 +183,13 @@ export const useCompetitionStore = defineStore("competition", () => {
 	// ── Actions ────────────────────────────────────────────────────────────
 
 	/** Coalesced: the home card and the page can both call this on view-enter. */
-	async function refresh(): Promise<void> {
-		if (inFlight) return inFlight;
+	async function refresh(force = false): Promise<void> {
+		// Dev controls can finish while an older home/page refresh is still in
+		// flight. A forced refresh waits for that stale request, then pulls again.
+		if (inFlight) {
+			if (!force) return inFlight;
+			await inFlight;
+		}
 		isLoading.value = true;
 		inFlight = (async () => {
 			try {

@@ -34,11 +34,12 @@
           @click="openProfile"
         >
           <UserAvatar
-          v-if="entry.author"
+            v-if="entry.author"
             :user="entry.author"
             :customization="authorCustomization"
             size="xs"
             static
+            class="shrink-0 aspect-square"
           />
           <span class="ml-2 min-w-0">
             <span class="block text-xs font-black truncate drop-shadow-sm" :style="nameStyle">

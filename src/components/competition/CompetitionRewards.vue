@@ -1,7 +1,7 @@
 <template>
   <section v-if="rewards.length" :class="compact ? '' : 'px-4 pt-5'">
     <div v-if="!compact" class="mb-2.5">
-      <h2 class="text-lg font-black text-black">Prizes this week</h2>
+      <h2 class="cabin-sketch-regular text-lg font-black text-black">Prizes this week</h2>
     </div>
 
     <div :class="compact ? 'flex items-center gap-2' : 'flex gap-3 overflow-x-auto hide-scrollbar pb-1'">

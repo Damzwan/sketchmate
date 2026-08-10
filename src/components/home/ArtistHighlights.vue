@@ -64,17 +64,10 @@
             <div class="artist-identity flex items-center gap-3 px-4 min-h-20" :style="identityStyle(entry)">
               <button type="button" class="shrink-0 rounded-full active:scale-95 transition-transform" :aria-label="`Open ${entry.artist.name}'s profile`" @click="openArtist(entry)">
                 <UserAvatar
-                  v-if="entryIndex === activeArtistSlide"
                   :user="entry.artist"
                   :customization="entry.artist.customization"
                   size="md"
                   static
-                />
-                <span
-                  v-else
-                  class="block w-16 h-16 rounded-full border-[3px] bg-white/25"
-                  :style="{ borderColor: theme(entry).accentColor }"
-                  aria-hidden="true"
                 />
               </button>
 

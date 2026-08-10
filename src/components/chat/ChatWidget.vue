@@ -11,17 +11,19 @@
       ></div>
     </Transition>
 
-    <Transition name="sheet" appear>
+    <Transition name="sheet" appear @after-leave="onSheetAfterLeave">
       <div
+        ref="sheetEl"
         v-show="isVisible && isExpanded"
         class="sheet-wrapper fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top,0px)] z-[9999] flex flex-col overflow-hidden overscroll-none rounded-t-[2.5rem] shadow-2xl"
         :class="{
           'is-dragging': isDragging,
           'is-active': isExpanded,
+          'is-closing': isClosing,
         }"
         :style="{
           ...chatWidgetSurfaceStyle,
-          paddingBottom: keyboardInset + 'px',
+          paddingBottom: displayedKeyboardInset + 'px',
           ...(sheetOffset > 0 ? { transform: `translate3d(0, ${sheetOffset}px, 0)` } : {})
         }"
       >
@@ -194,6 +196,7 @@ const { invitations } = storeToRefs(useDrawSyncer());
 const { viewProfileMenuOpen } = storeToRefs(useMenuStore());
 
 const messageContainer = ref<HTMLElement | null>(null);
+const sheetEl = ref<HTMLElement | null>(null);
 const invitePopoverOpen = ref(false);
 const inviteEvent = ref<Event | null>(null);
 const { openUserActions } = useUserContextSheet();
@@ -522,6 +525,43 @@ const { keyboardInset } = useKeyboardInset({
 	onWillShow: () => forceScrollToBottom(),
 });
 
+// Closing while the composer is focused makes the keyboard inset collapse at
+// the same time as the sheet translates down. That changes the sheet's internal
+// height mid-transition and reads as a flicker/jump, especially on Android.
+// Freeze the last inset for the short leave animation, and keep the layer on the
+// compositor until it is fully off-screen.
+const isClosing = ref(false);
+const closingKeyboardInset = ref(0);
+const displayedKeyboardInset = computed(() =>
+	isClosing.value ? closingKeyboardInset.value : keyboardInset.value,
+);
+
+watch(isExpanded, (expanded) => {
+	if (expanded) {
+		isClosing.value = false;
+		closingKeyboardInset.value = 0;
+		return;
+	}
+
+	closingKeyboardInset.value = keyboardInset.value;
+	isClosing.value = true;
+	const activeElement = document.activeElement;
+	if (
+		activeElement instanceof HTMLElement &&
+		sheetEl.value?.contains(activeElement)
+	) {
+		activeElement.blur();
+	}
+});
+
+function onSheetAfterLeave() {
+	if (isExpanded.value) return;
+	isClosing.value = false;
+	closingKeyboardInset.value = 0;
+	sheetOffset.value = 0;
+	isDragging.value = false;
+}
+
 // Re-pin to the bottom once the viewport has actually settled as well. The
 // `willShow` hint fires before the resize, so on its own it scrolls to a
 // bottom that is about to move.
@@ -540,9 +580,11 @@ onBeforeUnmount(() => {
   transform: translate3d(0, 0, 0);
   transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   max-width: 520px;
-  margin: auto;;
+  margin: auto;
+  backface-visibility: hidden;
 }
 .sheet-wrapper.is-active,
+.sheet-wrapper.is-closing,
 .sheet-wrapper.is-dragging {
   will-change: transform;
 }

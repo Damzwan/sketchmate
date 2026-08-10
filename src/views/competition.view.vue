@@ -3,7 +3,7 @@
     <SubPageBar title="Competition" />
 
     <ion-content class="--background-custom">
-      <div ref="rootEl" class="pb-16 cabin-sketch-regular">
+      <div ref="rootEl" class="pb-16">
         <header v-if="competition" class="mx-4 mt-4 p-5 rounded-[2rem] border shadow-sm" :style="headerStyle">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
@@ -46,7 +46,7 @@
         <section v-else class="px-4 pt-6">
           <div class="flex items-end justify-between gap-4 mb-3">
             <div>
-              <h2 class="text-xl font-black text-black">Entries</h2>
+              <h2 class="cabin-sketch-regular text-xl font-black text-black">Entries</h2>
             </div>
             <div class="shrink-0 flex items-center gap-2">
               <span class="text-xs font-black text-black/80">{{ store.totalEntries }}</span>

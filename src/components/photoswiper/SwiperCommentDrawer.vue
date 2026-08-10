@@ -102,7 +102,7 @@
             autocapitalize="sentences"
             @keyup.enter="submitComment"
             color="secondary"
-            class="flex-1 font-bold cabin-sketch-regular text-sm"
+            class="flex-1 font-bold text-sm"
           />
           <button
             v-show="newComment.trim().length > 0"

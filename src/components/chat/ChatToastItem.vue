@@ -12,6 +12,7 @@
       <ProfileWorld
         :world-id="customProps.customization.worldId"
         :accent="customProps.theme.accentColor"
+        :dark="customProps.theme.isDark"
         static-mode
         mini
         contained
@@ -87,7 +88,7 @@
       <div class="flex flex-col">
         <TransitionGroup name="line-slide">
           <p v-for="line in normalizedLines" :key="line.id"
-             class="text-[13px] leading-tight cabin-sketch-regular font-bold tracking-wide break-words"
+             class="text-[13px] leading-tight font-bold tracking-wide break-words"
              :class="isCustomized ? '' : 'text-white/90'"
              :style="isCustomized
                ? {
@@ -158,11 +159,10 @@ const normalizedLines = computed(() => {
 
 const customProps = computed(() => {
 	const style = resolveSenderStyle(sender.value);
-	const world = resolveWorld(style.customization.worldId);
 	return {
 		customization: style.customization,
 		theme: style.theme,
-		palette: resolveReadableCustomizationPalette(style.theme, world),
+		palette: resolveReadableCustomizationPalette(style.theme),
 		font: style.fontFamily,
 		fontClass: style.fontEffectClass,
 		title: style.title,

@@ -34,7 +34,7 @@
           {{ currItem.author?.name || 'Sketcher' }}
         </span>
       </button>
-      <p v-if="currItem.description" class="text-[13px] cabin-sketch-regular opacity-85 line-clamp-2 leading-snug">
+      <p v-if="currItem.description" class="text-[13px] opacity-85 line-clamp-2 leading-snug">
         {{ currItem.description }}
       </p>
     </div>

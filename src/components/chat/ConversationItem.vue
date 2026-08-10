@@ -21,6 +21,7 @@
       <ProfileWorld
         :world-id="partnerCustomization.worldId"
         :accent="theme.accentColor"
+        :dark="theme.isDark"
         static-mode
         mini
         contained
@@ -101,7 +102,7 @@
       <!-- Row 2 — status line · unread -->
       <div class="flex items-center gap-1.5 mt-1.5">
         <p
-          class="flex-1 min-w-0 text-[13px] truncate cabin-sketch-regular tracking-wide leading-none"
+          class="flex-1 min-w-0 text-[13px] truncate tracking-wide leading-none"
           :class="[statusClass, themeTextOnDark ? 'on-world' : '']"
           :style="showTheme && !isTyping ? { color: themedDescColor } : {}"
         >
@@ -160,7 +161,6 @@ import {
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import {
 	RELATIONSHIP_ACCENT,
@@ -229,11 +229,8 @@ const cardStyle = computed(() => ({
 	borderColor: theme.value.cardBorderColor,
 }));
 
-const activeWorld = computed(() =>
-	resolveWorld(partnerCustomization.value.worldId),
-);
 const palette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const onDarkSurface = computed(() => showTheme.value && palette.value.isDark);
 const themeTextOnDark = computed(() => showTheme.value && palette.value.isDark);

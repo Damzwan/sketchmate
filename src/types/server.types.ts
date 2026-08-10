@@ -247,6 +247,11 @@ export interface User {
 	/** Home feed visibility: 'off' (hidden), 'mates' (connections only) or
 	    'open' (connections + global discovery). Defaults to 'open'. */
 	feed_level?: "off" | "mates" | "open";
+	/** Whether curated artist cards appear on Home. Missing means enabled. */
+	artist_highlights?: {
+		enabled?: boolean;
+		snoozed_until?: string | null;
+	};
 	/** Render the server's censored twin of user text. Defaults on (undefined = on). */
 	profanity_filter?: boolean;
 	stats: UserStats;
@@ -400,6 +405,26 @@ export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
 	updatedAt: string;
 	commentsLoaded?: boolean;
 };
+
+export interface ArtistHighlightQuestion {
+	_id: string;
+	question: string;
+	answer: string;
+}
+
+export interface ArtistHighlightEntry {
+	_id: string;
+	questions: ArtistHighlightQuestion[];
+	artist: FeedPost["author"];
+	posts: FeedPost[];
+}
+
+export interface ArtistHighlightConfig {
+	title: string;
+	subtitle?: string;
+	updated_at: string;
+	artists: ArtistHighlightEntry[];
+}
 
 export interface InboxItem {
 	_id: string;

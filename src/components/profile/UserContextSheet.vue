@@ -2,8 +2,9 @@
   <ion-modal
     :is-open="viewProfileMenuOpen"
     @did-dismiss="onDismiss"
-    :initial-breakpoint="0.95"
-    :breakpoints="[0, 0.95]"
+    :initial-breakpoint="isDesktop ? undefined : 0.95"
+    :breakpoints="isDesktop ? undefined : [0, 0.95]"
+    :handle="!isDesktop"
     handle-behavior="cycle"
     class="liquid-user-sheet"
     :keepContentsMounted="true"
@@ -146,6 +147,7 @@ import {
 	mdiHeartBroken,
 	mdiTimerSandComplete,
 } from "@mdi/js";
+import { useMediaQuery } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import AmbientScope from "@/components/general/AmbientScope.vue";
@@ -157,7 +159,6 @@ import {
 	hydrateCustomization,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { compareVersions, svg } from "@/helper/general.helper";
@@ -179,6 +180,7 @@ const MIN_CHAT_VERSION = "0.4.3";
 
 const menuStore = useMenuStore();
 const authStore = useAuthStore();
+const isDesktop = useMediaQuery("(min-width: 768px)");
 const chatWidget = useChatWidgetStore();
 const friendStore = useFriendStore();
 const { closeSheet } = useUserContextSheet();
@@ -238,11 +240,8 @@ const effectiveCustomization = computed(() =>
 const theme = computed(() =>
 	resolveTheme(effectiveCustomization.value.themeId),
 );
-const activeWorld = computed(() =>
-	resolveWorld(effectiveCustomization.value.worldId),
-);
 const surfacePalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const statusChipStyle = computed(() => ({
 	background: surfacePalette.value.controlBg,
@@ -491,5 +490,19 @@ ion-modal.liquid-user-sheet::part(handle) {
   background: var(--ion-color-secondary);
   opacity: 0.3;
   width: 40px;
+}
+
+@media (min-width: 768px) {
+  ion-modal.liquid-user-sheet {
+    --width: min(92vw, 60rem);
+    --height: min(90vh, 54rem);
+    --border-radius: 2rem;
+    --box-shadow: 0 28px 90px rgba(19, 12, 35, 0.3);
+  }
+
+  ion-modal.liquid-user-sheet::part(content) {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
 }
 </style>

@@ -19,7 +19,7 @@
            rebind the same element, so a decoration switch must get a fresh
            canvas. -->
       <canvas
-        :key="def.lottieId"
+        :key="`${def.lottieId}-${static ? 'static' : 'live'}`"
         :ref="(el) => bindCanvas(el, getLottieSrc(def.lottieId!))"
         class="w-full h-full object-cover block"
       ></canvas>
@@ -46,6 +46,10 @@ import {
 	resolveDecoration,
 } from "@/config/profile_options.config";
 import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
+import {
+	acquireSprite,
+	type SpriteHandle,
+} from "@/helper/lottie_sprite.helper";
 
 const props = defineProps<{
 	decorationId?: string;
@@ -73,6 +77,7 @@ const onScreen = ref(false);
 let io: IntersectionObserver | null = null;
 
 let player: LottiePlayer | null = null;
+let frozenHandle: SpriteHandle | null = null;
 let currentSrc = "";
 let boundEl: HTMLCanvasElement | null = null;
 
@@ -87,6 +92,8 @@ const applyRunState = () => {
 const destroyPlayer = () => {
 	player?.destroy();
 	player = null;
+	frozenHandle?.destroy();
+	frozenHandle = null;
 	currentSrc = "";
 	boundEl = null;
 };
@@ -109,6 +116,22 @@ const bindCanvas = (el: any, src: string) => {
 
 	currentSrc = src;
 	boundEl = canvas;
+
+	// A static avatar used to create a complete DotLottie worker/player and then
+	// immediately pause it. Repeated feed avatars therefore still paid decode,
+	// worker and memory costs. Stamp one shared cached frame instead: no player,
+	// no animation loop, and one decode per decoration for the whole session.
+	if (props.static) {
+		frozenHandle = acquireSprite({
+			canvas,
+			src,
+			frozen: true,
+			active: false,
+			masterSize: 192,
+		});
+		return;
+	}
+
 	// On web the worker takes ownership of the canvas (OffscreenCanvas transfer),
 	// so don't set canvas.width/height — autoResize + the CSS box size the buffer.
 	player = createLottie({

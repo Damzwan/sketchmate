@@ -2,7 +2,7 @@
   <section class="min-h-[160px] overflow-visible">
     <!-- Section Header Subhead -->
     <div class="flex items-center justify-between px-1 mb-2.5">
-      <h2 class="uppercase tracking-widest font-black text-black/80">
+      <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80">
         My Drafts
       </h2>
       <transition name="fade">

@@ -5,10 +5,12 @@
   >
     <!-- Header Subhead Segment -->
     <div class="flex items-center justify-between px-1 mb-3 pt-2">
-      <h2 class="uppercase tracking-widest font-black text-black/80">
+      <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80">
         Community Vibes
       </h2>
     </div>
+
+    <ArtistHighlights />
 
     <!-- Feed tabs. Each is its own capped fetch — no infinite scroll anywhere. -->
     <div v-if="!feedOff" class="flex gap-1.5 mb-4 px-0.5">
@@ -121,9 +123,10 @@ import { storeToRefs } from "pinia";
 import { computed, onUnmounted, ref, watch } from "vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
+import ArtistHighlights from "@/components/home/ArtistHighlights.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
-import { useOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
+import { provideOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 import { deletePost, type FeedTab, logPostViews } from "@/service/api/post.api";
@@ -193,8 +196,11 @@ const REACTION_POPOVER_SPACING = 10;
 // it. Hold both scrollTop and Chromium's scroll anchor for the full overlay
 // lifetime, then keep pinning through the dismissal/update frames.
 const rootEl = ref<HTMLElement | null>(null);
+// Provided, not just used: the feed cards and the artist highlights carousel
+// open their own overlays and must share this one guard (see the note on
+// provideOverlayScrollGuard about two guards fighting over overflowAnchor).
 const { captureOverlayScroll, guardScroll, stopScrollGuard, endOverlay } =
-	useOverlayScrollGuard(rootEl);
+	provideOverlayScrollGuard(rootEl);
 
 function closeReactionPopover() {
 	popoverOpen.value = false;

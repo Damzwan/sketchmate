@@ -56,7 +56,7 @@
           @click="handleOptOut"
           :disabled="isOptingOut"
         >
-          <p class="cabin-sketch-regular text-xs text-gray-500">Don't ask me again</p>
+          <p class="text-xs text-gray-500">Don't ask me again</p>
         </ion-button>
       </div>
     </div>

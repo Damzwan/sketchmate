@@ -1,3 +1,45 @@
+/**
+ * Two faces, one rule to keep them apart.
+ *
+ * Cabin Sketch is a DISPLAY face. Measured on the rasterized glyph, its
+ * hand-drawn stems are irregular and fall to a single pixel at UI sizes (at 12px
+ * an `o` renders `##.###.#` — one stem is 1px wide). Desktop Chrome/Edge hide
+ * that with LCD subpixel antialiasing, which gives a 1px off-grid stem three
+ * horizontal samples. Android WebView and iOS WKWebView antialias in grayscale
+ * only, so the same stem becomes two half-tone columns — a smear instead of a
+ * stroke. That is why small text read fine on desktop and mushy on a phone.
+ *
+ * The cliff is at 12px, not 16px. Share of stems that rasterize to a single
+ * pixel, same string, same weight:
+ *
+ *     size    Cabin Sketch    Nunito
+ *     11px       16–19%          2%
+ *     12px         4–6%        0–6%
+ *     14px         1–4%        0–6%
+ *
+ * So 12px and up the sketch face is no worse than the UI face and stays on the
+ * table; 11px and below it visibly falls apart and is taken away.
+ *
+ * The other half of the problem was the ~40 CONTAINERS that put
+ * `.cabin-sketch-regular` on a wrapper and cascaded the display face onto every
+ * timestamp, caption and comment inside. Tiny text therefore drops back to the
+ * UI face by default — a rule on the element always beats a value inherited from
+ * an ancestor — and `.cabin-sketch-regular` is re-stated afterwards so it still
+ * wins the same-element tie.
+ *
+ * Net effect: the class is an OPT-IN that works at any size. Put it on the
+ * element and you keep the sketch face; inherit it from a wrapper and anything
+ * under 12px quietly steps aside.
+ */
+.text-\[6px\],
+.text-\[7px\],
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\] {
+	font-family: var(--font-ui);
+}
+
 .cabin-sketch-regular {
 	font-family: "Cabin Sketch", sans-serif;
 	/* Let font-bold/font-black choose a real registered face. Keeping 400 on
@@ -5,6 +47,16 @@
 	 * across the desktop and mobile CSS engines. */
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
+}
+
+/* Nunito — the UI face. One variable file covers 200–1000, so `font-bold` and
+   `font-black` land on real outlines instead of synthetic smearing. */
+@font-face {
+	font-family: "Nunito";
+	src: url("../assets/fonts/nunito-v32-latin-variable.woff2") format("woff2");
+	font-weight: 200 1000;
+	font-style: normal;
+	font-display: swap;
 }
 
 @font-face {
@@ -26,7 +78,7 @@
 
 @font-face {
 	font-family: "Cabin Sketch";
-	src: url("../assets/fonts/CabinSketch-Regular.ttf") format("truetype");
+	src: url("../assets/fonts/cabin-sketch-v23-latin-regular.woff2") format("woff2");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
@@ -34,7 +86,7 @@
 
 @font-face {
 	font-family: "Cabin Sketch";
-	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
+	src: url("../assets/fonts/cabin-sketch-v23-latin-700.woff2") format("woff2");
 	font-weight: 700;
 	font-style: normal;
 	font-display: swap;
@@ -44,7 +96,7 @@
  * real bold outlines instead of letting WebKit synthesize 800/900 differently. */
 @font-face {
 	font-family: "Cabin Sketch";
-	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
+	src: url("../assets/fonts/cabin-sketch-v23-latin-700.woff2") format("woff2");
 	font-weight: 800;
 	font-style: normal;
 	font-display: swap;
@@ -52,7 +104,7 @@
 
 @font-face {
 	font-family: "Cabin Sketch";
-	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
+	src: url("../assets/fonts/cabin-sketch-v23-latin-700.woff2") format("woff2");
 	font-weight: 900;
 	font-style: normal;
 	font-display: swap;
@@ -109,7 +161,7 @@
 /* Medieval */
 @font-face {
 	font-family: "Celtic MD";
-	src: url("../assets/fonts/celticmd.ttf") format("woff2");
+	src: url("../assets/fonts/celticmd.ttf") format("truetype");
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;

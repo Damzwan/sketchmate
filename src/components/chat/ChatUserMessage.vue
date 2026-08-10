@@ -61,7 +61,7 @@
           {{ displayText }}
         </div>
 
-        <div class="text-xs mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
+        <div class="text-xs mt-1 opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
           <span>{{ dayjs(msg.createdAt).format("HH:mm") }}</span>
           <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center leading-none">
             <svg viewBox="0 0 24 24" class="w-3 h-3 fill-current" :class="statusTick.classOnBubble" aria-hidden="true">

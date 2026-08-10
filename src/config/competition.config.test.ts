@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	COMPETITION_ACCENTS,
 	canSubmit,
 	canVote,
 	DAY,
@@ -93,5 +94,49 @@ describe("formatRemaining", () => {
 
 	it("clamps at zero instead of counting up past the deadline", () => {
 		expect(formatRemaining(iso, START + 8 * DAY)).toBe("0m");
+	});
+});
+
+/**
+ * Accent ink is drawn on top of the accent gradient on every competition
+ * surface — the home card, the page header, the winners modal. Both endpoints
+ * of the gradient have to carry the ink, so the DARKER stop is the one that
+ * decides whether the text is readable.
+ *
+ * This used to fail silently: `midnight` sat at 4.32:1 and `sunset` — the
+ * fallback every unknown key resolves to — at 4.34:1, both under the 4.5:1 that
+ * normal-size text needs. The surfaces then faded the ink further with
+ * `opacity-90`, which blends it toward the background and dropped the worst
+ * pairing to 3.57:1.
+ */
+describe("accent ink contrast", () => {
+	const CONTRAST_FLOOR = 5;
+
+	const channel = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16);
+	const luminance = (hex: string) => {
+		const linear = (c: number) => {
+			const v = c / 255;
+			return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+		};
+		return (
+			0.2126 * linear(channel(hex, 1)) +
+			0.7152 * linear(channel(hex, 3)) +
+			0.0722 * linear(channel(hex, 5))
+		);
+	};
+	const contrast = (a: string, b: string) => {
+		const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+		return (hi + 0.05) / (lo + 0.05);
+	};
+
+	it.each(
+		Object.keys(COMPETITION_ACCENTS),
+	)("%s keeps ink readable on both ends of its gradient", (key) => {
+		const accent = COMPETITION_ACCENTS[key];
+		const worst = Math.min(
+			contrast(accent.ink, accent.from),
+			contrast(accent.ink, accent.to),
+		);
+		expect(worst).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
 	});
 });

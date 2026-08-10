@@ -73,7 +73,14 @@ ion-content.my-safe-area::part(scroll) {
     --color-tertiary: var(--ion-color-tertiary);
     --color-warning: var(--ion-color-warning);
 
+    /* Two faces, two jobs. Cabin Sketch carries the brand at headline sizes;
+       Nunito carries everything you actually have to read. Nunito is a rounded
+       humanist with a tall x-height and pixel-snapped stems, so it survives the
+       11–14px sizes where the sketch face collapses (see fonts.css). */
     --font-display: "Cabin Sketch", sans-serif;
+    --font-ui: "Nunito", -apple-system, "system-ui", "Segoe UI", Roboto, sans-serif;
+    --font-sans: var(--font-ui);
+    --default-font-family: var(--font-ui);
 }
 
 ion-alert.liquid-alert {

@@ -67,6 +67,8 @@ export interface Font {
 	label: string;
 	family: string;
 	preview: string;
+	/** Raster-legibility class. Compact surfaces only honor `text` fonts. */
+	tier: "text" | "display" | "decorative";
 }
 
 export const FONTS: Font[] = [
@@ -75,54 +77,63 @@ export const FONTS: Font[] = [
 		label: "Sketch",
 		family: '"Cabin Sketch", sans-serif',
 		preview: "Artistic",
+		tier: "text",
 	},
 	{
 		value: "amatic",
 		label: "Amatic",
 		family: '"Amatic SC", cursive',
 		preview: "Handmade",
+		tier: "decorative",
 	},
 	{
 		value: "anton",
 		label: "Anton",
 		family: '"Anton", sans-serif',
 		preview: "BOLD",
+		tier: "text",
 	},
 	{
 		value: "chokokutai",
 		label: "Choko",
 		family: '"Chokokutai", cursive',
 		preview: "チョコ",
+		tier: "display",
 	},
 	{
 		value: "dancing",
 		label: "Dancing",
 		family: '"Dancing Script", cursive',
 		preview: "Elegant",
+		tier: "display",
 	},
 	{
 		value: "indie",
 		label: "Indie Flower",
 		family: '"Indie Flower", cursive',
 		preview: "Playful",
+		tier: "display",
 	},
 	{
 		value: "krub",
 		label: "Krub",
 		family: '"Krub", sans-serif',
 		preview: "Clean",
+		tier: "display",
 	},
 	{
 		value: "puddles",
 		label: "Puddles",
 		family: '"Rubik Puddles", cursive',
 		preview: "Bubbly",
+		tier: "decorative",
 	},
 	{
 		value: "medieval",
 		label: "Medieval",
 		family: '"Celtic MD", sans-serif',
 		preview: "Medieval",
+		tier: "text",
 	},
 ];
 
@@ -130,8 +141,29 @@ const FONT_BY_ID = new Map(FONTS.map((font) => [font.value, font]));
 
 export const DEFAULT_FONT_ID = "sketch";
 
+export const PROFILE_UI_FONT_FAMILY = '"Nunito", sans-serif';
+
+export type FontSurface = "display" | "compact";
+
+/**
+ * Resolve an equipped profile font for the space available to it.
+ *
+ * Large identity surfaces preserve every choice. Compact cards only preserve
+ * fonts measured to remain legible at UI sizes; display/decorative faces fall
+ * back to the app font instead of becoming faint or unreadable.
+ */
+export const resolveFontFor = (
+	key?: string,
+	surface: FontSurface = "display",
+): string => {
+	const font = key ? (FONT_BY_ID.get(key) ?? FONTS[0]) : FONTS[0];
+	return surface === "compact" && font.tier !== "text"
+		? PROFILE_UI_FONT_FAMILY
+		: font.family;
+};
+
 export const resolveFontFamily = (key?: string): string =>
-	(key && FONT_BY_ID.get(key)?.family) ?? FONTS[0].family;
+	resolveFontFor(key, "display");
 
 // ─── FONT EFFECTS ────────────────────────────────────────────────────────────
 export interface FontEffect {
@@ -199,8 +231,6 @@ export interface Theme {
 	cardBorderColor: string;
 	nameColor: string;
 	descColor: string;
-	nameColorDark: string;
-	descColorDark: string;
 	// NEW fields for rendering on standard white/light containers (like chat bubbles)
 	nameColorOnLight: string;
 	descColorOnLight: string;
@@ -225,8 +255,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(185,70,58,0.2)",
 		nameColor: "#3d1a14",
 		descColor: "rgba(61,26,20,0.7)",
-		nameColorDark: "#fdf8f5",
-		descColorDark: "rgba(253,248,245,0.8)",
 		nameColorOnLight: "#3d1a14", // Same as nameColor (it is already dark)
 		descColorOnLight: "rgba(61,26,20,0.7)",
 		titleBg: "#FAE0C2",
@@ -245,8 +273,6 @@ export const THEMES: Theme[] = [
 		// dark-on-light, so the dark themes run hotter than the 0.7 the light
 		// themes use.
 		descColor: "rgba(248,250,252,0.8)",
-		nameColorDark: "#f8fafc",
-		descColorDark: "rgba(248,250,252,0.8)",
 		nameColorOnLight: "#1e293b", // Slate 800 for light backgrounds
 		descColorOnLight: "rgba(30,41,59,0.7)",
 		titleBg: "rgba(255,255,255,0.08)",
@@ -262,8 +288,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(194,65,12,0.2)",
 		nameColor: "#7c2d12",
 		descColor: "rgba(124,45,18,0.7)",
-		nameColorDark: "#ffedd5",
-		descColorDark: "rgba(255,237,213,0.8)",
 		nameColorOnLight: "#7c2d12",
 		descColorOnLight: "rgba(124,45,18,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
@@ -279,8 +303,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(20,83,45,0.2)",
 		nameColor: "#14532d",
 		descColor: "rgba(20,83,45,0.7)",
-		nameColorDark: "#ecfdf5",
-		descColorDark: "rgba(236,253,245,0.8)",
 		nameColorOnLight: "#14532d",
 		descColorOnLight: "rgba(20,83,45,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
@@ -296,8 +318,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(190,24,93,0.2)",
 		nameColor: "#831843",
 		descColor: "rgba(131,24,67,0.7)",
-		nameColorDark: "#fdf2f8",
-		descColorDark: "rgba(253,242,248,0.8)",
 		nameColorOnLight: "#831843",
 		descColorOnLight: "rgba(131,24,67,0.7)",
 		titleBg: "rgba(255,255,255,0.6)",
@@ -313,8 +333,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(14,116,144,0.2)",
 		nameColor: "#164e63",
 		descColor: "rgba(22,78,99,0.7)",
-		nameColorDark: "#cffafe",
-		descColorDark: "rgba(207,250,254,0.8)",
 		nameColorOnLight: "#164e63",
 		descColorOnLight: "rgba(22,78,99,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
@@ -330,8 +348,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(255,255,255,0.2)",
 		nameColor: "#fafafa",
 		descColor: "rgba(250,250,250,0.82)",
-		nameColorDark: "#fafafa",
-		descColorDark: "rgba(250,250,250,0.82)",
 		nameColorOnLight: "#171717", // Neutral 800/900 for light backgrounds
 		descColorOnLight: "rgba(23,23,23,0.75)",
 		titleBg: "rgba(255,255,255,0.1)",
@@ -347,8 +363,6 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(146,64,14,0.3)",
 		nameColor: "#78350f",
 		descColor: "rgba(120,53,15,0.7)",
-		nameColorDark: "#fef3c7",
-		descColorDark: "rgba(254,243,199,0.8)",
 		nameColorOnLight: "#78350f",
 		descColorOnLight: "rgba(120,53,15,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
@@ -525,7 +539,6 @@ export interface WorldDef {
 	kind: WorldKind;
 	/** OG-only: granted, never sold. Hidden from pickers unless already owned. */
 	exclusive?: boolean;
-	isDark?: boolean;
 }
 
 export const WORLDS: WorldDef[] = [
@@ -554,7 +567,6 @@ export const WORLDS: WorldDef[] = [
 		name: "Cosmic Drift",
 		desc: "Stars, meteors & a drifting astronaut",
 		kind: "space",
-		isDark: true,
 	},
 	{
 		id: "gratitude",
@@ -673,21 +685,24 @@ export interface ReadableCustomizationPalette {
 /**
  * One contrast policy for every surface that displays customization.
  *
- * Worlds can replace much of the theme background, so the theme alone is not
- * enough to choose text. Compact surfaces such as chat toasts additionally get
- * a translucent scrim: animated sprites and shimmer can otherwise cross behind
- * glyphs and destroy contrast even when the nominal colors are correct.
+ * The equipped THEME decides this on its own. It used to be theme-or-world:
+ * Cosmic Drift declared itself dark and flipped the whole palette, so a user on
+ * a light theme who bought one world got dark chrome everywhere their profile
+ * appeared — and every consumer inherited that surprise. Worlds now tint
+ * themselves to the surface instead (see ProfileWorld's `dark` prop).
+ *
+ * Compact surfaces such as chat toasts additionally get a translucent scrim:
+ * animated sprites and shimmer can otherwise cross behind glyphs and destroy
+ * contrast even when the nominal colors are correct.
  */
 export const resolveReadableCustomizationPalette = (
 	theme: Theme,
-	world?: WorldDef,
 ): ReadableCustomizationPalette => {
-	const worldIsDark = world?.isDark === true;
-	const isDark = theme.isDark || worldIsDark;
+	const isDark = theme.isDark;
 
 	return {
-		name: worldIsDark ? theme.nameColorDark : theme.nameColor,
-		desc: worldIsDark ? theme.descColorDark : theme.descColor,
+		name: theme.nameColor,
+		desc: theme.descColor,
 		isDark,
 		utility: isDark ? "#ffffff" : "#18181b",
 		utilityMuted: isDark ? "rgba(255,255,255,0.78)" : "rgba(24,24,27,0.62)",

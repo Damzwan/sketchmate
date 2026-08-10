@@ -28,7 +28,7 @@
           <h3 class="text-3xl cabin-sketch-regular font-black text-black mb-3 tracking-tight">
             You're amazing!
           </h3>
-          <p class="text-[15px] text-black/80 cabin-sketch-regular">
+          <p class="text-[15px] text-black/80">
             Thank you for supporting SketchMate.<br />
             This project can't exist without your help.
           </p>

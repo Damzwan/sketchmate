@@ -4,7 +4,7 @@
     :style="cardStyle"
   >
     <div v-if="!disableAmbient" class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
-      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" :static-mode="staticWorld" />
+      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :dark="theme.isDark" :font="resolvedFontFamily" :static-mode="staticWorld" />
       <ProfileEffect :effect-id="effectiveCustomization.effectId" :static-effect="staticWorld" />
     </div>
 
@@ -278,7 +278,6 @@ import {
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 
@@ -341,11 +340,8 @@ const fontEffectClass = computed(() =>
 );
 
 // Contrast resolution handling logic
-const activeWorld = computed(() =>
-	resolveWorld(effectiveCustomization.value.worldId),
-);
 const readablePalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const isDarkContext = computed(() => readablePalette.value.isDark);
 const activeColors = computed(() => readablePalette.value);

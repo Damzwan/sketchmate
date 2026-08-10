@@ -32,6 +32,7 @@
           <ProfileWorld
             :world-id="authorCustomization.worldId"
             :accent="theme.accentColor"
+            :dark="theme.isDark"
             static-mode
             banner
             contained
@@ -338,7 +339,7 @@
 </template>
 
 <script setup lang="ts">
-import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
+import { alertController, IonIcon } from "@ionic/vue";
 import {
 	mdiArrowExpand,
 	mdiChatOutline,
@@ -358,6 +359,7 @@ import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import { useOverlayScrollGuardContext } from "@/composables/general/useOverlayScrollGuard";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { playSelectionTick, reactionImages } from "@/config/post.config";
 import {
@@ -372,7 +374,6 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/sharing/shareService.store";
 import { svg } from "@/helper/general.helper";
@@ -405,6 +406,10 @@ const emit = defineEmits([
 ]);
 
 const { openUserActions } = useUserContextSheet();
+// Falls back to a plain present when the card renders outside the feed (the
+// profile preview surface), where there is no scroller to protect.
+const { presentActionSheet: guardedActionSheet } =
+	useOverlayScrollGuardContext();
 const menuStore = useMenuStore();
 
 const imageLoaded = ref(false);
@@ -415,11 +420,10 @@ const authorCustomization = computed(() =>
 	hydrateCustomization(props.post.author?.customization),
 );
 const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
-const world = computed(() => resolveWorld(authorCustomization.value.worldId));
 // The world fills the author header, so its luminance—not only the card
 // theme—must participate in choosing readable header text.
 const headerPalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, world.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 // Theme, effect and world are three INDEPENDENT purchases — gate them
 // separately. They used to share one `showArtistTheme` flag keyed off themeId,
@@ -664,12 +668,14 @@ const presentActionSheet = async () => {
 	}
 	buttons.push({ text: "Cancel", role: "cancel" });
 
-	const actionSheet = await actionSheetController.create({
+	// Through the feed's guard, never actionSheetController directly: Ionic
+	// focuses the three-dots button on present and the browser scrolls it into
+	// view, which drags the list up whenever the button is above the fold.
+	await guardedActionSheet({
 		header: "Post Options",
 		cssClass: "liquid-action-sheet",
 		buttons,
 	});
-	await actionSheet.present();
 };
 </script>
 

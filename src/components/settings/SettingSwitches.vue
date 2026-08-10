@@ -114,6 +114,24 @@
       </ion-segment>
     </div>
 
+    <SettingCard v-if="!isUnderAge" :icon="mdiAccountStarOutline" :interactive="false">
+      <template #label>
+        <span class="flex flex-col">
+          <span class="font-bold text-base text-black">Artist highlights</span>
+          <span class="text-sm text-black/70 leading-snug">Meet featured artists in your community feed.</span>
+        </span>
+      </template>
+      <template #trailing>
+        <ion-toggle
+          mode="ios"
+          color="secondary"
+          :checked="artistHighlightsOn"
+          :disabled="artistHighlightsBusy"
+          @ionChange="handleArtistHighlightsChange"
+        />
+      </template>
+    </SettingCard>
+
     <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular">
       <div class="p-4 text-lg text-black bg-background border border-primary/20 rounded-2xl">
         <p class="font-bold mb-1 border-b border-secondary/20 pb-1 text-secondary">Incoming Balloons</p>
@@ -159,6 +177,7 @@ import {
 	IonToggle,
 } from "@ionic/vue";
 import {
+	mdiAccountStarOutline,
 	mdiBalloon,
 	mdiBellOff,
 	mdiBellRing,
@@ -177,6 +196,7 @@ import {
 	requestNotifications,
 } from "@/helper/notification.helper";
 import { isNative } from "@/helper/platform.helper";
+import { updateArtistHighlightPreferences } from "@/service/api/artistHighlight.api";
 import { updateCompetitionPreferences } from "@/service/api/competition.api";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
@@ -191,6 +211,13 @@ const balloonToggleBusy = ref(false);
 const feedLevelBusy = ref(false);
 const profanityToggleBusy = ref(false);
 const competitionToggleBusy = ref(false);
+const artistHighlightsBusy = ref(false);
+
+const artistHighlightsOn = computed(() => {
+	if (user.value?.artist_highlights?.enabled === false) return false;
+	const snoozedUntil = user.value?.artist_highlights?.snoozed_until;
+	return !snoozedUntil || new Date(snoozedUntil).getTime() <= Date.now();
+});
 
 // Defaults on: undefined means a user who predates the field, not opted out.
 const competitionNotificationsOn = computed(
@@ -282,6 +309,28 @@ async function handleCompetitionNotificationsChange(event: ToggleCustomEvent) {
 		});
 	} finally {
 		competitionToggleBusy.value = false;
+	}
+}
+
+async function handleArtistHighlightsChange(event: ToggleCustomEvent) {
+	if (!user.value || artistHighlightsBusy.value) return;
+	const desired = event.detail.checked;
+	if (desired === artistHighlightsOn.value) return;
+
+	artistHighlightsBusy.value = true;
+	const previous = user.value.artist_highlights;
+	user.value.artist_highlights = {
+		...(previous ?? {}),
+		enabled: desired,
+		...(desired ? { snoozed_until: null } : {}),
+	};
+	try {
+		await updateArtistHighlightPreferences({ enabled: desired });
+	} catch {
+		if (user.value) user.value.artist_highlights = previous;
+		useToast().toast("Could not update artist highlights", { color: "danger" });
+	} finally {
+		artistHighlightsBusy.value = false;
 	}
 }
 

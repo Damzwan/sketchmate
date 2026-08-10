@@ -67,7 +67,7 @@
             </div>
           </div>
 
-          <p class="text-[11px] font-bold text-white/60 italic cabin-sketch-regular mt-1 pl-[30px] truncate">
+          <p class="text-[11px] font-bold text-white/60 italic mt-1 pl-[30px] truncate">
             {{ hiddenCount > 0 ? `View all ${commentCount} comments` : 'View thread' }}
           </p>
         </button>

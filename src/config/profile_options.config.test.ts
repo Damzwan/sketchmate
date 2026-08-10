@@ -3,7 +3,10 @@ import {
 	CHAT_BACKGROUND_OPACITY_DEFAULT,
 	CHAT_BACKGROUND_OPACITY_MAX,
 	CHAT_BACKGROUND_OPACITY_MIN,
+	FONTS,
 	hydrateChatCustomization,
+	PROFILE_UI_FONT_FAMILY,
+	resolveFontFor,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveWorld,
@@ -44,25 +47,8 @@ describe("customized surface contrast", () => {
 		).toBe(CHAT_BACKGROUND_OPACITY_MIN);
 	});
 
-	it("keeps theme text dark on Classic while making Space utilities white", () => {
-		const theme = resolveTheme("classic");
-		const environment = resolveReadableCustomizationPalette(
-			theme,
-			resolveWorld("space"),
-		);
-
-		expect(environment.isDark).toBe(true);
-		expect(environment.name).toBe(theme.nameColorDark);
-		expect(environment.utility).toBe("#ffffff");
-		expect(environment.controlForeground).toBe("#ffffff");
-		expect(environment.controlBg).toContain("0,0,0");
-	});
-
-	it("uses white utilities and controls for a dark theme without a world", () => {
-		const palette = resolveReadableCustomizationPalette(
-			resolveTheme("noir"),
-			resolveWorld("none"),
-		);
+	it("uses white utilities and controls for a dark theme", () => {
+		const palette = resolveReadableCustomizationPalette(resolveTheme("noir"));
 
 		expect(palette.isDark).toBe(true);
 		expect(palette.utility).toBe("#ffffff");
@@ -71,12 +57,59 @@ describe("customized surface contrast", () => {
 	});
 
 	it("keeps light surfaces on dark utility ink", () => {
-		const palette = resolveReadableCustomizationPalette(
-			resolveTheme("classic"),
-			resolveWorld("none"),
-		);
+		const theme = resolveTheme("classic");
+		const palette = resolveReadableCustomizationPalette(theme);
 
 		expect(palette.isDark).toBe(false);
+		expect(palette.name).toBe(theme.nameColor);
 		expect(palette.utility).toBe("#18181b");
+	});
+
+	it("does not let an equipped world flip the theme's contrast", () => {
+		// Cosmic Drift used to declare itself dark, which dragged names, utility
+		// ink and control chrome onto a dark palette for users on a LIGHT theme —
+		// everywhere their profile appeared. Scenes tint to the surface now, so
+		// the catalog carries no darkness knob for anyone to re-wire.
+		expect(resolveWorld("space")).not.toHaveProperty("isDark");
+
+		const light = resolveReadableCustomizationPalette(resolveTheme("classic"));
+		expect(light.isDark).toBe(false);
+		expect(light.utility).toBe("#18181b");
+	});
+});
+
+describe("profile font surfaces", () => {
+	it("pins every profile font to its measured legibility tier", () => {
+		expect(
+			Object.fromEntries(FONTS.map((font) => [font.value, font.tier])),
+		).toEqual({
+			sketch: "text",
+			amatic: "decorative",
+			anton: "text",
+			chokokutai: "display",
+			dancing: "display",
+			indie: "display",
+			krub: "display",
+			puddles: "decorative",
+			medieval: "text",
+		});
+	});
+
+	it("falls back for display and decorative fonts on compact surfaces", () => {
+		expect(resolveFontFor("amatic", "compact")).toBe(PROFILE_UI_FONT_FAMILY);
+		expect(resolveFontFor("dancing", "compact")).toBe(PROFILE_UI_FONT_FAMILY);
+		expect(resolveFontFor("sketch", "compact")).toBe(
+			'"Cabin Sketch", sans-serif',
+		);
+		expect(resolveFontFor("medieval", "compact")).toBe(
+			'"Celtic MD", sans-serif',
+		);
+	});
+
+	it("preserves every equipped font on display surfaces", () => {
+		expect(resolveFontFor("amatic", "display")).toBe('"Amatic SC", cursive');
+		expect(resolveFontFor("puddles", "display")).toBe(
+			'"Rubik Puddles", cursive',
+		);
 	});
 });

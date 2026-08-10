@@ -9,11 +9,11 @@
             <div class="min-w-0">
               <p class="text-[11px] font-black uppercase tracking-widest">{{ phaseLabel }}</p>
               <h1 class="text-xl font-black leading-tight mt-1">{{ competition.theme }}</h1>
-              <p v-if="competition.theme_blurb" class="text-sm opacity-90 mt-2 leading-snug">{{ competition.theme_blurb }}</p>
+              <p v-if="competition.theme_blurb" class="text-sm mt-2 leading-snug">{{ competition.theme_blurb }}</p>
             </div>
             <div class="shrink-0 text-right">
               <p class="text-sm font-black">{{ countdown }}</p>
-              <p class="text-[11px] opacity-90 mt-1">{{ competition.entry_count }} entries</p>
+              <p class="text-[11px] mt-1">{{ competition.entry_count }} entries</p>
             </div>
           </div>
         </header>

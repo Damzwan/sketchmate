@@ -143,13 +143,13 @@
 
         </Transition>
 
-        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" @click="showLoginScreen=true"
+        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md cabin-sketch-regular" @click="showLoginScreen=true"
                     v-if="!showLoginScreen">
           <ion-icon slot="start" class="mr-2" :icon="svg(mdiEmail)" />
           Sign in
         </ion-button>
 
-        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" @click="onEmailLoginSubmit"
+        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md cabin-sketch-regular" @click="onEmailLoginSubmit"
                     v-else-if="showLoginScreen && !isPasswordForgotten">
 
           <ion-icon slot="end" class="ml-2" :icon="svg(mdiSend)" v-if="!loginLoading" />
@@ -157,7 +157,7 @@
           {{ isRegistering ? 'Sign up' : 'Sign in' }}
         </ion-button>
 
-        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" @click="onPasswordForget"
+        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md cabin-sketch-regular" @click="onPasswordForget"
                     v-else-if="showLoginScreen && isPasswordForgotten">
 
           <ion-icon slot="end" class="ml-2" :icon="svg(mdiSend)" v-if="!loginLoading" />
@@ -166,13 +166,13 @@
           Reset password
         </ion-button>
 
-        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" fill="outline"
+        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md cabin-sketch-regular" fill="outline"
                     @click="onGoogleLogin">
           <ion-icon slot="start" class="mr-2" :icon="svg(mdiGoogle)" />
           <ion-spinner name="crescent" slot="end" class="ml-2 text-secondary" v-if="googleloading" />
           Continue With Google
         </ion-button>
-        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" fill="clear"
+        <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md cabin-sketch-regular" fill="clear"
                     @click="isAnonymousConfirmationOpen=true">Continue
           <ion-spinner name="crescent" slot="end" class="ml-2 text-secondary" v-if="anonymousLoading" />
           As Anonymous

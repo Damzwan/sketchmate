@@ -15,6 +15,7 @@
       <ProfileWorld
         :world-id="customization.worldId"
         :accent="theme.accentColor"
+        :dark="theme.isDark"
         :font="fontFamily"
         static-mode
         mini
@@ -78,7 +79,6 @@ import {
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 
@@ -96,12 +96,11 @@ const customization = computed(() =>
 	hydrateCustomization(props.friend?.customization),
 );
 const theme = computed(() => resolveTheme(customization.value.themeId));
-const world = computed(() => resolveWorld(customization.value.worldId));
 const fontFamily = computed(() =>
 	resolveFontFamily(customization.value.fontId),
 );
 const surfacePalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, world.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 
 const rowStyle = computed(() => ({

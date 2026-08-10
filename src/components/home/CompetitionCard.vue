@@ -63,7 +63,10 @@
             {{ headline }}
           </h2>
 
-          <p class="text-sm font-bold opacity-90 mt-1.5 leading-snug">
+          <!-- No opacity on ink over the accent gradient: fading it blends the
+               ink toward the background and costs ~0.5 of contrast ratio, which
+               put every accent under AA on the gradient's darker corner. -->
+          <p class="text-sm font-bold mt-1.5 leading-snug">
             {{ subline }}
           </p>
 

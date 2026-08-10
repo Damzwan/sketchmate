@@ -35,8 +35,10 @@
   <meta name="msapplication-tap-highlight" content="no" />
 
   <link rel="shortcut icon" type="image/png" href="/favicon.png" />
-  <link rel="preload" href="/src/assets/fonts/CabinSketch-Regular.ttf" as="font" type="font/ttf" crossorigin />
-  <link rel="preload" href="/src/assets/fonts/CabinSketch-Bold.ttf" as="font" type="font/ttf" crossorigin />
+  <!-- Nunito first: it is the UI face, so it blocks the most text. -->
+  <link rel="preload" href="/src/assets/fonts/nunito-v32-latin-variable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/src/assets/fonts/cabin-sketch-v23-latin-regular.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/src/assets/fonts/cabin-sketch-v23-latin-700.woff2" as="font" type="font/woff2" crossorigin />
 
   <!-- add to homescreen for ios -->
   <meta name="mobile-web-app-capable" content="yes" />

@@ -19,6 +19,7 @@
         v-if="visible && showWorld"
         :world-id="authorCustomization.worldId"
         :accent="theme.accentColor"
+        :dark="theme.isDark"
         static-mode
         banner
         contained
@@ -115,7 +116,7 @@
       <p v-if="caption" class="mb-1.5 text-[11px] leading-snug line-clamp-2" :style="descriptionStyle">
         {{ caption }}
       </p>
-      <p v-if="isOwnEntry" class="mb-1 text-[10px] font-black uppercase tracking-wider" :style="nameStyle">
+      <p v-if="isOwnEntry" class="mb-1 text-[10px] font-black uppercase tracking-wider" :style="uiNameStyle">
         Your weekly entry
       </p>
 
@@ -170,11 +171,11 @@ import {
 	DEFAULT_EFFECT_ID,
 	DEFAULT_WORLD_ID,
 	hydrateCustomization,
-	resolveFontFamily,
+	PROFILE_UI_FONT_FAMILY,
+	resolveFontFor,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 import type { CompetitionEntry } from "@/service/api/competition.api";
@@ -211,9 +212,8 @@ const authorCustomization = computed(() =>
 	hydrateCustomization(props.entry.author?.customization as any),
 );
 const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
-const world = computed(() => resolveWorld(authorCustomization.value.worldId));
 const palette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, world.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const showWorld = computed(
 	() => authorCustomization.value.worldId !== DEFAULT_WORLD_ID,
@@ -225,7 +225,7 @@ const displayTitle = computed(() =>
 	resolveTitle(authorCustomization.value.titleId),
 );
 const fontFamily = computed(() =>
-	resolveFontFamily(authorCustomization.value.fontId),
+	resolveFontFor(authorCustomization.value.fontId, "compact"),
 );
 const artistSurfaceStyle = computed(() => ({
 	background: theme.value.cardBg,
@@ -251,7 +251,12 @@ const nameStyle = computed(() => ({
 }));
 const descriptionStyle = computed(() => ({
 	color: palette.value.desc,
-	fontFamily: fontFamily.value,
+	fontFamily: PROFILE_UI_FONT_FAMILY,
+	textShadow: palette.value.textShadow,
+}));
+const uiNameStyle = computed(() => ({
+	color: palette.value.name,
+	fontFamily: PROFILE_UI_FONT_FAMILY,
 	textShadow: palette.value.textShadow,
 }));
 const wonCategoryLabel = computed(

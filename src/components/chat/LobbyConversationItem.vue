@@ -25,7 +25,7 @@
           {{ memberCount }} here
         </span>
       </div>
-      <p class="text-[13px] truncate cabin-sketch-regular tracking-wide leading-none mt-1.5 text-cyan-800/70">
+      <p class="text-[13px] truncate tracking-wide leading-none mt-1.5 text-cyan-800/70">
         {{ lastMessage || 'Jump in and say hi' }}
       </p>
     </div>

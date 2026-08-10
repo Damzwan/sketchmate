@@ -3,7 +3,7 @@
     <slot name="overlay" />
 
     <div class="absolute inset-0 pointer-events-none z-0">
-      <ProfileWorld :world-id="c.worldId" :accent="theme.accentColor" :font="font" />
+      <ProfileWorld :world-id="c.worldId" :accent="theme.accentColor" :dark="theme.isDark" :font="font" />
       <ProfileEffect :effect-id="c.effectId" />
 
     </div>
@@ -14,7 +14,7 @@
       @touchmove.stop
     >
       <div
-        class="px-6 flex flex-col transition-all duration-500"
+        class="px-6 md:px-10 flex flex-col w-full max-w-3xl mx-auto transition-all duration-500"
         :class="scrollable ? 'pb-24 pb-safe' : 'pb-4'"
         :style="{ fontFamily: font }"
       >
@@ -135,7 +135,7 @@
           <div class="flex items-center justify-between mb-3 px-1">
             <h3 class="text-xl font-black italic transition-colors duration-500" :style="{ color: activeColors.name }">Portfolio</h3>
           </div>
-          <div v-if="postsLoading && posts.length === 0" class="grid grid-cols-3 gap-2">
+          <div v-if="postsLoading && posts.length === 0" class="grid grid-cols-3 md:grid-cols-4 gap-2">
             <div v-for="i in 6" :key="i" class="aspect-square rounded-[1.5rem] animate-pulse" :style="{ background: activeColors.controlBg }"></div>
           </div>
           <div v-else-if="posts.length === 0"
@@ -143,7 +143,7 @@
                :style="{ borderColor: activeColors.controlBorder, backgroundColor: activeColors.controlBg }">
             <p class="text-sm font-bold italic transition-colors duration-500" :style="{ color: activeColors.desc }">No public sketches yet.</p>
           </div>
-          <div v-else class="grid grid-cols-3 gap-2">
+          <div v-else class="grid grid-cols-3 md:grid-cols-4 gap-2">
             <div v-for="(post, index) in posts" :key="post._id"
                  class="aspect-square rounded-[1.5rem] shadow-sm relative overflow-hidden active:scale-95 cursor-pointer transition-transform duration-200"
                  :style="{ backgroundColor: theme.cardBorderColor }" @click="$emit('open-post', index)">
@@ -171,7 +171,6 @@ import {
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 
 const props = withDefaults(
@@ -210,9 +209,8 @@ const signatureStrokeWidth = computed(() =>
 );
 
 // Contrast check configuration layout lookup
-const activeWorld = computed(() => resolveWorld(c.value.worldId));
 const activeColors = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const needsDescriptionScrim = computed(
 	() => c.value.effectId === "crumpled-paper",
@@ -250,5 +248,11 @@ defineExpose({ theme, font });
 
 .pb-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    filter: brightness(1.04);
+  }
 }
 </style>

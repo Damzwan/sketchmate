@@ -29,7 +29,6 @@
       :keyboard="{ enabled: true, onlyInViewport: true }"
       :centered-slides="true"
       :centered-slides-bounds="true"
-      :slide-to-clicked-slide="true"
       :breakpoints="{ 768: { slidesPerView: 1.18, spaceBetween: 16 } }"
       :grab-cursor="true"
       @swiperslidechange="onArtistSlideChange"
@@ -61,8 +60,8 @@
           </div>
 
           <div class="relative z-10 pt-3.5 pb-4">
-            <div class="artist-identity flex items-center gap-3 px-4 min-h-20" :style="identityStyle(entry)">
-              <button type="button" class="shrink-0 rounded-full active:scale-95 transition-transform" :aria-label="`Open ${entry.artist.name}'s profile`" @click="openArtist(entry)">
+            <div class="artist-identity  flex items-center gap-3 px-4 min-h-20" :style="identityStyle(entry)">
+              <button type="button" class="shrink-0 cursor-pointer rounded-full active:scale-95 transition-transform" :aria-label="`Open ${entry.artist.name}'s profile`" @click="openArtist(entry, entryIndex)">
                 <UserAvatar
                   :user="entry.artist"
                   :customization="entry.artist.customization"
@@ -80,7 +79,7 @@
                   @will-open="beginOverlay"
                   @did-close="endOverlay"
                 />
-                <button type="button" class="flex w-full items-center gap-1.5 text-left active:opacity-70 transition-opacity" @click="openArtist(entry)">
+                <button type="button" class="flex w-full cursor-pointer  items-center gap-1.5 text-left active:opacity-70 transition-opacity" @click="openArtist(entry, entryIndex)">
                   <span
                     class="artist-highlight-name block min-w-0 flex-1 text-2xl leading-none font-black truncate"
                     :class="fontClass(entry)"
@@ -448,7 +447,11 @@ function signatureStroke(entry: ArtistHighlightEntry) {
 	return calculateSignatureStroke(customization(entry).signatureViewBox);
 }
 
-function openArtist(entry: ArtistHighlightEntry) {
+function openArtist(entry: ArtistHighlightEntry, entryIndex: number) {
+	if (entryIndex !== activeArtistSlide.value) {
+		artistSwiper.value?.swiper?.slideTo(entryIndex);
+		return;
+	}
 	void openUserActions(entry.artist);
 }
 async function openDrawing(posts: FeedPost[], index: number) {

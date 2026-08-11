@@ -6,18 +6,7 @@ import { useCompetitionStore } from "@/store/competition.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 
-/**
- * Open one competition entry in the fullscreen viewer from anywhere.
- *
- * The notification list uses this: tapping "someone commented on your entry"
- * should show the drawing and the thread where the user already is, not push
- * them onto the competition page and leave them there when they close it.
- *
- * Deliberately a read-only viewer: no voting, no deleting. Those belong to the
- * competition page, which owns the vote budget and the grid the deletion has to
- * be removed from. Remixing is safe from anywhere because it only opens the
- * canvas.
- */
+/** Read-only fullscreen competition entry viewer used outside the page. */
 export function useCompetitionEntryViewer() {
 	const swiper = usePhotoSwiper();
 	const { toast } = useToast();
@@ -28,12 +17,12 @@ export function useCompetitionEntryViewer() {
 			toast("This drawing cannot be remixed", { color: "warning" });
 			return;
 		}
-		const shouldRemix = await confirm({
+		const approved = await confirm({
 			header: "Remix this drawing?",
 			message: "A copy will open on your canvas. The original stays unchanged.",
 			confirmText: "Start remixing",
 		});
-		if (!shouldRemix) return;
+		if (!approved) return;
 		swiper.close();
 		void router.push({
 			path: FRONTEND_ROUTES.draw,
@@ -52,11 +41,7 @@ export function useCompetitionEntryViewer() {
 		if (withComments) swiper.isCommentDrawerOpen = true;
 	}
 
-	/** Resolve by id first — a deep link rarely has the entry in hand. */
-	async function openEntryById(
-		entryId: string,
-		withComments = false,
-	): Promise<boolean> {
+	async function openEntryById(entryId: string, withComments = false) {
 		const entry = await useCompetitionStore().resolveEntry(entryId);
 		if (!entry) {
 			toast("That entry is no longer available", { color: "warning" });

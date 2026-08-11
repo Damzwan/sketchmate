@@ -109,7 +109,6 @@
 
 <script setup lang="ts">
 import { IonModal } from "@ionic/vue";
-import { onLongPress, useEventListener } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { register } from "swiper/element/bundle";
 import { computed, nextTick, ref, watch } from "vue";
@@ -120,7 +119,6 @@ import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
 import PhotoSwiperHeader from "@/components/photoswiper/PhotoSwiperHeader.vue";
 import PhotoSwiperItem from "@/components/photoswiper/PhotoSwiperItem.vue";
 import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
-import { playSelectionTick } from "@/config/post.config";
 import { EventBus } from "@/main";
 import router from "@/router";
 import { fetchCompetitionComments } from "@/service/api/competition.api";
@@ -128,6 +126,7 @@ import { fetchPostComments } from "@/service/api/post.api";
 import { useAuthStore } from "@/store/auth.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useSessionStore } from "@/store/session.store";
+import { usePhotoSwiperGestures } from "./usePhotoSwiperGestures";
 
 register();
 
@@ -146,12 +145,6 @@ const currItem = computed(() => collection.value[slide.value] || null);
 const showComments = ref(true);
 // Tap the art to get the bars out of the way, tap again to bring them back —
 // the gallery-app convention.
-const chromeVisible = ref(true);
-// Gates the chrome Transitions' CSS. Only a tap turns this on, so the bars are
-// painted in place when the viewer opens and only ever slide in response to the
-// gesture that's supposed to move them.
-const chromeAnimated = ref(false);
-let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const isFollowerDrawerOpen = ref(false);
 const swiper = ref<any>();
 const reactionBurst = ref<{ play: (r: string) => void } | null>(null);
@@ -204,39 +197,27 @@ watch(
 // Swiper fires `tap` for the first tap of a double-tap too, so hold the toggle
 // for one double-tap interval and let `doubleTap` (zoom) cancel it — otherwise
 // zooming in also flashes the chrome off.
-function onSwiperTap() {
-	if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
-	// Releasing a long press still produces swiper's `tap`, so without this the
-	// gesture that opened the reaction tray ALSO toggled the chrome away
-	// underneath it. Consume exactly one tap, then go back to normal.
-	if (suppressNextTap) {
-		suppressNextTap = false;
-		return;
-	}
-	if (longPressPopoverOpen.value) return;
-	if (tapTimer) clearTimeout(tapTimer);
-	tapTimer = setTimeout(() => {
-		// Arm the transition only now — this is the one path that should animate.
-		chromeAnimated.value = true;
-		chromeVisible.value = !chromeVisible.value;
-		tapTimer = null;
-	}, 260);
-}
-
-function onSwiperDoubleTap() {
-	if (tapTimer) {
-		clearTimeout(tapTimer);
-		tapTimer = null;
-	}
-}
-
-const keyboardListener = (event: KeyboardEvent) => {
-	event.stopPropagation();
-	if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
-	if (event.key === "Escape") close();
-	else if (event.key === "ArrowRight") swiper.value?.swiper?.slideNext();
-	else if (event.key === "ArrowLeft") swiper.value?.swiper?.slidePrev();
-};
+const {
+	chromeVisible,
+	chromeAnimated,
+	artSurface,
+	longPressPopoverOpen,
+	longPressEvent,
+	onSwiperTap,
+	onSwiperDoubleTap,
+	keyboardListener,
+	resetGestures,
+	closeLongPressPopover,
+	onLongPressReaction,
+} = usePhotoSwiperGestures({
+	swiper,
+	config,
+	currItem,
+	commentDrawerOpen: isCommentDrawerOpen,
+	followerDrawerOpen: isFollowerDrawerOpen,
+	closeViewer: close,
+	react: handleReact,
+});
 
 function close() {
 	open.value = false;
@@ -247,12 +228,7 @@ function close() {
 	// `keep-contents-mounted` means this component is never torn down, so any
 	// state left behind here is state the next open inherits — a viewer closed
 	// with the UI hidden would otherwise reopen hidden.
-	if (tapTimer) {
-		clearTimeout(tapTimer);
-		tapTimer = null;
-	}
-	chromeVisible.value = true;
-	chromeAnimated.value = false;
+	resetGestures();
 }
 
 function onWillDismiss() {
@@ -265,8 +241,7 @@ function onDidDismiss() {
 	if (swiperStore.openedAt !== dismissingOpenedAt) return;
 	close();
 	isFollowerDrawerOpen.value = false;
-	longPressPopoverOpen.value = false;
-	activePointers.clear();
+	resetGestures();
 	swiperStore.releaseRetainedContent();
 }
 
@@ -362,115 +337,6 @@ function handleReact(type: string) {
 	reactionBurst.value?.play(type);
 	if (config.value.onReact) config.value.onReact(currItem.value, type);
 }
-
-// ── Long-press to react ────────────────────────────────────────────────────
-const artSurface = ref<HTMLElement | null>(null);
-const longPressPopoverOpen = ref(false);
-const longPressEvent = ref<Event | null>(null);
-// Set the moment the press fires, cleared by the tap it inevitably generates.
-// Plain `let`, not a ref — nothing renders from it.
-let suppressNextTap = false;
-
-/**
- * Inspecting the drawing and reacting to it are different intents that share
- * one gesture surface, so the press has to know which one is in flight.
- *
- * Two signals, both read when the deliberately slower press fires rather than
- * at pointerdown,
- * because that's when the user's intent is actually knowable:
- *
- *  - MULTI-TOUCH. A pinch is two fingers, and the first of them looks exactly
- *    like the start of a long press. `distanceThreshold` doesn't save us: the
- *    anchoring finger of a pinch barely travels, so the press survives the
- *    whole zoom gesture and the tray pops up mid-pinch.
- *  - ALREADY ZOOMED. Past 1× the surface belongs to panning. Holding still for
- *    a beat before dragging is normal panning behaviour, and it was arming the
- *    tray every time. Reacting stays available — pinch back out (or double-tap)
- *    and the press works again.
- */
-const activePointers = new Set<number>();
-const onArtPointerDown = (e: PointerEvent) => activePointers.add(e.pointerId);
-const onArtPointerUp = (e: PointerEvent) => activePointers.delete(e.pointerId);
-
-useEventListener(artSurface, "pointerdown", onArtPointerDown, {
-	passive: true,
-});
-useEventListener(artSurface, "pointerup", onArtPointerUp, { passive: true });
-useEventListener(artSurface, "pointercancel", onArtPointerUp, {
-	passive: true,
-});
-
-const isZoomedIn = () => (swiper.value?.swiper?.zoom?.scale ?? 1) > 1.01;
-
-// How far above the finger the tray floats, so it isn't under the thumb.
-const REACTION_POPOVER_SPACING = 20;
-
-// Dropping the flag here too: if the press ends without swiper ever emitting a
-// tap (finger lifted over the tray, popover dismissed by backdrop), a stale
-// `true` would silently eat the user's next real tap on the artwork.
-function closeLongPressPopover() {
-	longPressPopoverOpen.value = false;
-	suppressNextTap = false;
-}
-
-function onLongPressReaction(type: string) {
-	closeLongPressPopover();
-	handleReact(type);
-}
-
-onLongPress(
-	artSurface,
-	(e: PointerEvent) => {
-		// Reactions are a post concept; inbox drawings have no reaction bar.
-		if (config.value.type !== "post" || !currItem.value) return;
-		if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
-		// Pinching or panning a zoomed drawing — this press is navigation, not a
-		// reaction. Bail BEFORE touching suppressNextTap, or the tap that ends the
-		// gesture gets eaten and the chrome toggle stops responding.
-		if (activePointers.size > 1 || isZoomedIn()) return;
-
-		// A long press is also the first half of a tap as far as swiper is
-		// concerned. Kill the pending toggle AND arm the one-shot suppression, or
-		// the tray opens and the chrome disappears behind it in the same gesture.
-		if (tapTimer) {
-			clearTimeout(tapTimer);
-			tapTimer = null;
-		}
-		suppressNextTap = true;
-
-		playSelectionTick();
-
-		// A SYNTHETIC anchor, not the raw event — the same trick CommunityFeed
-		// uses. ion-popover positions itself against `event.target`, and here the
-		// target is a swiper slide: it's transformed on every swipe and recycled
-		// between slides, so anchoring to it made the tray land in the wrong place
-		// or vanish outright as soon as swiper touched the element. A bare rect at
-		// the finger has nothing to be invalidated by.
-		const x = e.clientX ?? 0;
-		const y = e.clientY ?? 0;
-		longPressEvent.value = {
-			target: {
-				getBoundingClientRect: () => ({
-					left: x,
-					top: y - REACTION_POPOVER_SPACING,
-					right: x,
-					bottom: y,
-					width: 0,
-					height: 0,
-				}),
-			},
-		} as any;
-		longPressPopoverOpen.value = true;
-	},
-	{
-		delay: 650,
-		// No `prevent` here, unlike FeedPostCard: this surface owns swipe and
-		// pinch-zoom, and preventing the default on pointerdown kills both.
-		// distanceThreshold cancels the press as soon as the finger travels, so a
-		// swipe never arms the tray.
-		distanceThreshold: 10,
-	},
-);
 
 function resolveImage(item: any) {
 	if (!config.value.imageResolver) return;

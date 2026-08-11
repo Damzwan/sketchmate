@@ -121,7 +121,6 @@
 
 <script setup lang="ts">
 import {
-	actionSheetController,
 	IonAvatar,
 	IonButton,
 	IonIcon,
@@ -129,30 +128,16 @@ import {
 	IonModal,
 	IonSpinner,
 } from "@ionic/vue";
-import {
-	mdiClose,
-	mdiDeleteOutline,
-	mdiDotsHorizontal,
-	mdiFlagVariantOutline,
-	mdiSend,
-} from "@mdi/js";
+import { mdiClose, mdiDotsHorizontal, mdiSend } from "@mdi/js";
 import { useInfiniteScroll } from "@vueuse/core";
 import dayjs from "dayjs";
-import { computed, nextTick, ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { useConfirm } from "@/composables/useConfirm";
 import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
-import {
-	deleteCompetitionComment,
-	fetchCompetitionComments,
-	postCompetitionComment,
-} from "@/service/api/competition.api";
-import { deleteInboxComment, getInboxComments } from "@/service/api/inbox.api";
-import { fetchPostComments, postComment } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";
-import { useModerationStore } from "@/store/moderation.store";
-import { usePostStore } from "@/store/post.store";
+import { useCommentActions } from "./useCommentActions";
+import { useCommentSubject } from "./useCommentSubject";
 
 const props = defineProps<{
 	open: boolean;
@@ -166,10 +151,7 @@ const props = defineProps<{
 const emit = defineEmits(["update:open"]);
 
 const { openUserActions } = useUserContextSheet();
-const postStore = usePostStore();
-const moderationStore = useModerationStore();
 const { toast } = useToast();
-const { confirm } = useConfirm();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const input = ref<any>();
@@ -180,8 +162,15 @@ const isSubmitting = ref(false);
 const newComment = ref("");
 const hasMore = ref(false);
 
-const isPost = computed(() => props.type === "post");
-const isCompetition = computed(() => props.type === "competition");
+const { getAuthorId, getAuthorName, getAuthorImg, fetchPage, submit, remove } =
+	useCommentSubject(props);
+const { openCommentActions } = useCommentActions({
+	props,
+	comments,
+	authorId: getAuthorId,
+	authorName: getAuthorName,
+	remove,
+});
 
 // --- VueUse Infinite Scroll setup
 useInfiniteScroll(
@@ -193,23 +182,6 @@ useInfiniteScroll(
 	},
 	{ direction: "top", distance: 40 },
 );
-
-// --- Author resolution
-function getAuthorId(comment: any): string {
-	return comment.author?._id || comment.author_id || comment.sender;
-}
-
-function getAuthorName(comment: any): string {
-	if (comment.author?.name) return comment.author.name;
-	const resolved = props.userLookup?.(comment.sender || comment.author_id);
-	return resolved?.name || "Sketcher";
-}
-
-function getAuthorImg(comment: any): string | undefined {
-	if (comment.author?.img) return comment.author.img;
-	const resolved = props.userLookup?.(comment.sender || comment.author_id);
-	return resolved?.img;
-}
 
 watch(
 	() => props.open,
@@ -233,11 +205,7 @@ watch(
 		loading.value = true;
 
 		try {
-			const res = isPost.value
-				? await fetchPostComments(props.currItem._id, 20)
-				: isCompetition.value
-					? await fetchCompetitionComments(props.currItem._id, 20)
-					: await getInboxComments(props.currItem._id, 20);
+			const res = await fetchPage();
 
 			comments.value = res.comments;
 			hasMore.value = res.hasMore;
@@ -300,31 +268,11 @@ async function submitComment() {
 	isSubmitting.value = true;
 
 	try {
-		if (isPost.value) {
-			const res = await postComment(props.currItem._id, message);
-			const hydrated = {
-				...res.comment,
-				author: props.user
-					? {
-							_id: props.user._id,
-							name: props.user.name,
-							img: props.user.img,
-						}
-					: { _id: res.comment.author_id, name: "You", img: "" },
-			};
-			comments.value.push(hydrated);
-			props.currItem.comment_count++;
-			props.currItem.comments = [...(props.currItem.comments || []), hydrated];
-		} else if (isCompetition.value) {
-			const res = await postCompetitionComment(props.currItem._id, message);
-			comments.value.push(res.comment);
+		const comment = await submit(message);
+		if (comment) {
+			comments.value.push(comment);
 			props.currItem.comment_count = (props.currItem.comment_count ?? 0) + 1;
-			props.currItem.comments = [
-				...(props.currItem.comments || []),
-				res.comment,
-			];
-		} else if (props.onComment) {
-			await props.onComment(props.currItem, message);
+			props.currItem.comments = [...(props.currItem.comments || []), comment];
 		}
 		scrollToBottom();
 	} catch (e) {
@@ -345,11 +293,7 @@ async function loadOlderComments() {
 	const oldestDate = oldestComment.date || oldestComment.createdAt;
 
 	try {
-		const res = isPost.value
-			? await fetchPostComments(props.currItem._id, 20, oldestDate)
-			: isCompetition.value
-				? await fetchCompetitionComments(props.currItem._id, 20, oldestDate)
-				: await getInboxComments(props.currItem._id, 20, oldestDate);
+		const res = await fetchPage(oldestDate);
 
 		const newComments = res.comments.filter(
 			(c: any) => !comments.value.some((existing) => existing._id === c._id),
@@ -395,84 +339,6 @@ async function onDidPresent() {
 
 function close() {
 	emit("update:open", false);
-}
-
-// --- Comment actions
-async function openCommentActions(comment: any) {
-	const authorId = getAuthorId(comment);
-	const isMine = authorId === props.user?._id;
-	const buttons: any[] = [];
-
-	if (isMine) {
-		buttons.push({
-			text: "Delete Comment",
-			role: "destructive",
-			icon: svg(mdiDeleteOutline),
-			handler: () => confirmDeleteComment(comment),
-		});
-	} else {
-		buttons.push({
-			text: "Report Comment",
-			role: "destructive",
-			icon: svg(mdiFlagVariantOutline),
-			handler: () => {
-				moderationStore.openReport({
-					type: isPost.value
-						? "comment"
-						: isCompetition.value
-							? "competition_comment"
-							: "inbox_comment",
-					id: comment._id,
-					label: `${getAuthorName(comment)}'s comment`,
-				});
-			},
-		});
-	}
-
-	if (buttons.length === 0) return;
-	buttons.push({ text: "Cancel", role: "cancel" });
-
-	const sheet = await actionSheetController.create({
-		header: "Comment Options",
-		cssClass: "liquid-action-sheet",
-		buttons,
-	});
-	await sheet.present();
-}
-
-async function confirmDeleteComment(comment: any) {
-	const shouldDelete = await confirm({
-		header: "Delete Comment?",
-		subHeader: "This can't be undone.",
-		message: "Are you sure you want to remove this comment?",
-		confirmText: "Delete",
-		destructive: true,
-	});
-	if (!shouldDelete || !props.currItem) return;
-	try {
-		if (isPost.value) {
-			await postStore.deletePostComment(props.currItem._id, comment._id);
-		} else if (isCompetition.value) {
-			await deleteCompetitionComment(props.currItem._id, comment._id);
-		} else {
-			await deleteInboxComment(props.currItem._id, comment._id);
-		}
-		comments.value = comments.value.filter((c) => c._id !== comment._id);
-		if (props.currItem.comments) {
-			props.currItem.comments = props.currItem.comments.filter(
-				(c: any) => c._id !== comment._id,
-			);
-		}
-		if (
-			typeof props.currItem.comment_count === "number" &&
-			props.currItem.comment_count > 0
-		) {
-			props.currItem.comment_count--;
-		}
-		toast("Comment deleted");
-	} catch {
-		toast("Failed to delete comment", { color: "danger" });
-	}
 }
 </script>
 

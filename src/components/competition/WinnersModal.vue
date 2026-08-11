@@ -189,25 +189,17 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import ShopGrantPreview from "@/components/shop/ShopGrantPreview.vue";
 import ShopPreviewModal from "@/components/shop/ShopPreviewModal.vue";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { useShopPreviewActions } from "@/composables/shop/useShopPreviewActions";
-import {
-	CATALOG_BY_ID,
-	describeGrant,
-	type ShopSku,
-} from "@/config/catalog.config";
 import { resolveAccent } from "@/config/competition.config";
 import { masterAnimation } from "@/helper/animation.helper";
 import { svg } from "@/helper/general.helper";
-import type {
-	CompetitionAuthor,
-	CompetitionResultRow,
-} from "@/service/api/competition.api";
+import type { CompetitionResultRow } from "@/service/api/competition.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useAuthStore } from "@/store/auth.store";
 import { useCompetitionStore } from "@/store/competition.store";
 import { useMenuStore } from "@/store/menu.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useWinnerPager } from "./useWinnerPager";
+import { useWinnerRewards } from "./useWinnerRewards";
 
 const revealedCompetitions = new Set<string>();
 
@@ -216,16 +208,12 @@ const store = useCompetitionStore();
 const menuStore = useMenuStore();
 const { isCompetitionResultsOpen: isOpen } = storeToRefs(menuStore);
 const { user } = storeToRefs(useAuthStore());
-const { openUserActions } = useUserContextSheet();
-const shopActions = useShopPreviewActions();
 
 const isLoading = ref(false);
-const pager = ref<HTMLElement | null>(null);
-const activeSlide = ref(0);
+const { pager, activeSlide, syncActiveSlide, goToSlide, activateSlide } =
+	useWinnerPager();
 const revealActive = ref(false);
-const previewSku = ref<ShopSku | null>(null);
 const compactPhone = useMediaQuery("(max-width: 640px)");
-const isPreviewOwned = computed(() => shopActions.isSkuOwned(previewSku.value));
 let revealTimer: ReturnType<typeof setTimeout> | null = null;
 const competition = computed(() => store.presentedCompetition);
 const results = computed<CompetitionResultRow[]>(
@@ -238,82 +226,18 @@ const showingCurrent = computed(
 const iWon = computed(() =>
 	results.value.some((row) => row.winner?._id === user.value?._id),
 );
-
-function rewardFor(row: CompetitionResultRow) {
-	const itemId = row.granted_items.find((id) => !id.startsWith("title."));
-	if (!itemId) return null;
-	return { id: itemId, label: describeGrant(itemId).label };
-}
+const {
+	previewSku,
+	isPreviewOwned,
+	rewardFor,
+	openReward,
+	purchasePreview,
+	equipPreview,
+	openProfile,
+} = useWinnerRewards(() => iWon.value);
 
 function isPortrait(row: CompetitionResultRow) {
 	return (row.entry?.aspect_ratio ?? 1) < 0.85;
-}
-
-function syncActiveSlide() {
-	if (!pager.value) return;
-	const center =
-		pager.value.getBoundingClientRect().left + pager.value.clientWidth / 2;
-	let closest = 0;
-	let distance = Number.POSITIVE_INFINITY;
-	for (const [index, slide] of Array.from(pager.value.children).entries()) {
-		const rect = (slide as HTMLElement).getBoundingClientRect();
-		const nextDistance = Math.abs(rect.left + rect.width / 2 - center);
-		if (nextDistance < distance) {
-			distance = nextDistance;
-			closest = index;
-		}
-	}
-	activeSlide.value = closest;
-}
-
-function goToSlide(index: number) {
-	activeSlide.value = index;
-	(pager.value?.children[index] as HTMLElement | undefined)?.scrollIntoView({
-		behavior: "smooth",
-		block: "nearest",
-		inline: "center",
-	});
-}
-
-function activateSlide(index: number, event: MouseEvent) {
-	if (index === activeSlide.value) return;
-	event.preventDefault();
-	event.stopPropagation();
-	goToSlide(index);
-}
-
-function openReward(itemId: string) {
-	trackEvent(mixpanelEvents.competitionRewardShopOpen, {
-		item_id: itemId,
-		won: iWon.value,
-	});
-	const known = CATALOG_BY_ID[itemId];
-	if (known) {
-		previewSku.value = known;
-		return;
-	}
-	const item = describeGrant(itemId);
-	previewSku.value = {
-		id: itemId,
-		kind: "single",
-		rcProductId: "",
-		grants: [itemId],
-		category: item.category,
-		name: item.label,
-		desc: "Competition prize",
-	};
-}
-
-async function purchasePreview() {
-	await shopActions.purchaseSku(previewSku.value);
-}
-
-async function equipPreview(patch: Record<string, unknown>) {
-	if (await shopActions.equipSku(patch)) previewSku.value = null;
-}
-
-function openProfile(winner: CompetitionAuthor) {
-	void openUserActions({ _id: winner._id, name: winner.name, img: winner.img });
 }
 
 function goDraw() {

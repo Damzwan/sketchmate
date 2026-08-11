@@ -121,7 +121,6 @@
 </template>
 
 <script setup lang="ts">
-import { useIntersectionObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { computed, onUnmounted, ref, watch } from "vue";
 import CommentDrawer from "@/components/general/CommentDrawer.vue";
@@ -131,8 +130,9 @@ import ArtistHighlights from "@/components/home/ArtistHighlights.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import { provideOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { usePostViewTracking } from "@/composables/home/usePostViewTracking";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
-import { deletePost, type FeedTab, logPostViews } from "@/service/api/post.api";
+import { deletePost, type FeedTab } from "@/service/api/post.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
@@ -147,6 +147,7 @@ const quotaStore = useQuotaStore();
 const photoSwiperStore = usePhotoSwiper();
 const { openPostSwiper } = usePostSwiper();
 const { toast } = useToast();
+const { registerPostRef, stopAllPostObservers } = usePostViewTracking();
 
 const { user } = storeToRefs(authStore);
 const { feedByTab, fetchedTabs, isFeedDirty } = storeToRefs(postStore);
@@ -300,92 +301,6 @@ const handleDelete = async (post: FeedPost) => {
 	}
 };
 
-/* --- LOGICAL INTERSECTION VIEW OBSERVERS --- */
-const pendingViewSync = new Set<string>();
-const postElements = new Map<string, HTMLElement>();
-const postObservers = new Map<
-	string,
-	{ stop: () => void; timer: ReturnType<typeof setTimeout> | null }
->();
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const flushViewSync = async () => {
-	if (syncTimeout) clearTimeout(syncTimeout);
-	syncTimeout = null;
-	if (pendingViewSync.size === 0) return;
-
-	const idsToSync = Array.from(pendingViewSync);
-	pendingViewSync.clear();
-	try {
-		await logPostViews(idsToSync);
-	} catch (e) {
-		console.error("View sync failed", e);
-	}
-};
-
-const scheduleViewSync = () => {
-	if (syncTimeout) return;
-	syncTimeout = setTimeout(() => void flushViewSync(), 3000);
-};
-
-const stopPostObserver = (postId: string) => {
-	const observer = postObservers.get(postId);
-	if (observer?.timer) clearTimeout(observer.timer);
-	observer?.stop();
-	postObservers.delete(postId);
-	postElements.delete(postId);
-};
-
-const stopAllPostObservers = () => {
-	for (const postId of [...postObservers.keys()]) stopPostObserver(postId);
-};
-
-const registerPostRef = (el: any, postId: string) => {
-	if (!el) {
-		stopPostObserver(postId);
-		return;
-	}
-	const target =
-		el.$el instanceof HTMLElement
-			? el.$el
-			: el instanceof HTMLElement
-				? el
-				: null;
-	if (!target || postElements.has(postId)) return;
-
-	postElements.set(postId, target);
-	let timer: ReturnType<typeof setTimeout> | null = null;
-
-	const { stop } = useIntersectionObserver(
-		target,
-		([{ isIntersecting }]) => {
-			if (postStore.hasViewedFeedPost(postId)) {
-				stopPostObserver(postId);
-				return;
-			}
-			if (isIntersecting && !timer) {
-				timer = setTimeout(() => {
-					if (postStore.markFeedPostViewed(postId)) {
-						pendingViewSync.add(postId);
-						scheduleViewSync();
-					}
-					stopPostObserver(postId);
-				}, 1500);
-				const observer = postObservers.get(postId);
-				if (observer) observer.timer = timer;
-			} else if (timer) {
-				clearTimeout(timer);
-				timer = null;
-				const observer = postObservers.get(postId);
-				if (observer) observer.timer = null;
-			}
-		},
-		{ threshold: 0.6 },
-	);
-	postObservers.set(postId, { stop, timer });
-};
-
-// 'off' hides the feed entirely — no fetch, a small placeholder instead.
 const feedOff = computed(() => user.value?.feed_level === "off");
 
 function loadFeedIfNeeded() {
@@ -448,8 +363,6 @@ defineExpose({ reloadIfDirty });
 
 onUnmounted(() => {
 	stopScrollGuard();
-	stopAllPostObservers();
-	void flushViewSync();
 });
 </script>
 

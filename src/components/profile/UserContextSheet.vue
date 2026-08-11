@@ -140,12 +140,9 @@ import {
 	mdiAccountMinusOutline,
 	mdiAccountPlusOutline,
 	mdiAccountReactivateOutline,
-	mdiAlertCircleOutline,
-	mdiChatOutline,
 	mdiClose,
 	mdiFlagVariantOutline,
 	mdiHeartBroken,
-	mdiTimerSandComplete,
 } from "@mdi/js";
 import { useMediaQuery } from "@vueuse/core";
 import { storeToRefs } from "pinia";
@@ -155,39 +152,26 @@ import AmbientScope from "@/components/general/AmbientScope.vue";
 import ProfileSheetView from "@/components/profile/ProfileSheetView.vue";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { useConfirm } from "@/composables/useConfirm";
 import {
 	hydrateCustomization,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 } from "@/config/profile_options.config";
-import { useDrawSyncer } from "@/draw/sync/session.store";
 import { compareVersions, svg } from "@/helper/general.helper";
-import {
-	blockUser,
-	unblockUser,
-	unfriendUser,
-} from "@/service/api/relationship.api";
-import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
-import { useChatStore } from "@/store/chat.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useModerationStore } from "@/store/moderation.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useProfileRelationshipActions } from "./useProfileRelationshipActions";
 
 const MIN_CHAT_VERSION = "0.4.3";
 
 const menuStore = useMenuStore();
 const authStore = useAuthStore();
 const isDesktop = useMediaQuery("(min-width: 768px)");
-const chatWidget = useChatWidgetStore();
 const friendStore = useFriendStore();
 const { closeSheet } = useUserContextSheet();
 const { openPostSwiper } = usePostSwiper();
-const { toast } = useToast();
-const { confirm } = useConfirm();
 
 const swiper = usePhotoSwiper();
 const { viewProfileMenuOpen } = storeToRefs(menuStore);
@@ -292,55 +276,17 @@ const hasRequiredVersion = computed(() => {
 	return v ? compareVersions(v, MIN_CHAT_VERSION) !== -1 : false;
 });
 
-const primaryCta = computed(() => {
-	if (isBlocked.value) {
-		return {
-			label: "User Blocked",
-			icon: mdiAccountCancelOutline,
-			disabled: true,
-			handler: () => {},
-		};
-	}
-	if (!hasRequiredVersion.value) {
-		return {
-			label: "User needs to update to chat",
-			icon: mdiAlertCircleOutline,
-			disabled: true,
-			handler: () => {},
-		};
-	}
-	if (status.value === "mate") {
-		return {
-			label: "Message",
-			icon: mdiChatOutline,
-			disabled: false,
-			handler: onStartChat,
-		};
-	}
-	if (["temporary", "pending_mate"].includes(status.value as string)) {
-		return {
-			label: "Continue Chat",
-			icon: mdiTimerSandComplete,
-			disabled: false,
-			handler: onStartChat,
-		};
-	}
-	return {
-		label: "Message",
-		icon: mdiChatOutline,
-		disabled: false,
-		handler: onStartChat,
-	};
-});
+const { primaryCta, onToggleFollow, onUnfriend, confirmToggleBlock, report } =
+	useProfileRelationshipActions({
+		target: resolvedUser,
+		status,
+		isBlocked,
+		isMe,
+		hasRequiredVersion,
+	});
 
 function onDismiss() {
 	viewProfileMenuOpen.value = false;
-}
-
-function onStartChat() {
-	if (!targetProfile.value?._id || !hasRequiredVersion.value) return;
-	chatWidget.openChatWithUser(targetProfile.value._id);
-	closeSheet();
 }
 
 function onOpenPost(index: number) {
@@ -349,100 +295,6 @@ function onOpenPost(index: number) {
 
 function goToNetwork(_tab: "mates" | "followers" | "following") {
 	/* Stub */
-}
-
-async function onToggleFollow() {
-	if (!targetProfile.value || isMe.value) return;
-	const artistName = targetProfile.value.name;
-	try {
-		const nowFollowing = await friendStore.toggleFollowUser(
-			targetProfile.value as any,
-		);
-		if (targetProfile.value.relationship)
-			targetProfile.value.relationship.isFollowing = !!nowFollowing;
-		toast(
-			nowFollowing ? `Following ${artistName}` : `Unfollowed ${artistName}`,
-		);
-	} catch {
-		toast("Action failed", { color: "danger" });
-	}
-}
-
-async function onUnfriend() {
-	if (!targetProfile.value) return;
-	const isPermanent = status.value === "mate";
-	const partner = targetProfile.value;
-
-	const shouldRemove = await confirm({
-		header: isPermanent ? "Unfriend?" : "End Trial?",
-		message: isPermanent
-			? `Remove ${partner.name}? Chat invites locked for 48h.`
-			: `Stop chatting with ${partner.name}?`,
-		cancelText: "Keep",
-		confirmText: isPermanent ? "Remove" : "End",
-		destructive: true,
-	});
-	if (!shouldRemove) return;
-	try {
-		await unfriendUser(partner._id);
-		friendStore.removeFriendLocally(partner._id);
-		void friendStore.refreshMyStats();
-		useChatStore().expireChat(partner._id);
-		toast(isPermanent ? `Removed ${partner.name}` : "Trial ended");
-		closeSheet();
-	} catch {
-		toast("Action failed", { color: "danger" });
-	}
-}
-
-async function confirmToggleBlock() {
-	if (!targetProfile.value) return;
-	const target = targetProfile.value;
-
-	if (isBlocked.value) {
-		try {
-			void unblockUser(target._id);
-			friendStore.unblockUserLocally(target._id);
-			useChatStore().resetChatWithUser(target._id);
-			toast(`${target.name} unblocked`);
-		} catch {
-			toast("Action failed", { color: "danger" });
-		}
-		return;
-	}
-
-	const shouldBlock = await confirm({
-		header: "Block User?",
-		message: `Are you sure you want to block ${target.name}? They will no longer be able to message you or see your sketches.`,
-		confirmText: "Block",
-		destructive: true,
-	});
-	if (!shouldBlock) return;
-	try {
-		await blockUser(target._id);
-		friendStore.blockUserLocally(target._id);
-		void friendStore.refreshMyStats();
-		if (useDrawSyncer().isLobby) {
-			const { useDrawObjectManager } = await import(
-				"@/draw/canvas/drawObjectManager"
-			);
-			useDrawObjectManager().purgeBlockedObjects();
-		}
-		toast(`${target.name} blocked`);
-		closeSheet();
-	} catch {
-		toast("Action failed", { color: "danger" });
-	}
-}
-
-function report() {
-	const profile = targetProfile.value;
-	if (!profile?._id) return;
-	useModerationStore().openReport({
-		type: "user",
-		id: profile._id,
-		label: profile.name,
-	});
 }
 
 onBeforeUnmount(() => {

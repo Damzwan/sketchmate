@@ -114,31 +114,21 @@
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
 import { mdiArrowRight, mdiLock } from "@mdi/js";
-import { Canvas, Point } from "fabric";
 import { storeToRefs } from "pinia";
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import { buildItemId } from "@/config/catalog.config";
-import { BLACK, WHITE } from "@/draw/config/canvas.config";
-import {
-	PENMENUTOOLS,
-	penBrushMapping,
-	penIconMapping,
-} from "@/draw/config/tools.config";
+import { PENMENUTOOLS, penIconMapping } from "@/draw/config/tools.config";
 import { usePen } from "@/draw/tools/pen.store";
 import { BrushType, DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import {
-	hexWithOpacity,
-	isColorTooLight,
-	percentToAlphaHex,
-} from "@/draw/utils/color.utils";
 import { svg } from "@/helper/general.helper";
 import { isNative } from "@/helper/platform.helper";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
 import BrushTile from "./BrushTile.vue";
+import { usePenBrushPreview } from "./usePenBrushPreview";
 
 const { selectTool } = useToolSelection();
 const { selectedTool } = storeToRefs(useToolSelection());
@@ -155,18 +145,11 @@ const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 const inventoryStore = useInventoryStore();
 const { purchasing, unlockItem } = useUnlockItem();
 
-const preview_canvas = ref<HTMLCanvasElement>();
-const preview_stage = ref<HTMLElement>();
-let canvas: Canvas | undefined;
-
-const PREVIEW_HEIGHT = 56;
-const PREVIEW_FALLBACK_WIDTH = 256;
-
-// The stage is fluid now (it used to be a fixed 256px island inside a 296px
-// popover). While the popover is closed `keepContentsMounted` leaves it in the
-// DOM at zero width, so fall back until it has actually been laid out.
-const previewWidth = (): number =>
-	Math.round(preview_stage.value?.clientWidth || 0) || PREVIEW_FALLBACK_WIDTH;
+const {
+	previewCanvas: preview_canvas,
+	previewStage: preview_stage,
+	renderPreview,
+} = usePenBrushPreview();
 
 const BRUSHES: { type: BrushType; accent: string }[] = [
 	{ type: BrushType.Pencil, accent: "text-green-600" },
@@ -236,83 +219,6 @@ const buyPreviewedBrush = async () => {
 	}
 };
 
-let stageObserver: ResizeObserver | null = null;
-
-onMounted(() => {
-	renderPreview();
-
-	// The popover animates in, so the stage's final width isn't known at mount
-	// OR at the first nextTick — measuring too early left the stroke ending
-	// mid-card at the fallback width. Re-render whenever the box actually
-	// settles, which also covers rotation and split-screen resizes.
-	if (typeof ResizeObserver === "undefined" || !preview_stage.value) return;
-	stageObserver = new ResizeObserver(() => {
-		if (!preview_stage.value?.clientWidth) return;
-		if (canvas && canvas.width === previewWidth()) return;
-		renderPreview();
-	});
-	stageObserver.observe(preview_stage.value);
-});
-
-onBeforeUnmount(() => {
-	stageObserver?.disconnect();
-	canvas?.dispose();
-	canvas = undefined;
-});
-
-const renderPreview = () => {
-	const width = previewWidth();
-	if (!canvas) {
-		canvas = new Canvas(preview_canvas.value!, {
-			width,
-			height: PREVIEW_HEIGHT,
-			selection: false,
-		});
-	} else {
-		canvas.clear();
-		if (canvas.width !== width) {
-			canvas.setDimensions({ width, height: PREVIEW_HEIGHT });
-		}
-	}
-
-	const brushColorValue = hexWithOpacity(
-		brushColor.value,
-		percentToAlphaHex(opacity.value),
-	);
-	canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE;
-	canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
-	const brush = canvas.freeDrawingBrush as any;
-	brush.color = brushColorValue;
-	if (brushType.value === BrushType.Spray) {
-		brush.density = density.value;
-		brush.dotWidth = dotWidth.value;
-	}
-	if (brushType.value === BrushType.Pixel) {
-		brush.pixelSize = pixelSize.value;
-	}
-	brush.width = brushSize.value;
-
-	const amplitude = 20;
-	const frequency = 0.05;
-	const yOffset = canvas.height! / 2;
-
-	const wave = (x: number) => yOffset + amplitude * Math.sin(frequency * x);
-	const points = [[0, yOffset]];
-	for (let x = 1; x <= width; x += 10) points.push([x, wave(x)]);
-	// The step can stop up to 9px short of the edge, which reads as the stroke
-	// being cut off rather than running off the card. Land exactly on the edge.
-	if (points[points.length - 1][0] < width) points.push([width, wave(width)]);
-	const convertedPoints = points.map((p) => new Point(p[0], p[1]));
-
-	brush.onMouseDown(convertedPoints[0], { e: new MouseEvent("mousedown") });
-	for (let i = 1; i < points.length; i++) {
-		brush.onMouseMove(convertedPoints[i], { e: new MouseEvent("mousemove") });
-	}
-	brush.onMouseUp({ e: new MouseEvent("mouseup") });
-	canvas.getObjects().forEach((obj) => obj.set("selectable", false));
-	canvas.renderAll();
-};
-
 function onDismiss() {
 	penMenuOpen.value = false;
 	previewedLockedBrush.value = null;
@@ -350,12 +256,6 @@ async function onBrushTap(type: BrushType) {
 	brushType.value = prevType;
 }
 
-watch(brushSize, renderPreview);
-watch(opacity, renderPreview);
-watch(brushColor, renderPreview);
-watch(density, renderPreview);
-watch(dotWidth, renderPreview);
-watch(pixelSize, renderPreview);
 watch(brushType, () => {
 	if (isBrushOwned(brushType.value)) {
 		previewedLockedBrush.value = null;

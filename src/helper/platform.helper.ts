@@ -12,6 +12,14 @@ export function isMobile() {
 	);
 }
 
+export function isConstrainedDevice() {
+	return (
+		typeof document !== "undefined" &&
+		(document.documentElement.classList.contains("low-end") ||
+			document.documentElement.classList.contains("android-wv"))
+	);
+}
+
 export function isNative() {
 	return isPlatform("capacitor");
 }

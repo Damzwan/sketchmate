@@ -49,217 +49,40 @@
 </template>
 
 <script setup lang="ts">
-import {
-	IonContent,
-	IonPage,
-	onIonViewDidEnter,
-	onIonViewDidLeave,
-	onIonViewWillEnter,
-	useIonRouter,
-} from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import {
-	computed,
-	defineAsyncComponent,
-	onBeforeUnmount,
-	onMounted,
-	ref,
-	watch,
-} from "vue";
+import { IonContent, IonPage } from "@ionic/vue";
+import { defineAsyncComponent } from "vue";
+import TopBar from "@/components/general/TopBar.vue";
+import ActiveLobbies from "@/components/home/ActiveLobbies.vue";
 import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
 import CommunityFeed from "@/components/home/CommunityFeed.vue";
 import CompetitionCard from "@/components/home/CompetitionCard.vue";
 import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";
 import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
 import MyDrafts from "@/components/home/MyDrafts.vue";
-import {
-	type DrawingDraftMetadata,
-	useDocumentStore,
-} from "@/draw/document/document.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { masterAnimation } from "@/helper/animation.helper";
-import { isMobile, whenIdle } from "@/helper/platform.helper";
-import {
-	refreshPublicLobbies,
-	startWatchingLobbies,
-} from "@/service/api/socket/drawSyncing.socket";
-import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import { useAuthStore } from "@/store/auth.store";
-import { useCompetitionStore } from "@/store/competition.store";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import TopBar from "../components/general/TopBar.vue";
-import ActiveLobbies from "../components/home/ActiveLobbies.vue";
-
-const r = useIonRouter();
-
-const drawSyncerStore = useDrawSyncer();
-const { publicLobbies } = storeToRefs(drawSyncerStore);
-const { openMenu } = useMenuStore();
-const { isUnderAge } = storeToRefs(useAuthStore());
+import { useHomeDrafts } from "@/composables/home/useHomeDrafts";
+import { useHomeLobbies } from "@/composables/home/useHomeLobbies";
+import { useHomePageLifecycle } from "@/composables/home/useHomePageLifecycle";
+import { useHomeQuickActions } from "@/composables/home/useHomeQuickActions";
 
 const isDev = import.meta.env.DEV;
 const CompetitionDevPanel = defineAsyncComponent(
 	() => import("@/components/competition/CompetitionDevPanel.vue"),
 );
-
-const documentStore = useDocumentStore();
-const { pendingDraftsList, removedDraftIds } = storeToRefs(documentStore);
-
-const localDrafts = ref<DrawingDraftMetadata[]>([]);
-const isLoadingDrafts = ref(true);
-const communityFeed = ref<{ reloadIfDirty: () => void } | null>(null);
-const communityFeedMounted = ref(true);
-const constrainedDevice =
-	typeof document !== "undefined" &&
-	(document.documentElement.classList.contains("low-end") ||
-		document.documentElement.classList.contains("android-wv"));
-const FEED_RELEASE_DELAY_MS = constrainedDevice ? 0 : 15_000;
-let feedReleaseTimer: ReturnType<typeof setTimeout> | null = null;
-
-const pendingDraftIds = computed(
-	() => new Set(pendingDraftsList.value.map((p) => p.id)),
-);
-
-const mergedDrafts = computed<DrawingDraftMetadata[]>(() => {
-	const pendingIds = pendingDraftIds.value;
-	const removed = removedDraftIds.value;
-	const real = localDrafts.value.filter(
-		(d) => !pendingIds.has(d.id) && !removed.has(d.id),
-	);
-	const pending = pendingDraftsList.value.filter((p) => !removed.has(p.id));
-	return [...pending, ...real].sort((a, b) => b.updatedAt - a.updatedAt);
-});
-
-// `whenIdle` has a timeout, so on a device that never actually goes idle — a
-// low-end phone during startup — the draw graph gets parsed on top of boot
-// hydration. Prefetch on intent instead, and keep the idle path only for
-// devices with headroom.
-let drawPrefetched = false;
-const prefetchDrawView = () => {
-	if (drawPrefetched) return;
-	drawPrefetched = true;
-	import("@/views/draw.view.vue").catch(() => {});
-};
-
-onMounted(() => {
-	const cores = navigator.hardwareConcurrency ?? 8;
-	if (!constrainedDevice && (!isMobile() || cores > 4)) {
-		whenIdle(prefetchDrawView, 1500);
-	}
-});
-
-onIonViewDidEnter(() => {
-	fetchDrafts();
-
-	// Cheap and coalesced; the card's phase and countdown must be right the
-	// moment the user lands here, not a beat later.
-	if (!isUnderAge.value) void useCompetitionStore().refresh();
-
-	// Re-pull the community feed if the feed-level preference changed while we
-	// were away (e.g. flipped off→open in Settings). CommunityFeed owns the feed
-	// state; the child's own view hook doesn't fire, so drive it from here.
-	communityFeed.value?.reloadIfDirty();
-
-	if (!isUnderAge.value) {
-		useAuthStore()
-			.waitUntilInitialized()
-			.then(() => {
-				refreshPublicLobbies();
-			});
-		socketLoggedInPromise.then(() => {
-			startWatchingLobbies();
-		});
-	}
-});
-
-onIonViewWillEnter(() => {
-	if (feedReleaseTimer) {
-		clearTimeout(feedReleaseTimer);
-		feedReleaseTimer = null;
-	}
-	communityFeedMounted.value = true;
-});
-
-onIonViewDidLeave(() => {
-	if (feedReleaseTimer) clearTimeout(feedReleaseTimer);
-	feedReleaseTimer = setTimeout(() => {
-		// Pinia keeps the capped post data. Only the expensive card DOM, decoded
-		// images, canvases and observers are released while another page runs.
-		communityFeedMounted.value = false;
-		feedReleaseTimer = null;
-	}, FEED_RELEASE_DELAY_MS);
-});
-
-onBeforeUnmount(() => {
-	if (feedReleaseTimer) clearTimeout(feedReleaseTimer);
-});
-
-watch(
-	() => pendingDraftsList.value.length,
-	(newLength, oldLength) => {
-		if (newLength < oldLength) fetchDraftsBackground();
-	},
-);
-
-const fetchDraftsBackground = async () => {
-	try {
-		localDrafts.value = await documentStore.getAllDraftMetadata();
-	} catch (error) {
-		console.error("[home] background fetch failed:", error);
-	}
-};
-
-const handleQuickAction = (actionId: string) => {
-	if (actionId === "draw_alone") {
-		r.push(FRONTEND_ROUTES.draw, masterAnimation);
-	} else if (actionId === "draw_together") {
-		r.push(
-			{ path: FRONTEND_ROUTES.draw, query: { together: "true" } },
-			masterAnimation,
-		);
-	} else if (actionId === "share") {
-		openMenu(Menu.ConnectionMenu);
-	} else if (actionId === "balloon") {
-		openMenu(Menu.BalloonMenu);
-	}
-};
-
-const joinLobby = (lobbyId: string) => {
-	trackEvent(mixpanelEvents.lobbyOpen, { lobby_id: lobbyId, source: "home" });
-	r.push(`${FRONTEND_ROUTES.draw}?room_id=${lobbyId}`, masterAnimation);
-};
-
-const fetchDrafts = async () => {
-	isLoadingDrafts.value = true;
-	try {
-		localDrafts.value = await documentStore.getAllDraftMetadata();
-	} finally {
-		isLoadingDrafts.value = false;
-	}
-};
-
-const handleDeleteDraft = async (id: string) => {
-	try {
-		await documentStore.removeDraft(id);
-		localDrafts.value = localDrafts.value.filter((d) => d.id !== id);
-	} catch (error) {
-		console.error("[home] delete failed:", error);
-	}
-};
-
-const openDraft = (id: string) => {
-	trackEvent(mixpanelEvents.draftOpen, { draft_id: id });
-	r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation);
-};
+const { isUnderAge, communityFeed, communityFeedMounted } =
+	useHomePageLifecycle();
+const {
+	mergedDrafts,
+	pendingDraftIds,
+	isLoadingDrafts,
+	openDraft,
+	deleteDraft: handleDeleteDraft,
+} = useHomeDrafts();
+const { publicLobbies, joinLobby } = useHomeLobbies(isUnderAge);
+const { handleQuickAction, prefetchDrawView } = useHomeQuickActions();
 </script>
 
 <style scoped>
 .--background-custom {
   --background: var(--ion-color-background) !important;
 }
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

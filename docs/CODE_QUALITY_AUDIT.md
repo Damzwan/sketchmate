@@ -562,7 +562,22 @@ code. Re-run it as the acceptance check.
 
 ### Q3 — Split the giants (4–5 d)
 
-Top-down, and only these seven. Do not attempt all 42.
+**Status: complete.** The scope was expanded from the original seven to every
+SFC at or above 400 lines. All 21 were reduced below the threshold by extracting
+controllers/composables and, where the UI had a genuine boundary, focused child
+components:
+
+- Original seven: `BackgroundSketchPadModal`, `SendHub`, `FeedPostCard`,
+  `PreviewDrawing`, `ArtistHighlights`, `ChatWidget`, and `Shop`.
+- Expanded set: `CommentDrawer`, `UserContextSheet`, `PhotoSwiper`,
+  `PaywallModal`, `PreviewSurfacePager`, `competition.view`,
+  `customization.view`, `WinnersModal`, `CommunityFeed`, `LoginMainPage`,
+  `LayerControl`, `PenMenu`, `ColorPicker`, and `ConversationItem`.
+
+The repository-wide inventory now has **zero `.vue` files at 400+ lines**. The
+largest remaining SFC is `CommunityFeed` at 399 lines.
+
+The original plan prioritized these seven:
 
 `BackgroundSketchPadModal` (1,264) → `SendHub` (978) → `FeedPostCard` (834) →
 `PreviewDrawing` (641) → `ArtistHighlights` (627) → `ChatWidget` (622) →
@@ -574,8 +589,8 @@ component, leave the template and the wiring. That gets the logic under test
 exception — that one needs the template broken up too, and it should be last
 because it is the send path.
 
-**Done when:** no SFC over ~400 lines among the seven, and each has a
-composable that Q4 can test.
+**Done when:** no SFC reaches 400 lines, and extracted behavior has a composable
+or controller boundary that Q4 can test. **Done.**
 
 ### Q4 — Test the application layer (3–4 d)
 
@@ -667,7 +682,7 @@ they are refactors, and refactors without Q4 are how a working app breaks.
 - Non-draw `any` under 150 (from 309). Draw untouched.
 - Zero `@ts-expect-error` outside `src/draw`.
 - Clone detector: no cross-file 6-line duplicate outside generated code.
-- No SFC over 400 lines except the seven listed, and none of those over 600.
+- No SFC at or above 400 lines.
 - `src/store` and `src/composables` have real test coverage; draw is under 70%
   of the suite.
 - Every `<img>` lazy-loaded with intrinsic dimensions.

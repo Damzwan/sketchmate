@@ -208,309 +208,46 @@ import {
 	mdiChevronRight,
 	mdiChevronUp,
 	mdiDotsHorizontal,
-	mdiEyeOffOutline,
-	mdiTimerSandComplete,
 } from "@mdi/js";
-import { storeToRefs } from "pinia";
 import { register } from "swiper/element/bundle";
-import { computed, onMounted, ref, watch } from "vue";
+import { useArtistHighlights } from "@/components/home/useArtistHighlights";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import TitleBadge from "@/components/profile/TitleBadge.vue";
-import { useOverlayScrollGuardContext } from "@/composables/general/useOverlayScrollGuard";
-import { usePostSwiper } from "@/composables/home/usePostSwiper";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import {
-	calculateSignatureStroke,
-	hydrateCustomization,
-	resolveFontEffectClass,
-	resolveFontFamily,
-	resolveReadableCustomizationPalette,
-	resolveTheme,
-} from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
-import {
-	fetchArtistHighlights,
-	updateArtistHighlightPreferences,
-} from "@/service/api/artistHighlight.api";
-import { useToast } from "@/service/toast.service";
-import { useAuthStore } from "@/store/auth.store";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import type {
-	ArtistHighlightConfig,
-	ArtistHighlightEntry,
-	FeedPost,
-} from "@/types/server.types";
 
 register();
 
-const authStore = useAuthStore();
-const { user, isLoggedIn } = storeToRefs(authStore);
-const { open: photoSwiperOpen } = storeToRefs(usePhotoSwiper());
-const { openUserActions } = useUserContextSheet();
-const { openPostSwiper } = usePostSwiper();
-const { toast } = useToast();
-const config = ref<ArtistHighlightConfig | null>(null);
-const loading = ref(false);
-const loaded = ref(false);
-// The feed owns the guard for this scroller; a second one here would stomp
-// its overflowAnchor bookkeeping.
-const { captureOverlayScroll, guardScroll, endOverlay, presentActionSheet } =
-	useOverlayScrollGuardContext();
-const activeArtistSlide = ref(0);
-const artistSwiper = ref<any>(null);
-const artworkStripRefs = new Map<string, HTMLElement>();
-type ArtistPresentation = {
-	customization: ReturnType<typeof hydrateCustomization>;
-	theme: ReturnType<typeof resolveTheme>;
-	palette: ReturnType<typeof resolveReadableCustomizationPalette>;
-	fontFamily: string;
-	fontClass: string;
-};
-const presentationCache = new WeakMap<
-	ArtistHighlightEntry,
-	ArtistPresentation
->();
-const expandedQuestionCards = ref<Set<string>>(new Set());
-const preferenceEnabled = computed(
-	() => user.value?.artist_highlights?.enabled !== false,
-);
-const snoozed = computed(() => {
-	const until = user.value?.artist_highlights?.snoozed_until;
-	return !!until && new Date(until).getTime() > Date.now();
-});
-const eligible = computed(
-	() =>
-		!!user.value &&
-		isLoggedIn.value &&
-		preferenceEnabled.value &&
-		!snoozed.value,
-);
-const visible = computed(
-	() =>
-		eligible.value &&
-		(loading.value || (config.value?.artists?.length ?? 0) > 0),
-);
-
-async function load() {
-	if (loading.value || loaded.value) return;
-	loading.value = true;
-	try {
-		// Home mounts while Capacitor Firebase is still restoring its persisted
-		// session. `user` can also change during logout/login, so never ask the
-		// authenticated HTTP client for a token until the auth store has finished
-		// bootstrap and confirmed this account is logged in.
-		const hydratedUser = await authStore.waitUntilInitialized();
-		if (!hydratedUser || !authStore.isLoggedIn || !eligible.value) return;
-
-		const requestUserId = hydratedUser._id;
-		const response = await fetchArtistHighlights();
-		// Do not install viewer-specific reaction data if the account changed
-		// while the request was in flight.
-		if (user.value?._id !== requestUserId) return;
-		config.value = response;
-		loaded.value = true;
-	} catch (error) {
-		if (authStore.isLoggedIn) {
-			console.error("[artist highlights] load failed", error);
-		}
-	} finally {
-		loading.value = false;
-	}
-}
-
-watch(eligible, (canShow) => {
-	if (canShow) void load();
-});
-
-watch(
-	() => user.value?._id,
-	(userId, previousUserId) => {
-		if (userId === previousUserId) return;
-		config.value = null;
-		loaded.value = false;
-		if (userId) void load();
-	},
-);
-let highlightFullscreenOpen = false;
-watch(photoSwiperOpen, (open) => {
-	if (open || !highlightFullscreenOpen) return;
-	highlightFullscreenOpen = false;
-	guardScroll(450, true);
-});
-onMounted(() => void load());
-
-function presentation(entry: ArtistHighlightEntry): ArtistPresentation {
-	const cached = presentationCache.get(entry);
-	if (cached) return cached;
-	const hydrated = hydrateCustomization(entry.artist.customization);
-	const resolvedTheme = resolveTheme(hydrated.themeId);
-	const resolved = {
-		customization: hydrated,
-		theme: resolvedTheme,
-		palette: resolveReadableCustomizationPalette(resolvedTheme),
-		fontFamily: resolveFontFamily(hydrated.fontId),
-		fontClass: resolveFontEffectClass(hydrated.fontEffectId),
-	};
-	presentationCache.set(entry, resolved);
-	return resolved;
-}
-function customization(entry: ArtistHighlightEntry) {
-	return presentation(entry).customization;
-}
-function theme(entry: ArtistHighlightEntry) {
-	return presentation(entry).theme;
-}
-function palette(entry: ArtistHighlightEntry) {
-	return presentation(entry).palette;
-}
-function fontFamily(entry: ArtistHighlightEntry) {
-	return presentation(entry).fontFamily;
-}
-function fontClass(entry: ArtistHighlightEntry) {
-	return presentation(entry).fontClass;
-}
-function cardStyle(entry: ArtistHighlightEntry) {
-	return {
-		background: theme(entry).cardBg,
-		borderColor: theme(entry).cardBorderColor,
-		color: palette(entry).name,
-	};
-}
-function identityStyle(entry: ArtistHighlightEntry) {
-	return {
-		color: palette(entry).name,
-		textShadow: palette(entry).textShadow,
-	};
-}
-function scrimStyle(entry: ArtistHighlightEntry) {
-	return {
-		background: palette(entry).scrim,
-		borderColor: theme(entry).cardBorderColor,
-		color: palette(entry).name,
-		textShadow: palette(entry).textShadow,
-	};
-}
-function onArtistSlideChange(event: Event) {
-	const swiper = (
-		event.target as HTMLElement & { swiper?: { activeIndex?: number } }
-	).swiper;
-	if (typeof swiper?.activeIndex === "number") {
-		activeArtistSlide.value = swiper.activeIndex;
-	}
-}
-function activateArtistSlide(event: MouseEvent, entryIndex: number) {
-	if (entryIndex === activeArtistSlide.value) return;
-	event.preventDefault();
-	event.stopPropagation();
-	artistSwiper.value?.swiper?.slideTo(entryIndex);
-}
-function setArtworkStripRef(entryId: string, element: HTMLElement | null) {
-	if (element) artworkStripRefs.set(entryId, element);
-	else artworkStripRefs.delete(entryId);
-}
-function scrollArtwork(entryId: string, direction: -1 | 1) {
-	const strip = artworkStripRefs.get(entryId);
-	if (!strip) return;
-	strip.scrollBy({
-		left: direction * Math.max(strip.clientWidth * 0.62, 240),
-		behavior: "smooth",
-	});
-}
-function focusArtwork(entryId: string, event: MouseEvent) {
-	const strip = artworkStripRefs.get(entryId);
-	const tile = (event.currentTarget as HTMLElement).parentElement;
-	if (!strip || !tile) return;
-	strip.scrollTo({
-		left: tile.offsetLeft - (strip.clientWidth - tile.clientWidth) / 2,
-		behavior: "smooth",
-	});
-}
-function questionsExpanded(entryId: string) {
-	return expandedQuestionCards.value.has(entryId);
-}
-function visibleQuestions(entry: ArtistHighlightEntry) {
-	return questionsExpanded(entry._id)
-		? entry.questions
-		: entry.questions.slice(0, 1);
-}
-function toggleQuestions(entryId: string) {
-	const next = new Set(expandedQuestionCards.value);
-	if (next.has(entryId)) next.delete(entryId);
-	else next.add(entryId);
-	expandedQuestionCards.value = next;
-}
-function signatureStroke(entry: ArtistHighlightEntry) {
-	return calculateSignatureStroke(customization(entry).signatureViewBox);
-}
-
-function openArtist(entry: ArtistHighlightEntry, entryIndex: number) {
-	if (entryIndex !== activeArtistSlide.value) {
-		artistSwiper.value?.swiper?.slideTo(entryIndex);
-		return;
-	}
-	void openUserActions(entry.artist);
-}
-async function openDrawing(posts: FeedPost[], index: number) {
-	await captureOverlayScroll();
-	highlightFullscreenOpen = true;
-	openPostSwiper(posts, index);
-	guardScroll(350);
-}
-
-async function beginOverlay() {
-	await captureOverlayScroll();
-	guardScroll(300);
-}
-
-async function setPreference(payload: {
-	enabled?: boolean;
-	snoozed_until?: string | null;
-}) {
-	if (!user.value) return;
-	const previous = user.value.artist_highlights;
-	user.value.artist_highlights = {
-		...(previous ?? {}),
-		...(payload.enabled === undefined ? {} : { enabled: payload.enabled }),
-		...(payload.snoozed_until === undefined
-			? {}
-			: { snoozed_until: payload.snoozed_until }),
-	};
-	try {
-		await updateArtistHighlightPreferences(payload);
-	} catch {
-		if (user.value) user.value.artist_highlights = previous;
-		toast("Could not update artist highlights", { color: "danger" });
-	}
-}
-
-// Same shape as the post options sheet: liquid glass surface, a titled header,
-// an icon on every non-cancel row, Cancel last. Presented through the shared
-// guard so opening it cannot drag the feed back up (see useOverlayScrollGuard).
-async function openHideMenu() {
-	await presentActionSheet({
-		header: "Artist Highlights",
-		cssClass: "liquid-action-sheet",
-		buttons: [
-			{
-				text: "Hide For One Week",
-				icon: svg(mdiTimerSandComplete),
-				handler: () => {
-					const until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-					void setPreference({ snoozed_until: until.toISOString() });
-				},
-			},
-			{
-				text: "Hide Always",
-				role: "destructive",
-				icon: svg(mdiEyeOffOutline),
-				handler: () => void setPreference({ enabled: false }),
-			},
-			{ text: "Cancel", role: "cancel" },
-		],
-	});
-}
+const {
+	config,
+	loading,
+	visible,
+	endOverlay,
+	activeArtistSlide,
+	artistSwiper,
+	customization,
+	theme,
+	palette,
+	fontFamily,
+	fontClass,
+	cardStyle,
+	identityStyle,
+	scrimStyle,
+	onArtistSlideChange,
+	activateArtistSlide,
+	setArtworkStripRef,
+	scrollArtwork,
+	focusArtwork,
+	questionsExpanded,
+	visibleQuestions,
+	toggleQuestions,
+	signatureStroke,
+	openArtist,
+	openDrawing,
+	beginOverlay,
+	openHideMenu,
+} = useArtistHighlights();
 </script>
 
 <style scoped>

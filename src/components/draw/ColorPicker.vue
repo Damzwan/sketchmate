@@ -75,19 +75,12 @@
 
 <script lang="ts" setup>
 import { Preferences } from "@capacitor/preferences";
-import { IonIcon, IonPopover, IonRange, popoverController } from "@ionic/vue";
+import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
 import { mdiChevronRight, mdiEyedropper } from "@mdi/js";
-import { storeToRefs } from "pinia";
 import Picker from "vanilla-picker";
 import { computed, onMounted, ref, watch } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { BLACK, COLORSWATCHES } from "@/draw/config/canvas.config";
-import { ERASERS, PENMENUTOOLS } from "@/draw/config/tools.config";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { exitColorPickerMode } from "@/draw/tools/colorActions";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import {
 	alphaHexToPercent,
 	getColorRecommendations,
@@ -96,9 +89,9 @@ import {
 	percentToAlphaHex,
 } from "@/draw/utils/color.utils";
 import { svg } from "@/helper/general.helper";
-import { isMobile } from "@/helper/platform.helper";
 import { LocalStorage } from "@/types/storage.types";
 import { uuidv4 } from "@/utils/uuid";
+import { useCanvasEyedropper } from "./useCanvasEyedropper";
 
 const hmm = ref();
 const customColorPopoverId = uuidv4();
@@ -169,156 +162,10 @@ async function onColorSelect(newColor: string) {
 		value: JSON.stringify(colorHistory.value),
 	});
 }
-
-function pickColor(e: any) {
-	const { getCanvas, selectAction } = useDrawStore();
-	const { activateExclusiveEvents } = useDrawEventManager();
-	const { selectedTool } = useToolSelection();
-	const { colorPickerMode } = storeToRefs(useDrawUIStore());
-	const c = getCanvas();
-
-	const lastSelectedObject = c.getActiveObject();
-	colorPickerMode.value = true;
-
-	c.selection = false;
-	c.skipTargetFind = true;
-
-	if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
-		c.isDrawingMode = false;
-	}
-
-	function updateColorIndicator(
-		color: string,
-		e?: any,
-		size = isMobile() ? 80 : 32,
-	) {
-		const zoom = c.getZoom();
-		const adjustedSize = size * zoom;
-
-		if (!isMobile()) {
-			const canvas = document.createElement("canvas");
-			canvas.width = adjustedSize;
-			canvas.height = adjustedSize;
-			const ctx = canvas.getContext("2d")!;
-
-			const center = adjustedSize / 2;
-			const radius = adjustedSize / 2 - 1;
-
-			ctx.beginPath();
-			ctx.arc(center, center, radius, 0, Math.PI * 2);
-			ctx.fillStyle = color;
-			ctx.fill();
-
-			ctx.strokeStyle = "#000";
-			ctx.lineWidth = 2;
-			ctx.stroke();
-
-			ctx.lineWidth = 2;
-			ctx.strokeStyle = "#000";
-			ctx.beginPath();
-			ctx.moveTo(center, 0);
-			ctx.lineTo(center, adjustedSize);
-			ctx.moveTo(0, center);
-			ctx.lineTo(adjustedSize, center);
-			ctx.stroke();
-
-			ctx.lineWidth = 1;
-			ctx.strokeStyle = "#fff";
-			ctx.beginPath();
-			ctx.moveTo(center, 0);
-			ctx.lineTo(center, adjustedSize);
-			ctx.moveTo(0, center);
-			ctx.lineTo(adjustedSize, center);
-			ctx.stroke();
-
-			const url = canvas.toDataURL("image/png");
-			c.freeDrawingCursor = `url(${url}) ${center} ${center}, crosshair`;
-			c.setCursor(c.freeDrawingCursor);
-		} else if (e) {
-			const pointer = e.pointer;
-			const ctx = c.contextTop;
-
-			ctx.clearRect(0, 0, c.width, c.height);
-
-			const offsetY = -60 * zoom;
-			const centerX = pointer.x;
-			const centerY = pointer.y + offsetY;
-			const radius = adjustedSize / 2;
-
-			ctx.beginPath();
-			ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-			ctx.strokeStyle = "#000";
-			ctx.lineWidth = 3;
-			ctx.stroke();
-
-			ctx.beginPath();
-			ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-			ctx.strokeStyle = "#fff";
-			ctx.lineWidth = 1.5;
-			ctx.stroke();
-
-			ctx.beginPath();
-			ctx.arc(centerX, centerY, radius - 2, 0, 2 * Math.PI);
-			ctx.fillStyle = color;
-			ctx.fill();
-		}
-	}
-
-	activateExclusiveEvents([
-		{
-			on: "mouse:up",
-			handler: (options: any) => {
-				exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject });
-				const pointer = c.getViewportPoint(options.e);
-
-				const dpr = window.devicePixelRatio || 1;
-				const ctx = c.getContext();
-				const pixel = ctx.getImageData(
-					pointer.x * dpr,
-					pointer.y * dpr,
-					1,
-					1,
-				).data;
-
-				const hex =
-					"#" +
-					((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2])
-						.toString(16)
-						.slice(1)
-						.toUpperCase() +
-					pixel[3].toString(16).toUpperCase().padStart(2, "0");
-
-				onColorSelect(hex);
-				if (props.colorPickerAction)
-					selectAction(props.colorPickerAction, { color: hex });
-
-				c.freeDrawingCursor = "default";
-
-				if (c.contextTop) {
-					c.contextTop.clearRect(0, 0, c.width, c.height);
-				}
-			},
-		},
-		{
-			on: "mouse:move",
-			handler: (options: any) => {
-				const pointer = c.getViewportPoint(options.e);
-				const dpr = window.devicePixelRatio || 1;
-				const ctx = c.getContext();
-				const pixel = ctx.getImageData(
-					pointer.x * dpr,
-					pointer.y * dpr,
-					1,
-					1,
-				).data;
-				const color = `rgba(${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3] / 255})`;
-				updateColorIndicator(color, options);
-			},
-		},
-	]);
-
-	popoverController.dismiss();
-}
+const { pickColor } = useCanvasEyedropper(
+	onColorSelect,
+	() => props.colorPickerAction,
+);
 
 watch(props, async () => {
 	if (props.reset) getSavedColorHistory();

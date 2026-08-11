@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { alertController, IonButton, IonIcon } from "@ionic/vue";
+import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiChevronDown,
 	mdiChevronUp,
@@ -206,8 +206,10 @@ import { useLayersStore } from "@/draw/layers/layers.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { svg } from "@/helper/general.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import { useLayerRename } from "./useLayerRename";
 
 const layers = useLayersStore();
+const { renameLayer: rename } = useLayerRename(layers);
 const { confirm } = useConfirm();
 const {
 	layers: layerList,
@@ -390,31 +392,5 @@ function moveSelection() {
 	}
 	useSelect().unSelect();
 	refreshCounts();
-}
-
-async function rename(id: string) {
-	const layer = layerList.value.find((l) => l.id === id);
-	if (!layer) return;
-	const alert = await alertController.create({
-		header: "Rename layer",
-		cssClass: "liquid-alert",
-		inputs: [
-			{
-				name: "name",
-				type: "text",
-				value: layer.name,
-				attributes: { maxlength: 24 },
-			},
-		],
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{ text: "Save", role: "confirm" },
-		],
-	});
-	await alert.present();
-	const { role, data } = await alert.onDidDismiss();
-	if (role !== "confirm") return;
-	const name = String(data?.values?.name ?? "").trim();
-	if (name) layers.renameLayer(id, name);
 }
 </script>

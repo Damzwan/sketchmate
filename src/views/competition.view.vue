@@ -162,16 +162,9 @@
 </template>
 
 <script setup lang="ts">
-import {
-	IonContent,
-	IonPage,
-	IonSpinner,
-	onIonViewDidEnter,
-	onIonViewDidLeave,
-	useIonRouter,
-} from "@ionic/vue";
+import { IonContent, IonPage, IonSpinner, useIonRouter } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import ArchivedCompetitionModal from "@/components/competition/ArchivedCompetitionModal.vue";
 import CompetitionEntrySheet from "@/components/competition/CompetitionEntrySheet.vue";
 import CompetitionResultsCard from "@/components/competition/CompetitionResultsCard.vue";
@@ -184,22 +177,16 @@ import ThemesPanel from "@/components/competition/ThemesPanel.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import SubPageBar from "@/components/general/SubPageBar.vue";
+import { useCompetitionPageEntryActions } from "@/composables/competition/useCompetitionPageEntryActions";
+import { useCompetitionPageLifecycle } from "@/composables/competition/useCompetitionPageLifecycle";
 import { useOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
-import { useConfirm } from "@/composables/useConfirm";
-import {
-	formatRemaining,
-	phaseFor,
-	resolveAccent,
-} from "@/config/competition.config";
+import { resolveAccent } from "@/config/competition.config";
 import { masterAnimation } from "@/helper/animation.helper";
 import {
 	ArchivedCompetition,
 	CompetitionEntry,
-	withdrawEntry,
 } from "@/service/api/competition.api";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";
-import { useAmbientPause } from "@/store/ambientPause.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useCompetitionStore } from "@/store/competition.store";
 import { useMenuStore } from "@/store/menu.store";
@@ -213,18 +200,16 @@ const photoSwiper = usePhotoSwiper();
 const { competition, entries } = storeToRefs(store);
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
-const { paused: ambientPaused } = storeToRefs(useAmbientPause());
 const { toast } = useToast();
-const { confirm } = useConfirm();
 const selectedEntry = ref<CompetitionEntry | null>(null);
 const selectedCommentEntry = ref<CompetitionEntry | null>(null);
 const myVotesOpen = ref(false);
 const themesOpen = ref(false);
 const archiveId = ref<string | null>(null);
-const myEntryOpen = ref(false);
 const myId = computed(() => user.value?._id);
 const profanityFilter = computed(() => user.value?.profanity_filter ?? true);
 const accentColors = computed(() => resolveAccent(competition.value?.accent));
+const { countdown, sentinel } = useCompetitionPageLifecycle();
 
 /**
  * The entry grid uses `content-visibility: auto` (see EntryCard), so cards
@@ -247,6 +232,19 @@ function closeOverlay(dismiss: () => void) {
 	dismiss();
 	endOverlay();
 }
+const {
+	myEntryOpen,
+	currentEntry,
+	openCurrentEntry,
+	openCompetitionFullscreen,
+	remixCompetitionEntry,
+	deleteCurrentEntry,
+} = useCompetitionPageEntryActions({
+	selectedEntry,
+	openOverlay,
+	captureOverlayScroll,
+	guardScroll,
+});
 
 const headerStyle = computed(() => {
 	const colors = accentColors.value;
@@ -271,38 +269,6 @@ const phaseLabel = computed(() => {
 			return "Starting soon";
 	}
 });
-const now = ref(Date.now());
-let ticker: ReturnType<typeof setInterval> | null = null;
-let boundaryRefreshStarted = false;
-const countdown = computed(() => {
-	if (!store.deadline || store.phase === "announced") return "Complete";
-	return formatRemaining(store.deadline, now.value);
-});
-function startTicker() {
-	if (ticker || ambientPaused.value) return;
-	ticker = setInterval(() => {
-		now.value = Date.now();
-		if (
-			!boundaryRefreshStarted &&
-			competition.value &&
-			phaseFor(competition.value, now.value) !== store.phase
-		) {
-			boundaryRefreshStarted = true;
-			void store.refresh(true).finally(() => {
-				boundaryRefreshStarted = false;
-			});
-		}
-	}, 1000);
-}
-function stopTicker() {
-	if (ticker) clearInterval(ticker);
-	ticker = null;
-}
-
-// Same rule as the home card: a 1s countdown behind the shop, the paywall or a
-// backgrounded app is battery burn for a number nobody can see.
-watch(ambientPaused, (isPaused) => (isPaused ? stopTicker() : startTicker()));
-
 async function onVote(entryId: string, categoryId: string) {
 	const entry =
 		entries.value.find((candidate) => candidate._id === entryId) ??
@@ -371,127 +337,6 @@ function goDraw() {
 	);
 }
 
-const currentEntry = computed<CompetitionEntry | null>(() => {
-	const own = store.myEntry;
-	if (!own || !competition.value || !user.value) return null;
-	const loaded = entries.value.find((entry) => entry._id === own._id);
-	if (loaded) return loaded;
-
-	return {
-		_id: own._id,
-		competition_id: own.competition_id ?? competition.value._id,
-		author_id: own.author_id ?? user.value._id,
-		author: {
-			_id: user.value._id,
-			name: user.value.name,
-			img: user.value.img,
-			customization: user.value.customization as any,
-			stats: user.value.stats as any,
-		},
-		drawing_url: own.drawing_url ?? "",
-		image_url: own.image_url ?? own.thumbnail_url,
-		thumbnail_url: own.thumbnail_url,
-		aspect_ratio: own.aspect_ratio ?? 1,
-		caption: own.caption ?? "",
-		caption_filtered: own.caption_filtered ?? "",
-		is_winner: own.is_winner,
-		won_category: own.won_category,
-		vote_counts: own.vote_counts,
-		total_votes: own.total_votes,
-		my_votes: [],
-		comment_count: own.comment_count ?? 0,
-		submitted_at: own.submitted_at ?? new Date().toISOString(),
-	};
-});
-
-function openCurrentEntry() {
-	if (!currentEntry.value) return;
-	void openOverlay(() => {
-		myEntryOpen.value = true;
-	});
-}
-
-async function openCompetitionFullscreen(entry: CompetitionEntry) {
-	const collection = entries.value.some((item) => item._id === entry._id)
-		? entries.value
-		: [entry];
-	const index = Math.max(
-		0,
-		collection.findIndex((item) => item._id === entry._id),
-	);
-	await captureOverlayScroll();
-	myEntryOpen.value = false;
-	photoSwiper.openSwiper(collection, index, {
-		type: "competition",
-		imageResolver: (item) => item.image_url,
-		thumbnailResolver: (item) => item.thumbnail_url,
-		canReply: (item) => !!item.drawing_url,
-		onReply: remixCompetitionEntry,
-		canVote: (item, currentUser) =>
-			store.canVote && item.author_id !== currentUser?._id,
-		onVote: openVoteFromFullscreen,
-		canDelete: (item, currentUser) =>
-			store.canSubmit && item.author_id === currentUser?._id,
-		onDelete: async (item) => deleteCurrentEntry(item, false),
-	});
-	guardScroll(350);
-}
-
-function openVoteFromFullscreen(entry: CompetitionEntry) {
-	photoSwiper.close();
-	setTimeout(() => {
-		selectedEntry.value =
-			entries.value.find((item) => item._id === entry._id) ?? entry;
-	}, 220);
-}
-
-async function remixCompetitionEntry(entry: CompetitionEntry) {
-	if (!entry.drawing_url) {
-		toast("This drawing cannot be remixed", { color: "warning" });
-		return;
-	}
-	const shouldRemix = await confirm({
-		header: "Remix this drawing?",
-		message: "A copy will open on your canvas. The original stays unchanged.",
-		confirmText: "Start remixing",
-	});
-	if (!shouldRemix) return;
-	myEntryOpen.value = false;
-	photoSwiper.close();
-	void router.push({
-		path: FRONTEND_ROUTES.draw,
-		query: { canvas_url: entry.drawing_url, mode: "solo" },
-	});
-}
-
-async function deleteCurrentEntry(
-	entry: CompetitionEntry,
-	shouldConfirm = true,
-) {
-	const remove = async () => {
-		try {
-			await withdrawEntry(entry.competition_id);
-			store.removeOwnEntry(entry._id);
-			myEntryOpen.value = false;
-			toast("Competition entry deleted", { color: "success" });
-		} catch {
-			toast("This entry can no longer be deleted", { color: "danger" });
-		}
-	};
-	if (!shouldConfirm) {
-		await remove();
-		return;
-	}
-	const shouldDelete = await confirm({
-		header: "Delete your entry?",
-		message:
-			"Its votes and comments will also be removed. You can submit another entry while submissions are open.",
-		cancelText: "Keep it",
-		confirmText: "Delete entry",
-		destructive: true,
-	});
-	if (shouldDelete) await remove();
-}
 function openArchive(past: ArchivedCompetition) {
 	void openOverlay(() => {
 		archiveId.value = past._id;
@@ -507,55 +352,6 @@ watch(
 	},
 	{ immediate: true },
 );
-
-const sentinel = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
-function entryPageSize() {
-	if (typeof window === "undefined") return 24;
-	if (window.innerWidth >= 1536) return 36;
-	if (window.innerWidth >= 1280) return 30;
-	if (window.innerWidth >= 1024) return 24;
-	if (window.innerWidth >= 640) return 18;
-	return 12;
-}
-function attachObserver() {
-	observer?.disconnect();
-	if (!sentinel.value) return;
-	observer = new IntersectionObserver(
-		(records) => {
-			if (records[0]?.isIntersecting)
-				void store.loadEntries(false, entryPageSize());
-		},
-		{ rootMargin: "400px 0px" },
-	);
-	observer.observe(sentinel.value);
-}
-watch(sentinel, attachObserver);
-
-onIonViewDidEnter(async () => {
-	startTicker();
-	await authStore.waitUntilInitialized();
-	if (!authStore.isLoggedIn) return;
-	await store.refresh();
-	trackEvent(mixpanelEvents.competitionPageOpen, {
-		phase: store.phase,
-		entered: store.hasEntered,
-	});
-	if (store.competition && entries.value.length === 0)
-		await store.loadEntries(true, entryPageSize());
-	attachObserver();
-});
-onIonViewDidLeave(() => {
-	stopTicker();
-	boundaryRefreshStarted = false;
-	observer?.disconnect();
-	store.flushImpressions();
-});
-onBeforeUnmount(() => {
-	stopTicker();
-	observer?.disconnect();
-	store.flushImpressions();
-});
 </script>
 
 <style scoped>

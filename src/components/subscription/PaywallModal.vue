@@ -297,226 +297,51 @@
 </template>
 
 <script setup lang="ts">
-import { Browser } from "@capacitor/browser";
 import { IonButton, IonContent, IonIcon, IonModal } from "@ionic/vue";
 import {
-	mdiBrush,
 	mdiCheck,
 	mdiCheckAll,
 	mdiCrown,
-	mdiCrownOutline,
 	mdiHeart,
 	mdiInfinity,
-	mdiLayersTripleOutline,
 	mdiMinus,
-	mdiMotionPlayOutline,
-	mdiPalette,
 	mdiShimmer,
 } from "@mdi/js";
-import {
-	Purchases,
-	type PurchasesPackage,
-} from "@revenuecat/purchases-capacitor";
 import { chevronBackOutline } from "ionicons/icons";
-import { storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
 import bigbossImage from "@/assets/bigboss.jpg";
 import logo from "@/assets/logo.webp";
 // TODO: swap in two distinct cat illustrations later; same image for now.
 import crazyCat from "@/assets/stickers/crazy.webp";
 import fireCat from "@/assets/stickers/fire.webp";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import { LIFETIME_RC_PRODUCT } from "@/config/catalog.config";
 import { svg } from "@/helper/general.helper";
-import { isNative } from "@/helper/platform.helper";
-import { useMenuStore } from "@/store/menu.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
+import { usePaywallController } from "./usePaywallController";
 
-// TODO: point these at the live pages before release.
-const PRIVACY_URL = "https://sketchmate.ninja/legal";
-
-const menuStore = useMenuStore();
-const subStore = useSubscriptionStore();
-const { isPaywallOpen } = storeToRefs(menuStore);
-
-// Already Pro → the only upgrade left is Lifetime. Hide every Pro-subscription
-// surface (card, comparison, monthly/yearly plans) so the flow is Pro → Lifetime.
-const isPro = computed(() => subStore.isPro);
-
-// ─── Static marketing content ────────────────────────────────────────────────
-const proBullets = [
-	{ label: "All brushes", icon: mdiBrush },
-	{ label: "10 layers per drawing", icon: mdiLayersTripleOutline },
-	{ label: "Animated avatar", icon: mdiMotionPlayOutline },
-	{ label: "Advanced profile customization", icon: mdiPalette },
-	{ label: "VIP lobby slots", icon: mdiCrownOutline },
-	{ label: "More posts & balloons", icon: mdiCrownOutline },
-];
-// The cosmetic shop categories Lifetime unlocks (mirrors Shop.vue's filter bar,
-// minus brushes — those already come with Pro). Naming them makes the abstract
-// word "cosmetics" concrete on the paywall.
-const cosmeticTypes = ["Themes", "Worlds", "Effects", "Decor", "Fonts", "Text"];
-// Mirrors the RevenueCat comparison table. string = value, boolean = check/dash.
-const compare: {
-	label: string;
-	pro: boolean | string;
-	life: boolean | string;
-}[] = [
-	{ label: "Unlock all cosmetics", pro: false, life: true },
-	{ label: "All brushes", pro: true, life: true },
-	{ label: "Layers per drawing", pro: "10", life: "10" },
-	{ label: "Animated avatar", pro: true, life: true },
-	{ label: "Custom signature & card doodle", pro: true, life: true },
-	{ label: "Custom chat background", pro: true, life: true },
-	{ label: "VIP lobby slots", pro: true, life: true },
-	{ label: "More posts", pro: "6", life: "6" },
-	{ label: "More balloons", pro: "5", life: "5" },
-];
-
-// ─── RC packages ─────────────────────────────────────────────────────────────
-const monthly = ref<PurchasesPackage>();
-const yearly = ref<PurchasesPackage>();
-const lifetime = ref<PurchasesPackage>();
-
-const proCycle = ref<"yearly" | "monthly">("yearly");
-const selectedProPkg = computed(() =>
-	proCycle.value === "yearly" ? yearly.value : monthly.value,
-);
-
-const yearlyDiscount = computed(() => {
-	const m = monthly.value?.product.price;
-	const y = yearly.value?.product.price;
-	if (!m || !y) return null;
-	const pct = Math.round((1 - y / (m * 12)) * 100);
-	return pct > 0 ? pct : null;
-});
-
-// Web has no RevenueCat — fake a few packages in dev so the whole paywall
-// (cards, discount %, table, plan sheet) is verifiable in the browser.
-function mockPkg(
-	id: string,
-	type: string,
-	price: number,
-	priceString: string,
-): PurchasesPackage {
-	return {
-		identifier: id,
-		packageType: type,
-		product: { identifier: id, price, priceString },
-	} as unknown as PurchasesPackage;
-}
-
-async function loadPackages() {
-	if (!isNative()) {
-		if (import.meta.env.DEV) {
-			monthly.value = mockPkg("sm_pro_monthly", "MONTHLY", 2.99, "$2.99");
-			yearly.value = mockPkg("sm_pro_yearly", "ANNUAL", 19.99, "$19.99");
-			lifetime.value = mockPkg(
-				LIFETIME_RC_PRODUCT,
-				"LIFETIME",
-				39.99,
-				"$39.99",
-			);
-		}
-		return;
-	}
-	try {
-		const offerings = await Purchases.getOfferings();
-		const pkgs = offerings.all["paywall_items"]?.availablePackages ?? [];
-		monthly.value = pkgs.find((p) => p.packageType === "MONTHLY");
-		yearly.value = pkgs.find((p) => p.packageType === "ANNUAL");
-		lifetime.value =
-			pkgs.find((p) => p.product.identifier === LIFETIME_RC_PRODUCT) ??
-			pkgs.find((p) => p.packageType === "LIFETIME");
-	} catch (e) {
-		console.error("[paywall] failed to load offerings", e);
-	}
-}
-
-// Load once when the paywall opens.
-watch(
+const {
+	PRIVACY_URL,
+	proBullets,
+	cosmeticTypes,
+	compare,
 	isPaywallOpen,
-	(open) => {
-		if (!open) return;
-		if (isPro.value) selectedPlan.value = "lifetime";
-		if (!monthly.value && !yearly.value && !lifetime.value) void loadPackages();
-	},
-	{ immediate: true },
-);
-
-// ─── Purchasing ──────────────────────────────────────────────────────────────
-const purchasing = ref(false);
-
-async function buyPkg(pkg?: PurchasesPackage) {
-	if (!pkg || purchasing.value) return false;
-	purchasing.value = true;
-	const ok = await subStore.purchaseSubscription(pkg);
-	purchasing.value = false;
-	return ok;
-}
-
-// Direct per-card purchases.
-const buyCycle = () => buyPkg(selectedProPkg.value);
-const buyLifetime = () => buyPkg(lifetime.value);
-
-// ─── Plan selection sheet ────────────────────────────────────────────────────
-const selectOpen = ref(false);
-type PlanId = "monthly" | "yearly" | "lifetime";
-const selectedPlan = ref<PlanId>("yearly");
-
-const planOptions = computed(() => {
-	const out: {
-		id: PlanId;
-		title: string;
-		sub?: string;
-		price: string;
-		badge?: string;
-	}[] = [];
-	if (yearly.value && !isPro.value)
-		out.push({
-			id: "yearly",
-			title: "Yearly",
-			sub: "Billed once a year",
-			price: yearly.value.product.priceString,
-			badge: yearlyDiscount.value
-				? `Save ${yearlyDiscount.value}%`
-				: "Best value",
-		});
-	if (monthly.value && !isPro.value)
-		out.push({
-			id: "monthly",
-			title: "Monthly",
-			sub: "Billed monthly",
-			price: monthly.value.product.priceString,
-		});
-	if (lifetime.value)
-		out.push({
-			id: "lifetime",
-			title: "Lifetime",
-			sub: "One-time · forever yours",
-			price: lifetime.value.product.priceString,
-		});
-	return out;
-});
-
-const selectedPkg = computed<PurchasesPackage | undefined>(() => {
-	if (selectedPlan.value === "yearly") return yearly.value;
-	if (selectedPlan.value === "monthly") return monthly.value;
-	return lifetime.value;
-});
-
-async function buy() {
-	const ok = await buyPkg(selectedPkg.value);
-	if (ok) selectOpen.value = false;
-}
-
-function close() {
-	isPaywallOpen.value = false;
-}
-
-function openLink(url: string) {
-	void Browser.open({ url });
-}
+	subStore,
+	isPro,
+	monthly,
+	yearly,
+	lifetime,
+	proCycle,
+	yearlyDiscount,
+	selectedProPkg,
+	purchasing,
+	selectOpen,
+	selectedPlan,
+	planOptions,
+	selectedPkg,
+	buyCycle,
+	buyLifetime,
+	buy,
+	close,
+	openLink,
+} = usePaywallController();
 </script>
 
 <style scoped>

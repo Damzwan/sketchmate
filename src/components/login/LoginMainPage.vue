@@ -192,11 +192,6 @@
 </template>
 
 <script setup lang="ts">
-import { Preferences } from "@capacitor/preferences";
-import {
-	FirebaseAuthentication,
-	SignInResult,
-} from "@capacitor-firebase/authentication";
 import {
 	IonButton,
 	IonContent,
@@ -212,7 +207,7 @@ import {
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
-import { computed, onMounted, ref, watch } from "vue";
+import { onMounted, ref } from "vue";
 import drawing1 from "@/assets/login_images/1.webp";
 import drawing2 from "@/assets/login_images/2.webp";
 import drawing3 from "@/assets/login_images/3.webp";
@@ -236,12 +231,8 @@ import drawing20 from "@/assets/login_images/20.webp";
 import logo from "@/assets/logo.webp";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import LoginMovingDrawingRow from "@/components/login/LoginMovingDrawingRow.vue";
-import { useCredentialsValidation } from "@/composables/general/useCredentialsValidation";
 import { shuffleArray, svg } from "@/helper/general.helper";
-import { isNative } from "@/helper/platform.helper";
-import { useToast } from "@/service/toast.service";
-import { LocalStorage } from "@/types/storage.types";
-import { ToastDuration } from "@/types/toast.types";
+import { useLoginActions } from "./useLoginActions";
 
 const drawings1 = shuffleArray([
 	drawing1,
@@ -268,19 +259,9 @@ const drawings2 = shuffleArray([
 	drawing20,
 ]);
 
-const { toast } = useToast();
-
 const showLoginScreen = ref(false);
 const isPasswordForgotten = ref(false);
 const isAnonymousConfirmationOpen = ref(false);
-
-const loginErrorMsg = ref("");
-const loginLoading = ref(false);
-const googleloading = ref(false);
-const anonymousLoading = ref(false);
-
-const forgotPassword = ref(false);
-const forgotPasswordSent = ref(false);
 
 const isShortScreen = ref(false);
 const isSuperShortScreen = ref(false);
@@ -290,135 +271,24 @@ onMounted(() => {
 	isSuperShortScreen.value = window.innerHeight < 700;
 });
 
-const { state, v$ } = useCredentialsValidation();
-const isLoginInValid = computed(
-	() => v$.value.loginEmail.$invalid || v$.value.password.$invalid,
-);
-const isForgetPasswordInvalid = computed(() => v$.value.loginEmail.$invalid);
-const isRegisterInvalid = computed(
-	() =>
-		v$.value.loginEmail.$invalid ||
-		v$.value.password.$invalid ||
-		v$.value.confirmPassword.$invalid,
-);
-const isRegistering = ref(false);
-
-// reset the error messages
-watch([isRegistering, forgotPassword], () => {
-	v$.value.$reset();
-	loginErrorMsg.value = "";
-});
-
-async function onPasswordForget() {
-	try {
-		await v$.value.$validate();
-		if (isForgetPasswordInvalid.value) return;
-		loginLoading.value = true;
-		await FirebaseAuthentication.sendPasswordResetEmail({
-			email: state.loginEmail,
-		});
-		forgotPasswordSent.value = true;
-		loginLoading.value = false;
-	} catch (e: any) {
-		loginErrorMsg.value = "Email not found";
-		loginLoading.value = false;
-		console.log(e.code);
-	}
-}
-
-async function onEmailLoginSubmit() {
-	Preferences.set({ key: LocalStorage.login, value: "true" });
-	await v$.value.$validate();
-
-	if (isRegistering.value) {
-		if (isRegisterInvalid.value) return;
-		try {
-			loginLoading.value = true;
-			const result =
-				await FirebaseAuthentication.createUserWithEmailAndPassword({
-					email: state.loginEmail,
-					password: state.password,
-				});
-			await onLoginResult(result);
-		} catch (e: any) {
-			if (e.code == "auth/email-already-in-use")
-				loginErrorMsg.value = "Account already exists, try logging in instead.";
-			else if (e.code == "email-already-in-use")
-				loginErrorMsg.value = "Account already exists, try logging in instead.";
-			else
-				loginErrorMsg.value =
-					"Something went wrong, please try again later. If this issue persists contact me.";
-			loginLoading.value = false;
-		}
-	} else {
-		if (isLoginInValid.value) return;
-		try {
-			loginLoading.value = true;
-			const result = await FirebaseAuthentication.signInWithEmailAndPassword({
-				email: state.loginEmail,
-				password: state.password,
-			});
-			await onLoginResult(result);
-		} catch (e: any) {
-			if (e.code == "auth/invalid-login-credentials")
-				loginErrorMsg.value = "Account not found or wrong password.";
-			else if (e.message.includes("INVALID_LOGIN_CREDENTIALS"))
-				loginErrorMsg.value = "Account not found or wrong password."; // TODO current hack since the plugin does not return the error code...
-			else if (e.code == "auth/too-many-requests")
-				loginErrorMsg.value = "Too many attempts, try again later.";
-			else
-				loginErrorMsg.value =
-					"Something went wrong, please try again later. If this issue persists contact me.";
-			loginLoading.value = false;
-		}
-	}
-}
-
-async function onGoogleLogin() {
-	Preferences.set({ key: LocalStorage.login, value: "true" });
-	if (isNative()) setTimeout(() => (googleloading.value = true), 1500);
-	else googleloading.value = true;
-	try {
-		const result = await FirebaseAuthentication.signInWithGoogle();
-		await onLoginResult(result);
-		googleloading.value = false;
-	} catch (e) {
-		toast("Something went wrong, try again later", {
-			color: "danger",
-			duration: ToastDuration.medium,
-		});
-		googleloading.value = false;
-	}
-}
-
-async function onAnonymousLogin() {
-	Preferences.set({ key: LocalStorage.login, value: "true" });
-	try {
-		anonymousLoading.value = true;
-		const result = await FirebaseAuthentication.signInAnonymously();
-		await onLoginResult(result);
-	} catch (e) {
-		toast("Something went wrong, try again later", {
-			color: "danger",
-			duration: ToastDuration.medium,
-		});
-		anonymousLoading.value = false;
-	}
-}
-
-// the watcher in app.store will trigger the reroute
-async function onLoginResult(result: SignInResult) {
-	if (!result.user) {
-		loginLoading.value = false;
-		googleloading.value = false;
-		anonymousLoading.value = false;
-		toast("Something went wrong, try again later", {
-			color: "danger",
-			duration: ToastDuration.medium,
-		});
-		return;
-	}
-}
+const {
+	state,
+	v$,
+	loginErrorMsg,
+	loginLoading,
+	googleloading,
+	anonymousLoading,
+	forgotPassword,
+	forgotPasswordSent,
+	isRegistering,
+	isLoginInValid,
+	isForgetPasswordInvalid,
+	isRegisterInvalid,
+	onPasswordForget,
+	onEmailLoginSubmit,
+	onGoogleLogin,
+	onAnonymousLogin,
+} = useLoginActions();
 </script>
 
 <style scoped>

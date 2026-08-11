@@ -38,6 +38,7 @@
           @delete="handleDeleteDraft"
           @explain="openSyncSheet"
           @check-updates="checkForUpdates"
+          @resync="resyncDraft"
         />
 
         <!-- Lazy on first use, then retained so Ionic can animate dismissal. -->
@@ -110,6 +111,7 @@ const {
 	closeSyncSheet,
 	upgradeForSync,
 	checkForUpdates,
+	resyncDraft,
 	wipeAllDrafts,
 } = useHomeDrafts();
 const { publicLobbies, joinLobby } = useHomeLobbies(isUnderAge);

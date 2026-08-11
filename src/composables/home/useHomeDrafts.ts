@@ -167,6 +167,28 @@ export function useHomeDrafts() {
 		}
 	}
 
+	async function resyncDraft(id: string) {
+		const result = await draftSync.resyncDraft(id);
+		await refreshDrafts(false);
+		const { toast } = useToast();
+		switch (result) {
+			case "synced":
+				toast("Draft backup refreshed", { color: "success" });
+				break;
+			case "downloaded":
+				toast("Latest cloud version downloaded", { color: "success" });
+				break;
+			case "offline":
+				toast("Reconnect to sync this draft", { color: "warning" });
+				break;
+			case "missing":
+				toast("This draft is no longer on this device", { color: "warning" });
+				break;
+			default:
+				toast("Could not sync this draft yet", { color: "warning" });
+		}
+	}
+
 	/**
 	 * Dev-only draft wipe. Guarded twice — the caller only renders the control
 	 * under `import.meta.env.DEV`, and this refuses outright in a production
@@ -225,6 +247,7 @@ export function useHomeDrafts() {
 		closeSyncSheet,
 		upgradeForSync,
 		checkForUpdates,
+		resyncDraft,
 		wipeAllDrafts,
 	};
 }

@@ -218,6 +218,7 @@ import {
 	mdiCloudCheckOutline,
 	mdiCloudDownloadOutline,
 	mdiCloudOffOutline,
+	mdiCloudSyncOutline,
 	mdiCloudUploadOutline,
 	mdiDeleteOutline,
 	mdiDotsVertical,
@@ -258,6 +259,8 @@ const emit = defineEmits<{
 	(e: "explain"): void;
 	/** Force a cloud metadata check for revisions created on another device. */
 	(e: "check-updates"): void;
+	/** Retry cloud synchronization for one draft. */
+	(e: "resync", id: string): void;
 }>();
 
 const sortedDrafts = computed(() =>
@@ -327,13 +330,10 @@ const presentActionSheet = async (draft: DrawingDraftMetadata) => {
 				},
 			},
 			{
-				// Second route to the explainer, for anyone who reads the menu
-				// before they think to tap a 16px badge.
 				text: props.syncEnabled ? "Backup & sync" : "Back up my drafts",
-				icon: svg(
-					props.syncEnabled ? mdiCloudCheckOutline : mdiCloudOffOutline,
-				),
-				handler: () => emit("explain"),
+				icon: svg(props.syncEnabled ? mdiCloudSyncOutline : mdiCloudOffOutline),
+				handler: () =>
+					props.syncEnabled ? emit("resync", draft.id) : emit("explain"),
 			},
 			{
 				text: "Discard Draft",

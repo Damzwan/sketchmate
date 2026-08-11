@@ -4,6 +4,7 @@ import { ref } from "vue";
 
 const state = vi.hoisted(() => ({
 	isPro: false,
+	connectionType: "wifi",
 	pushed: [] as string[],
 	appStateHandler: undefined as
 		| ((s: { isActive: boolean }) => void)
@@ -12,6 +13,7 @@ const state = vi.hoisted(() => ({
 	syncStates: new Map<string, any>(),
 	cloudFetches: 0,
 	pullGate: undefined as Promise<void> | undefined,
+	metadata: [] as Array<{ id: string; updatedAt: number; thumbnail: string }>,
 	cloudPage: {
 		drafts: [] as any[],
 		deleted: [] as string[],
@@ -88,7 +90,7 @@ vi.mock("@/store/subscription.store", () => ({
 
 vi.mock("@/store/network.store", () => ({
 	useNetworkStore: () => ({
-		networkStatus: { connected: true, connectionType: "wifi" },
+		networkStatus: { connected: true, connectionType: state.connectionType },
 	}),
 }));
 
@@ -108,7 +110,22 @@ vi.mock("@/draw/document/document.store", () => ({
 		writeDraftSyncState: vi.fn(async (next: any) => {
 			state.syncStates.set(next.id, next);
 		}),
-		getAllDraftMetadata: vi.fn(async () => []),
+		markDraftRevisionPushed: vi.fn(
+			async (id: string, pushedUpdatedAt: number, remoteUpdatedAt: number) => {
+				const latest = state.syncStates.get(id);
+				state.syncStates.set(id, {
+					...latest,
+					id,
+					pushedUpdatedAt,
+					remoteUpdatedAt,
+					queuedUpdatedAt:
+						latest?.queuedUpdatedAt > pushedUpdatedAt
+							? latest.queuedUpdatedAt
+							: undefined,
+				});
+			},
+		),
+		getAllDraftMetadata: vi.fn(async () => state.metadata),
 		getDraftRevision: vi.fn(
 			async (id: string) => state.drafts.get(id)?.updatedAt,
 		),
@@ -131,12 +148,14 @@ describe("draft sync scheduling", () => {
 	beforeEach(() => {
 		setActivePinia(createPinia());
 		state.isPro = true;
+		state.connectionType = "wifi";
 		state.pushed = [];
 		state.appStateHandler = undefined;
 		state.drafts = new Map([["draft-1", { updatedAt: 1000 }]]);
 		state.syncStates = new Map();
 		state.cloudFetches = 0;
 		state.pullGate = undefined;
+		state.metadata = [];
 		state.cloudPage = {
 			drafts: [],
 			deleted: [],
@@ -188,6 +207,25 @@ describe("draft sync scheduling", () => {
 		await refreshed;
 
 		expect(state.cloudFetches).toBe(2);
+	});
+
+	it("forces a targeted retry even when the draft was marked synced", async () => {
+		state.syncStates.set("draft-1", {
+			id: "draft-1",
+			pushedUpdatedAt: 1000,
+			remoteUpdatedAt: 1000,
+		});
+		const sync = useDraftSyncStore();
+		try {
+			await vi.waitFor(() => expect(state.cloudFetches).toBe(1));
+
+			const result = await sync.resyncDraft("draft-1");
+
+			expect(result).toBe("synced");
+			expect(state.pushed).toEqual(["draft-1"]);
+		} finally {
+			sync.resetRuntimeState();
+		}
 	});
 
 	it("holds a push back while the canvas is live, then spends it on exit", async () => {
@@ -255,8 +293,9 @@ describe("draft sync scheduling", () => {
 
 	it("pushes immediately when the app is backgrounded mid-session", async () => {
 		vi.useFakeTimers();
+		let sync: ReturnType<typeof useDraftSyncStore> | undefined;
 		try {
-			useDraftSyncStore();
+			sync = useDraftSyncStore();
 			await settle();
 
 			notifyDrawSession(true);
@@ -270,7 +309,60 @@ describe("draft sync scheduling", () => {
 			await vi.advanceTimersByTimeAsync(100);
 			expect(state.pushed).toEqual(["draft-1"]);
 		} finally {
+			sync?.resetRuntimeState();
 			vi.useRealTimers();
+		}
+	});
+
+	it("re-queues an interrupted upload when the app returns", async () => {
+		const sync = useDraftSyncStore();
+		try {
+			await vi.waitFor(() =>
+				expect(state.appStateHandler).toBeTypeOf("function"),
+			);
+
+			state.drafts.set("interrupted-draft", { updatedAt: 2000 });
+			state.metadata = [
+				{ id: "interrupted-draft", updatedAt: 2000, thumbnail: "" },
+			];
+			state.syncStates.set("interrupted-draft", {
+				id: "interrupted-draft",
+				pushedUpdatedAt: 0,
+				remoteUpdatedAt: 0,
+				queuedUpdatedAt: 2000,
+			});
+
+			state.appStateHandler?.({ isActive: false });
+			state.appStateHandler?.({ isActive: true });
+
+			await vi.waitFor(() =>
+				expect(state.pushed).toContain("interrupted-draft"),
+			);
+		} finally {
+			sync.resetRuntimeState();
+		}
+	});
+
+	it("resumes a persisted interrupted upload after a cold cellular launch", async () => {
+		state.connectionType = "cellular";
+		state.drafts.set("persisted-interrupted-draft", { updatedAt: 3000 });
+		state.metadata = [
+			{ id: "persisted-interrupted-draft", updatedAt: 3000, thumbnail: "" },
+		];
+		state.syncStates.set("persisted-interrupted-draft", {
+			id: "persisted-interrupted-draft",
+			pushedUpdatedAt: 0,
+			remoteUpdatedAt: 0,
+			queuedUpdatedAt: 3000,
+		});
+
+		const sync = useDraftSyncStore();
+		try {
+			await vi.waitFor(() =>
+				expect(state.pushed).toContain("persisted-interrupted-draft"),
+			);
+		} finally {
+			sync.resetRuntimeState();
 		}
 	});
 

@@ -89,6 +89,11 @@ export interface DraftSyncState {
 	id: string;
 	/** The local `updatedAt` whose bytes are confirmed in the cloud. */
 	pushedUpdatedAt: number;
+	/**
+	 * Local revision still owed to the cloud. Written atomically with the draft,
+	 * so a killed process can reconstruct an interrupted upload on next launch.
+	 */
+	queuedUpdatedAt?: number;
 	/** The server's `updated_at` for this draft. */
 	remoteUpdatedAt: number;
 	/**
@@ -668,12 +673,14 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			updatedAt: Date.now(),
 		};
 		const transaction = db.value.transaction(
-			[objectStoreName, metadataStoreName, recoveryStoreName],
+			[objectStoreName, metadataStoreName, recoveryStoreName, syncStoreName],
 			"readwrite",
 		);
 		await new Promise<void>((resolve, reject) => {
 			const drafts = transaction.objectStore(objectStoreName);
+			const syncStates = transaction.objectStore(syncStoreName);
 			const previousRequest = drafts.get(draft.id);
+			const syncStateRequest = syncStates.get(draft.id);
 			previousRequest.onsuccess = () => {
 				// The stall this metric exists to catch is the SYNCHRONOUS structured
 				// clone inside put(), so it has to be measured around put() itself.
@@ -694,6 +701,16 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 					"draftPersistDispatch",
 					performance.now() - dispatchStartedAt,
 				);
+			};
+			syncStateRequest.onsuccess = () => {
+				const previous = syncStateRequest.result as DraftSyncState | undefined;
+				syncStates.put({
+					...previous,
+					id: draft.id,
+					pushedUpdatedAt: previous?.pushedUpdatedAt ?? 0,
+					remoteUpdatedAt: previous?.remoteUpdatedAt ?? 0,
+					queuedUpdatedAt: draft.updatedAt,
+				} satisfies DraftSyncState);
 			};
 			transaction.oncomplete = () => resolve();
 			transaction.onerror = () =>
@@ -1183,6 +1200,48 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		});
 	}
 
+	/**
+	 * Advance the cloud watermark without erasing a newer local upload intent.
+	 * A save can land while an older revision is in flight; merging in one IDB
+	 * transaction prevents that older upload from clearing the newer marker.
+	 */
+	async function markDraftRevisionPushed(
+		id: string,
+		pushedUpdatedAt: number,
+		remoteUpdatedAt: number,
+	): Promise<void> {
+		await initDB();
+		const tx = db.value!.transaction([syncStoreName], "readwrite");
+		const store = tx.objectStore(syncStoreName);
+		const request = store.get(id);
+		request.onsuccess = () => {
+			const latest = request.result as DraftSyncState | undefined;
+			const queuedUpdatedAt = latest?.queuedUpdatedAt;
+			store.put({
+				...latest,
+				id,
+				pushedUpdatedAt: Math.max(
+					latest?.pushedUpdatedAt ?? 0,
+					pushedUpdatedAt,
+				),
+				remoteUpdatedAt: Math.max(
+					latest?.remoteUpdatedAt ?? 0,
+					remoteUpdatedAt,
+				),
+				queuedUpdatedAt:
+					queuedUpdatedAt !== undefined && queuedUpdatedAt > pushedUpdatedAt
+						? queuedUpdatedAt
+						: undefined,
+			} satisfies DraftSyncState);
+		};
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error ?? request.error);
+			tx.onabort = () =>
+				reject(tx.error ?? new Error("Draft sync watermark update aborted"));
+		});
+	}
+
 	async function clearDraftSyncStates(): Promise<void> {
 		await initDB();
 		const tx = db.value!.transaction([syncStoreName], "readwrite");
@@ -1274,6 +1333,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		readDraftSyncState,
 		getAllDraftSyncStates,
 		writeDraftSyncState,
+		markDraftRevisionPushed,
 		clearDraftSyncStates,
 		hasContent,
 		init,

@@ -65,6 +65,12 @@ const POST_SESSION_DELAY_MS = 1_200;
 const TERMINAL_CODES = new Set(["draft_too_large", "draft_limit_reached"]);
 
 export type DraftSyncStatus = "off" | "idle" | "syncing" | "offline" | "error";
+export type DraftResyncResult =
+	| "synced"
+	| "downloaded"
+	| "offline"
+	| "missing"
+	| "failed";
 
 interface QueueEntry {
 	attempts: number;
@@ -117,6 +123,7 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 	let unsubscribe: Array<() => void> = [];
 	let started = false;
 	let backfilled = false;
+	let appIsActive = true;
 
 	const subscriptions = useSubscriptionStore();
 	const auth = useAuthStore();
@@ -337,11 +344,11 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 			// The account now holds these bytes, so the on-device filesystem mirror
 			// can stop duplicating this revision.
 			noteCloudReplica(id, payload.updatedAt);
-			await documents.writeDraftSyncState({
+			await documents.markDraftRevisionPushed(
 				id,
-				pushedUpdatedAt: payload.updatedAt,
-				remoteUpdatedAt: summary.updated_at,
-			});
+				payload.updatedAt,
+				summary.updated_at,
+			);
 			queue.delete(id);
 			lastSyncedAt.value = Date.now();
 		} catch (error) {
@@ -592,6 +599,60 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 	}
 
 	/**
+	 * Repair one draft without disturbing the rest of the queue.
+	 *
+	 * Pull first so a newer cloud revision wins. Otherwise persist a fresh upload
+	 * intent and retry this exact local revision even when its old watermark said
+	 * it was already backed up.
+	 */
+	async function resyncDraft(id: string): Promise<DraftResyncResult> {
+		if (!enabled.value) return "failed";
+		if (!isOnline()) {
+			status.value = "offline";
+			return "offline";
+		}
+
+		await pull(true);
+		if (status.value === "error") return "failed";
+		if (remoteOnlyIds.value.has(id)) {
+			return (await hydrate(id)) ? "downloaded" : "failed";
+		}
+
+		const documents = useDocumentStore();
+		const payload = await documents.readDraftForUpload(id);
+		if (!payload) return "missing";
+
+		const state = await documents.readDraftSyncState(id);
+		await documents.writeDraftSyncState({
+			...state,
+			id,
+			// Make the retry durable. If the app closes during this PUT, startup
+			// backfill sees this revision as still owed and resumes it.
+			pushedUpdatedAt: Math.min(
+				state?.pushedUpdatedAt ?? 0,
+				payload.updatedAt - 1,
+			),
+			remoteUpdatedAt: state?.remoteUpdatedAt ?? 0,
+			queuedUpdatedAt: payload.updatedAt,
+			blockedCode: undefined,
+		});
+		blocked.value.delete(id);
+		blocked.value = new Map(blocked.value);
+		queue.set(id, { attempts: 0, notBefore: 0 });
+		markInFlight();
+		if (pushTimer !== undefined) {
+			clearTimeout(pushTimer);
+			pushTimer = undefined;
+		}
+		await drain();
+
+		const updatedState = await documents.readDraftSyncState(id);
+		return (updatedState?.pushedUpdatedAt ?? 0) >= payload.updatedAt
+			? "synced"
+			: "failed";
+	}
+
+	/**
 	 * User-triggered "Sync now".
 	 *
 	 * Does the two things the automatic paths deliberately hold back on: pulls
@@ -635,14 +696,12 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 	/**
 	 * First sync on an account: upload the drafts already on the device.
 	 *
-	 * Held back on cellular. A user who just subscribed did not ask to have
-	 * their entire local library pushed over a metered connection the moment
-	 * they opened the app; drafts they actually edit still sync immediately.
-	 * `force` is the explicit "Sync now" tap, which IS that consent.
+	 * A cold bulk library is held back on cellular. Revisions carrying a durable
+	 * `queuedUpdatedAt` marker are different: this device already attempted to
+	 * sync them, so they resume after interruption on any connection.
 	 */
 	async function backfill(force = false): Promise<void> {
 		if (backfilled || !enabled.value) return;
-		if (isMetered() && !force) return;
 		backfilled = true;
 
 		const documents = useDocumentStore();
@@ -659,6 +718,13 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 			.filter((draft) => {
 				const state = pushed.get(draft.id);
 				if (state?.blockedCode) return false;
+				if (
+					isMetered() &&
+					!force &&
+					state?.queuedUpdatedAt !== draft.updatedAt
+				) {
+					return false;
+				}
 				return (state?.pushedUpdatedAt ?? 0) < draft.updatedAt;
 			})
 			.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -676,7 +742,7 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		status.value = "idle";
 
 		unsubscribe.push(
-			onDraftPersisted((id) => enqueue(id)),
+			onDraftPersisted((id) => enqueue(id, appIsActive ? PUSH_DEBOUNCE_MS : 0)),
 			onDraftDeleted((id) => void tombstone(id)),
 			onDrawSessionChanged(handleDrawSession),
 		);
@@ -723,7 +789,14 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		if (appStateListener) return;
 		try {
 			const handle = await App.addListener("appStateChange", ({ isActive }) => {
-				if (isActive) return;
+				appIsActive = isActive;
+				if (isActive) {
+					// The OS may have cancelled a PUT while the WebView was suspended.
+					// Rebuild the queue from the watermark written with the local save.
+					backfilled = false;
+					void backfill().then(() => releaseQueue(0));
+					return;
+				}
 				// Backgrounded: nothing is rendering, so this is the cheapest CPU in
 				// the app's life — and the last moment before Android may kill the
 				// process, which makes it the most valuable one too. Released with no
@@ -757,6 +830,7 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 	function stop(): void {
 		started = false;
 		backfilled = false;
+		appIsActive = true;
 		for (const off of unsubscribe) off();
 		unsubscribe = [];
 		void appStateListener?.remove();
@@ -818,6 +892,7 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		inFlightIds,
 		pull,
 		syncNow,
+		resyncDraft,
 		ensureLocalCopy,
 		resetRuntimeState,
 	};

@@ -19,7 +19,7 @@ ion-popover.liquid-popover::part(content) {
    2. LIQUID ACTION SHEETS (BLURRED MODE)
    ========================================================================== */
 .liquid-action-sheet {
-	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 0.92);
+	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 1);
 	--backdrop-opacity: 0.35;
 }
 

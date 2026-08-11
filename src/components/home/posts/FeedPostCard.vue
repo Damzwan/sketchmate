@@ -101,12 +101,29 @@
           </div>
         </div>
 
-        <p v-if="post.description"
-           class="cabin-sketch-regular font-bold line-clamp-2 mt-2 px-0.5 leading-snug"
-           :class="isTexturedEffect ? 'text-[17px]' : 'text-base'"
-           :style="{ color: headerPalette.desc, textShadow: headerTextShadow }">
-          {{ post.description }}
-        </p>
+        <!-- The artist's own words, so this is prose the reader has to get
+             through, not a label to glance at. It stays in the UI face: the
+             display faces measure 40-76% single-pixel stems at this size, and
+             a caption is the worst place to spend that. -->
+        <div v-if="post.description" class="mt-2 px-0.5">
+          <p
+            ref="descriptionEl"
+            class="font-bold leading-snug whitespace-pre-line"
+            :class="[isTexturedEffect ? 'text-[17px]' : 'text-base', descriptionExpanded ? '' : 'line-clamp-2']"
+            :style="{ color: headerPalette.desc, textShadow: headerTextShadow }"
+          >
+            {{ post.description }}
+          </p>
+          <button
+            v-if="descriptionOverflows"
+            type="button"
+            class="mt-0.5 text-xs font-black uppercase tracking-wider opacity-70 hover:opacity-100 active:scale-95 transition-all cursor-pointer"
+            :style="{ color: headerPalette.desc, textShadow: headerTextShadow }"
+            @click.stop="toggleDescription"
+          >
+            {{ descriptionExpanded ? 'Show less' : 'See more' }}
+          </button>
+        </div>
         </div>
       </div>
 
@@ -118,14 +135,26 @@
         @dblclick="handleDoubleTap"
         @contextmenu.prevent
       >
+        <!-- Same URL as the artwork below, deliberately. This layer is blurred
+             past recognition, so a second, distinct object bought nothing and
+             doubled the CDN requests for the feed; pointing both at one URL
+             makes the browser serve the second from the first's response. -->
         <img
-          :src="post.thumbnail_url || post.image_url"
+          :src="feedImageUrl"
           class="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl pointer-events-none transition-opacity duration-500"
           :class="imageLoaded ? blurredBackdropOpacity : 'opacity-0'"
-          loading="lazy"
+          :loading="priority ? 'eager' : 'lazy'"
           decoding="async"
-          fetchpriority="low"
           alt=""
+        />
+
+        <!-- Only possible now the strip reserves its own box from
+             `aspect_ratio`: before, the card had no height until the bytes
+             landed, so there was nothing to put a skeleton inside. -->
+        <div
+          v-if="!imageLoaded && artworkAspect"
+          class="absolute inset-0 z-[1] artwork-skeleton pointer-events-none"
+          aria-hidden="true"
         />
 
         <div class="absolute inset-0 z-[5] pointer-events-none dynamic-edge-vignette" />
@@ -140,11 +169,15 @@
           🏆 {{ post.competition_win.category_label }}
         </div>
 
+        <!-- The THUMBNAIL, not the full-res export. This strip is at most one
+             phone width by 50vh; the full image is the raw canvas blob and only
+             the fullscreen swiper can actually show that detail. -->
         <img
-          :src="post.image_url"
-          class="relative z-10 w-full object-contain transition-opacity duration-500 max-h-[50vh]"
-          :class="imageLoaded ? 'opacity-100' : 'opacity-0'"
-          loading="lazy"
+          :src="feedImageUrl"
+          class="relative z-10 w-full object-contain transition-opacity duration-500"
+          :class="[imageLoaded ? 'opacity-100' : 'opacity-0', artworkAspect ? 'h-full' : 'max-h-[50vh]']"
+          :loading="priority ? 'eager' : 'lazy'"
+          :fetchpriority="priority ? 'high' : 'auto'"
           decoding="async"
           @load="imageLoaded = true"
           alt="Main illustration content"
@@ -360,6 +393,7 @@ import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue"
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import { useOverlayScrollGuardContext } from "@/composables/general/useOverlayScrollGuard";
+import { useTextClamp } from "@/composables/general/useTextClamp";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { playSelectionTick, reactionImages } from "@/config/post.config";
 import {
@@ -396,6 +430,12 @@ const props = defineProps<{
 	 * Suppresses controls that only make sense against a real, persisted post.
 	 */
 	preview?: boolean;
+	/**
+	 * First card in the feed. `loading="lazy"` on an above-the-fold image makes
+	 * the browser defer the one request the user is actually waiting for, which
+	 * pushes out LCP for no saving — the card is on screen either way.
+	 */
+	priority?: boolean;
 }>();
 const emit = defineEmits([
 	"open-comments",
@@ -410,6 +450,13 @@ const { openUserActions } = useUserContextSheet();
 // profile preview surface), where there is no scroller to protect.
 const { presentActionSheet: guardedActionSheet } =
 	useOverlayScrollGuardContext();
+
+const descriptionEl = ref<HTMLElement | null>(null);
+const {
+	expanded: descriptionExpanded,
+	overflowing: descriptionOverflows,
+	toggle: toggleDescription,
+} = useTextClamp(descriptionEl);
 const menuStore = useMenuStore();
 
 const imageLoaded = ref(false);
@@ -496,9 +543,49 @@ const cardStyle = computed<CSSProperties>(() =>
 // hardcoded cream (#FAF8F5) regardless of theme, which read as a foreign band
 // cutting the card in half. Carry the artist's surface through it instead, and
 // keep the translateZ/will-change promotion that was previously inline.
+/**
+ * Width / height of the artwork, as stored at publish time.
+ *
+ * The server has required this on every post since the model was written and
+ * ships it on every feed response; the card simply never read it. Without it
+ * the strip had no height until the bytes arrived — which is why there was no
+ * skeleton to show and why every card shifted the feed when its image landed.
+ *
+ * Older posts whose export fell back to a placeholder, and the customization
+ * preview's synthetic post, have no usable ratio. Those keep the old
+ * natural-height behaviour rather than being forced into a wrong box.
+ */
+const artworkAspect = computed(() => {
+	const ratio = props.post.aspect_ratio;
+	return typeof ratio === "number" && ratio > 0 ? ratio : null;
+});
+
+/**
+ * One image for the whole card: the thumbnail (500px, quality 0.7 WebP).
+ *
+ * The strip renders at most one phone width by 50vh, and the blurred backdrop
+ * behind it is unrecognisable by design, so the full-res canvas export was
+ * being paid for twice per card and displayed at neither its size nor its
+ * detail. `image_url` still backs the fullscreen swiper, which is the only
+ * surface that can show it.
+ */
+const feedImageUrl = computed(
+	() => props.post.thumbnail_url || props.post.image_url,
+);
+
+// The artwork strip is object-contain, so on any image that isn't the strip's
+// exact aspect there is letterbox padding around it. That padding was a
+// hardcoded cream (#FAF8F5) regardless of theme, which read as a foreign band
+// cutting the card in half. Carry the artist's surface through it instead, and
+// keep the translateZ/will-change promotion that was previously inline.
 const artworkStyle = computed(() => ({
 	transform: "translateZ(0)",
 	willChange: "transform",
+	// Reserve the box before the image exists. `max-height` still wins for tall
+	// drawings, and the backdrop fills the letterbox the clamp leaves behind.
+	...(artworkAspect.value
+		? { aspectRatio: String(artworkAspect.value), maxHeight: "50vh" }
+		: {}),
 	...(showCardTheme.value
 		? {
 				background: theme.value.cardBg,
@@ -705,6 +792,28 @@ const presentActionSheet = async () => {
 .post-container {
   content-visibility: auto;
   contain-intrinsic-size: auto 420px;
+}
+
+/* Sweep, not a pulse — a pulsing block reads as "broken", a sweep reads as
+   "loading". Same treatment as CompetitionCard's placeholder. Transform-only,
+   so it stays on the compositor while the feed scrolls. */
+.artwork-skeleton {
+  background: rgb(0 0 0 / 0.04);
+  overflow: hidden;
+}
+.artwork-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: artwork-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes artwork-shimmer {
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .artwork-skeleton::after { animation: none; }
 }
 
 /* The signature sits directly on the drawing, so it can't rely on the card

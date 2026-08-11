@@ -63,11 +63,12 @@
       <!-- Main Activity Stream List -->
       <div v-else :key="`data-${activeTab}`" class="space-y-6 overflow-visible">
         <FeedPostCard
-          v-for="post in posts"
+          v-for="(post, postIndex) in posts"
           :key="post._id"
           :ref="(el: any) => registerPostRef(el, post._id)"
           :post="post"
           :is-mine="post.author_id === user?._id"
+          :priority="postIndex === 0"
           @open-comments="openComments"
           @open-reaction-popover="handleOpenReactionPopover"
           @open-reaction-breakdown="openReactionBreakdown"

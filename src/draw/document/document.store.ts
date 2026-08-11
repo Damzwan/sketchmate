@@ -8,6 +8,11 @@ import {
 	precalculateAndSetViewport,
 } from "@/draw/canvas/viewport";
 import {
+	notifyDraftDeleted,
+	notifyDraftSaved,
+	notifyDrawSession,
+} from "@/draw/document/draftEvents";
+import {
 	listNativeDraftMetadata,
 	nativeDraftMirrorAvailable,
 	nativeDraftMirrorHasOwner,
@@ -41,14 +46,62 @@ function afterIdle(run: () => void, timeout: number): void {
 	else setTimeout(run, Math.min(timeout, 1_500));
 }
 
+/**
+ * A draft's list preview, in one of three shapes:
+ *
+ *   • `Blob`   — a WebP produced by this device. The normal case.
+ *   • `data:…` — a legacy base64 thumbnail from before Blobs were stored.
+ *   • `https:…`— a CDN url for a draft that lives in the cloud and has not been
+ *                downloaded here yet.
+ *
+ * Blobs are what the format is FOR. A base64 data URL is ~33% larger than the
+ * bytes it encodes, is held as a JS string in a reactive array (a home screen
+ * with 20 drafts carried about a megabyte of them), and costs a FileReader
+ * encode on every save and a decode on every render. A Blob costs a reference.
+ *
+ * The two string shapes are read-compatible on purpose: old rows keep working
+ * untouched, and `migrateLegacyThumbnails` converts them in the background.
+ */
+export type DraftThumbnail = Blob | string;
+
 export interface DrawingDraft {
 	id: string;
 	json: any;
 	updatedAt: number;
-	thumbnail: string;
+	thumbnail: DraftThumbnail;
 }
 
-export type DrawingDraftMetadata = Omit<DrawingDraft, "json">;
+export interface DrawingDraftMetadata extends Omit<DrawingDraft, "json"> {
+	/**
+	 * The newest revision of this draft is in the cloud and has not been
+	 * downloaded to this device yet. The card is still listed — opening it
+	 * hydrates first. Cleared by any local save.
+	 */
+	remote?: boolean;
+}
+
+/**
+ * Per-draft cloud-sync bookkeeping. Kept in the draft database rather than in
+ * the sync store's memory so a cold start knows what it already pushed and does
+ * not re-upload every draft on the device.
+ */
+export interface DraftSyncState {
+	id: string;
+	/** The local `updatedAt` whose bytes are confirmed in the cloud. */
+	pushedUpdatedAt: number;
+	/** The server's `updated_at` for this draft. */
+	remoteUpdatedAt: number;
+	/**
+	 * CDN url of the cloud document, kept only while the newest revision has NOT
+	 * been downloaded here. Persisting it is what lets a cold start still open a
+	 * cloud-only draft: the incremental pull will not re-list a draft that has
+	 * not changed since the stored cursor.
+	 */
+	remoteDrawing?: string;
+	remoteThumbnail?: string;
+	/** Last refusal the server gave for this draft, if any (e.g. too large). */
+	blockedCode?: string;
+}
 
 /**
  * A draft whose save is in-flight. Surfaced reactively so the UI can render
@@ -57,7 +110,7 @@ export type DrawingDraftMetadata = Omit<DrawingDraft, "json">;
 export interface PendingDraft {
 	id: string;
 	updatedAt: number;
-	thumbnail: string;
+	thumbnail: DraftThumbnail;
 	promise: Promise<void>;
 }
 
@@ -69,7 +122,7 @@ interface CanvasSnapshot {
 	draftId: string;
 	json: any;
 	jsonBlob?: Blob;
-	thumbnail: string;
+	thumbnail: DraftThumbnail;
 }
 
 const DRAFT_THUMBNAIL_MAX_SIZE = 640;
@@ -84,6 +137,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	const objectStoreName = "canvasHistory";
 	const metadataStoreName = "canvasMetadata";
 	const recoveryStoreName = "canvasRecovery";
+	const syncStoreName = "draftSync";
 
 	// --- Reactive State ---
 	const currentDraftId = ref<string | undefined>();
@@ -128,6 +182,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	let dirtyRevision = 0;
 	let storagePersistenceRequested = false;
 	let nativeReconciliationDone = false;
+	let legacyThumbnailsMigrated = false;
 	let dbInitPromise: Promise<void> | undefined;
 
 	const SAVE_INTERVAL_MS = 20000;
@@ -155,7 +210,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		const open = () =>
 			new Promise<IDBDatabase>((resolve, reject) => {
-				const request = indexedDB.open(dbName, 4);
+				const request = indexedDB.open(dbName, 5);
 				request.onupgradeneeded = (event) => {
 					const localDb = (event.target as IDBOpenDBRequest).result;
 					const transaction = (event.target as IDBOpenDBRequest).transaction!;
@@ -170,6 +225,11 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 						// separate store so a bad/partial new snapshot never overwrites the
 						// only readable copy.
 						localDb.createObjectStore(recoveryStoreName, { keyPath: "id" });
+					}
+					if (!localDb.objectStoreNames.contains(syncStoreName)) {
+						// Cloud-sync watermarks. Empty on first upgrade, which correctly
+						// reads as "nothing has been pushed yet".
+						localDb.createObjectStore(syncStoreName, { keyPath: "id" });
 					}
 
 					// Version 2 stored list metadata beside the potentially huge JSON blob.
@@ -205,20 +265,79 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		validateSchema(database);
 		db.value = database;
 		await reconcileNativeDrafts();
+		afterIdle(() => void migrateLegacyThumbnails(), 10_000);
+	}
+
+	/**
+	 * Convert base64 data-URL thumbnails written before Blobs were stored.
+	 *
+	 * Reading old rows works without this — the list handles both shapes — but
+	 * without a rewrite an archive of old drafts would keep paying the string
+	 * cost forever, since only a save produces the new format. This upgrades
+	 * them once, at idle, and is then a no-op on every later launch.
+	 *
+	 * Metadata rows only. The document store's copy of the field is never read
+	 * for display, so rewriting it would double the work to fix nothing.
+	 */
+	async function migrateLegacyThumbnails(): Promise<void> {
+		if (legacyThumbnailsMigrated || !db.value) return;
+		legacyThumbnailsMigrated = true;
+		try {
+			const metadata = await getAllDraftMetadata();
+			const legacy = metadata.filter(
+				(draft) =>
+					typeof draft.thumbnail === "string" &&
+					draft.thumbnail.startsWith("data:"),
+			);
+			if (legacy.length === 0) return;
+
+			for (const draft of legacy) {
+				// `fetch` decodes base64 in native code. Doing it one draft per idle
+				// callback keeps a 40-draft library from becoming one long task.
+				const blob = await fetch(draft.thumbnail as string)
+					.then((response) => response.blob())
+					.catch(() => null);
+				if (!blob) continue;
+				await putDraftMetadata({ ...draft, thumbnail: blob }).catch((error) =>
+					console.warn(
+						`[drafts] thumbnail migration failed for ${draft.id}:`,
+						error,
+					),
+				);
+				await new Promise((resolve) => afterIdle(() => resolve(null), 250));
+			}
+			console.info(`[drafts] migrated ${legacy.length} legacy thumbnail(s)`);
+		} catch (error) {
+			console.warn("[drafts] thumbnail migration failed:", error);
+		}
+	}
+
+	async function putDraftMetadata(
+		metadata: DrawingDraftMetadata,
+	): Promise<void> {
+		if (!db.value) return;
+		const tx = db.value.transaction([metadataStoreName], "readwrite");
+		tx.objectStore(metadataStoreName).put(metadata);
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
 	}
 
 	function validateSchema(db: IDBDatabase): void {
 		const tx = db.transaction(
-			[objectStoreName, metadataStoreName, recoveryStoreName],
+			[objectStoreName, metadataStoreName, recoveryStoreName, syncStoreName],
 			"readonly",
 		);
 		const store = tx.objectStore(objectStoreName);
 		const metadata = tx.objectStore(metadataStoreName);
 		const recovery = tx.objectStore(recoveryStoreName);
+		const sync = tx.objectStore(syncStoreName);
 		if (
 			store.keyPath !== "id" ||
 			metadata.keyPath !== "id" ||
-			recovery.keyPath !== "id"
+			recovery.keyPath !== "id" ||
+			sync.keyPath !== "id"
 		) {
 			// Never delete a database merely because its shape is unexpected. The
 			// old behaviour tried to rebuild it here, permanently erasing every
@@ -289,7 +408,10 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			});
 			for (const draft of drafts) {
 				if ((nativeUpdatedAt.get(draft.id) ?? 0) >= draft.updatedAt) continue;
-				queueNativeDraftMirror(draft);
+				queueNativeDraftMirror({
+					...draft,
+					thumbnail: mirrorThumbnail(draft.thumbnail),
+				});
 			}
 		} catch (error) {
 			console.warn("Native draft backfill failed:", error);
@@ -471,7 +593,15 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		return { draftId, json, thumbnail: "" };
 	}
 
-	function overviewThumbnail(signal?: AbortSignal): Promise<string> {
+	/**
+	 * The preview, as the Blob the encoder produced.
+	 *
+	 * This used to run the Blob back through a FileReader to make a base64 data
+	 * URL — an extra encode on every single save, producing a string a third
+	 * larger than the image, purely so an `<img src>` could take it directly.
+	 * The list now makes an object URL instead, which copies nothing.
+	 */
+	function overviewThumbnail(signal?: AbortSignal): Promise<DraftThumbnail> {
 		if (signal?.aborted)
 			return Promise.reject(new DOMException("Aborted", "AbortError"));
 		// createDraftThumbnailBlob copies the overview before returning its promise.
@@ -482,28 +612,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				DRAFT_THUMBNAIL_MAX_SIZE,
 				DRAFT_THUMBNAIL_QUALITY,
 			)
-			.then((blob) => (blob ? blobToDataUrl(blob, signal) : ""));
-	}
-
-	function blobToDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
-		return new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			const abort = () => {
-				reader.abort();
-				reject(new DOMException("Aborted", "AbortError"));
-			};
-			if (signal?.aborted) return abort();
-			signal?.addEventListener("abort", abort, { once: true });
-			reader.onerror = () => {
-				signal?.removeEventListener("abort", abort);
-				reject(reader.error ?? new Error("Could not read thumbnail"));
-			};
-			reader.onloadend = () => {
-				signal?.removeEventListener("abort", abort);
-				resolve(typeof reader.result === "string" ? reader.result : "");
-			};
-			reader.readAsDataURL(blob);
-		});
+			.then((blob) => blob ?? "");
 	}
 
 	async function snapshotCanvas(
@@ -540,6 +649,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	async function runSave(
 		snapshot: CanvasSnapshot,
 		signal: AbortSignal,
+		options: { forceMirror?: boolean } = {},
 	): Promise<void> {
 		await initDB();
 		if (!db.value) throw new Error("DB not available");
@@ -562,10 +672,14 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			"readwrite",
 		);
 		await new Promise<void>((resolve, reject) => {
-			const dispatchStartedAt = performance.now();
 			const drafts = transaction.objectStore(objectStoreName);
 			const previousRequest = drafts.get(draft.id);
 			previousRequest.onsuccess = () => {
+				// The stall this metric exists to catch is the SYNCHRONOUS structured
+				// clone inside put(), so it has to be measured around put() itself.
+				// Timing the surrounding transaction setup (as this did before)
+				// reported a fraction of a millisecond no matter how large the draft.
+				const dispatchStartedAt = performance.now();
 				const previous = previousRequest.result as DrawingDraft | undefined;
 				if (previous) {
 					transaction.objectStore(recoveryStoreName).put(previous);
@@ -576,18 +690,36 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 					updatedAt: draft.updatedAt,
 					thumbnail: draft.thumbnail,
 				} satisfies DrawingDraftMetadata);
+				recordPhase(
+					"draftPersistDispatch",
+					performance.now() - dispatchStartedAt,
+				);
 			};
-			recordPhase(
-				"draftPersistDispatch",
-				performance.now() - dispatchStartedAt,
-			);
 			transaction.oncomplete = () => resolve();
 			transaction.onerror = () =>
 				reject(transaction.error ?? previousRequest.error);
 			transaction.onabort = () =>
 				reject(transaction.error ?? new Error("Draft save aborted"));
 		});
-		queueNativeDraftMirror(draft);
+		queueNativeDraftMirror(
+			{ ...draft, thumbnail: mirrorThumbnail(draft.thumbnail) },
+			{ force: options.forceMirror },
+		);
+		notifyDraftSaved(draft.id, draft.updatedAt);
+	}
+
+	/**
+	 * The mirror's metadata is a JSON file, which cannot hold a Blob. Base64ing
+	 * the preview into it would put ~70 KB of string back through the Capacitor
+	 * bridge on every mirror write — the exact cost this format change removes.
+	 *
+	 * So the mirror carries no preview for new saves. It exists to recover the
+	 * DRAWING after IndexedDB is lost or evicted; a card that shows a placeholder
+	 * until its next save is a fair price, and legacy string thumbnails already
+	 * written are still read back.
+	 */
+	function mirrorThumbnail(thumbnail: DraftThumbnail): string {
+		return typeof thumbnail === "string" ? thumbnail : "";
 	}
 
 	async function performLiveSave() {
@@ -644,6 +776,9 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 	function init(c: Canvas) {
 		activeCanvas = c;
+		// Opens the window in which deferrable background work (cloud pushes)
+		// must stay off the main thread. Closed again by disposeSession.
+		notifyDrawSession(true);
 		EventBus.off("room:joining", stopAutosave);
 		EventBus.on("room:joining", stopAutosave);
 	}
@@ -730,7 +865,11 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			thumbnailPromise,
 		])
 			.then(([jsonBlob, thumbnail]) =>
-				runSave({ ...snapshot, jsonBlob, thumbnail }, ctrl.signal),
+				// Exit is the one save that must reach the filesystem immediately: the
+				// process may not exist by the time the throttle would next open.
+				runSave({ ...snapshot, jsonBlob, thumbnail }, ctrl.signal, {
+					forceMirror: detachBeforeThumbnail,
+				}),
 			)
 			.catch((e) => {
 				if (e.name !== "AbortError")
@@ -834,7 +973,15 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		}
 	}
 
-	async function removeDraft(id?: string): Promise<void> {
+	/**
+	 * `options.remote` marks a delete that ORIGINATED in the cloud (another
+	 * device discarded this draft). Those must not be echoed back as a new
+	 * tombstone — the server already has one.
+	 */
+	async function removeDraft(
+		id?: string,
+		options: { remote?: boolean } = {},
+	): Promise<void> {
 		const targetId = id || currentDraftId.value;
 		if (!targetId) return;
 
@@ -853,17 +1000,61 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		await initDB();
 		const tx = db.value!.transaction(
-			[objectStoreName, metadataStoreName, recoveryStoreName],
+			[objectStoreName, metadataStoreName, recoveryStoreName, syncStoreName],
 			"readwrite",
 		);
 		tx.objectStore(objectStoreName).delete(targetId);
 		tx.objectStore(metadataStoreName).delete(targetId);
 		tx.objectStore(recoveryStoreName).delete(targetId);
+		tx.objectStore(syncStoreName).delete(targetId);
 		await new Promise((resolve, reject) => {
 			tx.oncomplete = () => resolve(null);
 			tx.onerror = () => reject(tx.error);
 		});
 		await removeNativeDraft(targetId);
+		// AFTER the local delete has committed: cloud sync turns this into a
+		// tombstone, and a tombstone that outlives a failed local delete would
+		// erase the draft on every other device while this one still shows it.
+		if (!options.remote) notifyDraftDeleted(targetId);
+	}
+
+	/**
+	 * Destroy every local draft: documents, metadata, recovery revisions, sync
+	 * watermarks and the filesystem mirror. Returns the ids removed so callers
+	 * can propagate the deletion (cloud tombstones) or report a count.
+	 *
+	 * Development affordance. There is no undo, and nothing in the shipping UI
+	 * calls it — resetting draft state by hand otherwise means clearing app data
+	 * and losing the signed-in session with it.
+	 */
+	async function removeAllDrafts(): Promise<string[]> {
+		await initDB();
+		await awaitPendingSaves();
+
+		const metadata = await getAllDraftMetadata();
+		const ids = metadata.map((draft) => draft.id);
+		for (const id of ids) markDraftRemoved(id);
+
+		const tx = db.value!.transaction(
+			[objectStoreName, metadataStoreName, recoveryStoreName, syncStoreName],
+			"readwrite",
+		);
+		for (const name of [
+			objectStoreName,
+			metadataStoreName,
+			recoveryStoreName,
+			syncStoreName,
+		]) {
+			tx.objectStore(name).clear();
+		}
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+			tx.onabort = () => reject(tx.error ?? new Error("Draft wipe aborted"));
+		});
+
+		await Promise.all(ids.map((id) => removeNativeDraft(id)));
+		return ids;
 	}
 
 	async function getAllDrafts(): Promise<DrawingDraft[]> {
@@ -874,6 +1065,131 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				.objectStore(objectStoreName)
 				.getAll();
 			req.onsuccess = (e) => resolve((e.target as IDBRequest).result || []);
+		});
+	}
+
+	// ==========================================
+	// ☁️ CLOUD SYNC SUPPORT
+	// ==========================================
+	/**
+	 * The stored document EXACTLY as persisted, with no parsing.
+	 *
+	 * Cloud sync uploads the very Blob that `runSave` wrote, so a push costs no
+	 * re-serialization and never materializes the document as a JS string. Older
+	 * rows (and hand-built snapshots) may hold a plain object; those are encoded
+	 * once, here, rather than making every caller handle both shapes.
+	 *
+	 * `updatedAt` comes from the same row as the bytes. Reading it separately
+	 * from the metadata store would let a save land in between and stamp the
+	 * upload with a revision its payload does not contain.
+	 */
+	async function readDraftForUpload(id: string): Promise<
+		| {
+				blob: Blob;
+				updatedAt: number;
+				thumbnail: DraftThumbnail;
+		  }
+		| undefined
+	> {
+		await initDB();
+		const draft = await readStoredDraft(objectStoreName, id);
+		if (!draft) return undefined;
+		const blob =
+			draft.json instanceof Blob
+				? draft.json
+				: typeof draft.json === "string"
+					? new Blob([draft.json], { type: "application/json" })
+					: await documentJsonToBlob(draft.json);
+		return {
+			blob,
+			updatedAt: draft.updatedAt,
+			thumbnail: draft.thumbnail ?? "",
+		};
+	}
+
+	/** Local revision of a draft's DOCUMENT, ignoring any cloud placeholder row. */
+	async function getDraftRevision(id: string): Promise<number | undefined> {
+		await initDB();
+		return (await readStoredDraft(objectStoreName, id))?.updatedAt;
+	}
+
+	/**
+	 * Record that the newest revision of a draft lives in the cloud. Writes a
+	 * metadata row only, so the home list can show the card (and its remote
+	 * preview) without the device having downloaded the document yet.
+	 */
+	async function putRemoteDraftPlaceholder(
+		metadata: DrawingDraftMetadata,
+	): Promise<void> {
+		await initDB();
+		const tx = db.value!.transaction([metadataStoreName], "readwrite");
+		tx.objectStore(metadataStoreName).put({
+			...metadata,
+			remote: true,
+		} satisfies DrawingDraftMetadata);
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+	}
+
+	/**
+	 * Write a document pulled from the cloud. Refuses to overwrite a local copy
+	 * that is newer, so a slow download can never undo edits made while it ran.
+	 */
+	async function putRemoteDraft(draft: DrawingDraft): Promise<boolean> {
+		await initDB();
+		const existing = await readStoredDraft(objectStoreName, draft.id);
+		if (existing && existing.updatedAt >= draft.updatedAt) return false;
+		await putRecoveredDraft(draft);
+		removedDraftIds.value.delete(draft.id);
+		removedDraftIds.value = new Set(removedDraftIds.value);
+		return true;
+	}
+
+	async function readDraftSyncState(
+		id: string,
+	): Promise<DraftSyncState | undefined> {
+		await initDB();
+		return new Promise((resolve, reject) => {
+			const req = db
+				.value!.transaction([syncStoreName], "readonly")
+				.objectStore(syncStoreName)
+				.get(id);
+			req.onsuccess = () => resolve(req.result as DraftSyncState | undefined);
+			req.onerror = () => reject(req.error);
+		});
+	}
+
+	async function getAllDraftSyncStates(): Promise<DraftSyncState[]> {
+		await initDB();
+		return new Promise((resolve, reject) => {
+			const req = db
+				.value!.transaction([syncStoreName], "readonly")
+				.objectStore(syncStoreName)
+				.getAll();
+			req.onsuccess = () => resolve((req.result as DraftSyncState[]) ?? []);
+			req.onerror = () => reject(req.error);
+		});
+	}
+
+	async function writeDraftSyncState(state: DraftSyncState): Promise<void> {
+		await initDB();
+		const tx = db.value!.transaction([syncStoreName], "readwrite");
+		tx.objectStore(syncStoreName).put(state);
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+	}
+
+	async function clearDraftSyncStates(): Promise<void> {
+		await initDB();
+		const tx = db.value!.transaction([syncStoreName], "readwrite");
+		tx.objectStore(syncStoreName).clear();
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
 		});
 	}
 
@@ -891,6 +1207,9 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 	function disposeSession(): void {
 		stopAutosave();
+		// The canvas is gone, so the main thread is free. This is the signal the
+		// sync engine waits for before spending anything on a push.
+		notifyDrawSession(false);
 		activeCanvas = undefined;
 		currentDraftId.value = undefined;
 		isSaving.value = false;
@@ -945,8 +1264,17 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		awaitPendingSaves,
 		getDraft,
 		removeDraft,
+		removeAllDrafts,
 		getAllDrafts,
 		getAllDraftMetadata,
+		readDraftForUpload,
+		getDraftRevision,
+		putRemoteDraft,
+		putRemoteDraftPlaceholder,
+		readDraftSyncState,
+		getAllDraftSyncStates,
+		writeDraftSyncState,
+		clearDraftSyncStates,
 		hasContent,
 		init,
 		resetToNewDraft,

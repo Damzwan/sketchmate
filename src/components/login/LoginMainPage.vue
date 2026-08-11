@@ -21,27 +21,45 @@
 
       <div class="h-full w-full flex flex-col justify-end gap-4 items-center">
         <div
-          v-if="guestRecovery && !mustLinkGuestAccount"
-          class="w-5/6 max-w-md rounded-3xl border border-amber-500/30 bg-white/70 p-4 shadow-sm"
+          v-if="guestRecovery"
+          class="w-5/6 max-w-md"
         >
-          <p class="text-lg font-black text-amber-900 cabin-sketch-regular">
-            Previous guest profile found
-          </p>
-          <p class="text-sm font-bold text-black/70 mt-1">
-            Recover {{ guestRecovery.profileName || 'your guest profile' }} and connect it to an email or Google account.
-          </p>
+          <button
+            type="button"
+            class="w-full rounded-[1.75rem] border border-black/10 bg-tertiary/95 p-4 shadow-sm flex items-center gap-4 text-left transition-transform active:scale-[0.98] disabled:opacity-70"
+            :disabled="guestRecoveryLoading"
+            @click="recoverGuestAccount"
+          >
+            <UserAvatar
+              :img="guestRecovery.profileImage || defaultAvatar"
+              size="md"
+              static
+              class="shrink-0"
+            />
+            <span class="flex-1 min-w-0">
+              <span class="block text-xs font-black uppercase tracking-widest text-black/50">
+                Continue as guest
+              </span>
+              <span class="block cabin-sketch-regular text-2xl font-bold text-dark leading-tight truncate mt-0.5">
+                {{ guestRecovery.profileName || 'Guest profile' }}
+              </span>
+              <span class="block text-sm font-semibold text-black/65 leading-snug mt-1">
+                Return to your profile and drawings
+              </span>
+            </span>
+            <ion-spinner v-if="guestRecoveryLoading" name="crescent" class="text-secondary shrink-0" />
+            <ion-icon v-else :icon="svg(mdiChevronRight)" class="text-2xl text-secondary shrink-0" />
+          </button>
           <p v-if="guestRecoveryError" class="text-sm font-bold text-red-600 mt-2">
             {{ guestRecoveryError }}
           </p>
-          <div class="flex items-center gap-2 mt-3">
-            <ion-button shape="round" color="warning" @click="recoverGuestAccount">
-              <ion-spinner v-if="guestRecoveryLoading" name="crescent" slot="end" />
-              Recover & protect
-            </ion-button>
-            <ion-button fill="clear" color="medium" size="small" @click="forgetRecoveryConfirmationOpen = true">
-              Forget
-            </ion-button>
-          </div>
+          <button
+            type="button"
+            class="block mx-auto mt-2 px-3 py-1 text-sm font-bold text-black/50 active:opacity-60"
+            @click="forgetRecoveryConfirmationOpen = true"
+          >
+            Forget this profile
+          </button>
         </div>
 
         <Transition name="fade">
@@ -208,11 +226,9 @@
       v-model:is-open="isAnonymousConfirmationOpen"
       confirmationtext="Create anonymous account"
       header="Anonymous Login"
-      message="This profile stays on this device until you connect an email or Google account. Guest profiles cannot be logged out until they are protected."
+      message="SketchMate keeps a device recovery key so you can return to this guest profile after logging out. Connect an email or Google account for the strongest protection and access on other devices."
       @confirm="onAnonymousLogin"
     />
-
-    <UpgradeAccountModal v-if="mustLinkGuestAccount" required />
 
     <ConfirmationAlert
       v-model:is-open="forgetRecoveryConfirmationOpen"
@@ -235,14 +251,15 @@ import {
 	IonSpinner,
 } from "@ionic/vue";
 import {
+	mdiChevronRight,
 	mdiEmail,
 	mdiEmailOutline,
 	mdiGoogle,
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
-import { storeToRefs } from "pinia";
 import { onMounted, ref } from "vue";
+import defaultAvatar from "@/assets/avatar.svg";
 import drawing1 from "@/assets/login_images/1.webp";
 import drawing2 from "@/assets/login_images/2.webp";
 import drawing3 from "@/assets/login_images/3.webp";
@@ -266,9 +283,8 @@ import drawing20 from "@/assets/login_images/20.webp";
 import logo from "@/assets/logo.webp";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import LoginMovingDrawingRow from "@/components/login/LoginMovingDrawingRow.vue";
-import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { shuffleArray, svg } from "@/helper/general.helper";
-import { useAuthStore } from "@/store/auth.store";
 import { useLoginActions } from "./useLoginActions";
 
 const drawings1 = shuffleArray([
@@ -303,8 +319,6 @@ const forgetRecoveryConfirmationOpen = ref(false);
 
 const isShortScreen = ref(false);
 const isSuperShortScreen = ref(false);
-const { mustLinkGuestAccount } = storeToRefs(useAuthStore());
-
 onMounted(() => {
 	isShortScreen.value = window.innerHeight < 1200;
 	isSuperShortScreen.value = window.innerHeight < 700;

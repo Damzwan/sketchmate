@@ -1,14 +1,76 @@
 <template>
   <section class="min-h-[160px] overflow-visible">
     <!-- Section Header Subhead -->
-    <div class="flex items-center justify-between px-1 mb-2.5">
-      <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80">
+    <div class="flex items-center justify-between px-1 mb-2.5 gap-2">
+      <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80 shrink-0">
         My Drafts
       </h2>
+
       <transition name="fade">
-        <span v-if="!loading && drafts.length" class="text-sm font-black text-black/80 uppercase tracking-widest">
-          {{ drafts.length }} Saved
-        </span>
+        <!--
+          Sync status and the explicit cloud recheck sit in the slot the "N Saved"
+          counter already used, so the section stays compact. The status chip
+          still opens the explainer; the refresh icon only looks for newer remote
+          revisions.
+
+          For a free account it also has to be noticeable enough to invite that
+          tap, hence the Pro dot and the slow shimmer.
+        -->
+        <div
+          v-if="!loading && (drafts.length || syncEnabled)"
+          class="flex items-center gap-1.5 shrink-0"
+        >
+          <button
+            type="button"
+            class="relative flex items-center gap-1.5 rounded-full pl-2 pr-2.5 py-1 border shrink-0 overflow-hidden active:scale-95 transition-transform duration-200"
+            :class="syncEnabled
+              ? 'border-black/5 bg-black/[0.03]'
+              : 'border-secondary/30 bg-tertiary'"
+            @click="emit('explain')"
+          >
+            <span v-if="!syncEnabled" class="sync-shimmer absolute inset-0 pointer-events-none" />
+            <ion-spinner
+              v-if="syncEnabled && syncStatus === 'syncing'"
+              name="dots"
+              class="w-3.5 h-3.5 text-secondary"
+            />
+            <ion-icon
+              v-else
+              class="text-sm relative"
+              :class="syncEnabled ? 'text-secondary' : 'text-black/40'"
+              :icon="svg(syncEnabled ? mdiCloudCheckOutline : mdiCloudOffOutline)"
+            />
+            <span class="text-[9px] font-black uppercase tracking-widest text-black/70 whitespace-nowrap relative">
+              {{ syncLabel }}
+            </span>
+            <span
+              v-if="!syncEnabled"
+              class="relative text-[8px] font-black uppercase tracking-widest text-white bg-secondary rounded-full px-1.5 py-[1px]"
+            >
+              Pro
+            </span>
+            <ion-icon
+              v-else
+              :icon="svg(mdiInformationOutline)"
+              class="text-[11px] text-black/30 relative"
+            />
+          </button>
+
+          <button
+            v-if="syncEnabled"
+            type="button"
+            class="w-8 h-8 rounded-full border border-black/5 bg-black/[0.03] flex items-center justify-center text-secondary active:scale-90 transition-all duration-200 disabled:opacity-35 disabled:active:scale-100"
+            :disabled="checkingForUpdates || syncStatus === 'offline'"
+            :aria-label="checkingForUpdates ? 'Checking for newer drafts' : 'Check for newer drafts'"
+            @click="emit('check-updates')"
+          >
+            <ion-icon
+              :icon="svg(mdiRefresh)"
+              class="text-lg"
+              :class="{ 'animate-spin': checkingForUpdates }"
+            />
+          </button>
+        </div>
       </transition>
     </div>
 
@@ -54,8 +116,8 @@
               height="1"
               loading="lazy"
               decoding="async"
-              v-if="draft.thumbnail"
-              :src="draft.thumbnail"
+              v-if="thumbnailUrls[draft.id]"
+              :src="thumbnailUrls[draft.id]"
               class="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"
               :class="{ 'opacity-40': isPending(draft.id) }"
               alt="Draft snapshot"
@@ -63,6 +125,37 @@
             <div v-else class="absolute inset-0 flex items-center justify-center opacity-20">
               <ion-icon :icon="svg(mdiPencilOutline)" class="text-xl group-hover:rotate-12 transition-transform duration-300" />
             </div>
+
+            <!--
+              Cloud state, corner-pinned so it never competes with the art.
+              Tappable, and with a hit area larger than the glyph: a bare icon
+              on a card is unreadable until something tells you what it means.
+            -->
+            <button
+              v-if="syncEnabled && !isPending(draft.id) && cloudIcon(draft.id)"
+              type="button"
+              class="absolute top-0.5 right-0.5 z-20 p-1.5 active:scale-90 transition-transform"
+              aria-label="What does this icon mean?"
+              @click.stop="emit('explain')"
+            >
+              <span class="block rounded-full bg-white/95 p-1 shadow-sm border border-black/5">
+                <!--
+                  A static cloud-arrow reads as "done" at 11px. Anything still
+                  moving bytes gets a spinner so unfinished never looks finished.
+                -->
+                <ion-spinner
+                  v-if="isBusy(draft.id)"
+                  name="dots"
+                  class="w-3 h-3 text-secondary block"
+                />
+                <ion-icon
+                  v-else
+                  class="text-[11px] block"
+                  :class="syncState(draft.id) === 'synced' ? 'text-secondary' : 'text-black/45'"
+                  :icon="svg(cloudIcon(draft.id)!)"
+                />
+              </span>
+            </button>
 
             <!-- Pending / Saving Live Shimmer Layer -->
             <div
@@ -83,9 +176,14 @@
               <h3 class="text-xs font-black text-black truncate tracking-tight leading-none">
                 {{ isPending(draft.id) ? 'Sketching...' : formatDate(draft.updatedAt) }}
               </h3>
-              <!-- Cleaned text block for layout compactness -->
-              <span class="text-[8px] text-black/60 uppercase tracking-wider mt-1 leading-none">
-                {{ isPending(draft.id) ? 'Syncing...' : '' }}
+              <!--
+                The badge alone can't carry the meaning at 11px. The word does,
+                and this line was already reserved and empty.
+              -->
+              <span class="text-[8px] uppercase tracking-wider mt-1 leading-none truncate block"
+                :class="syncState(draft.id) === 'synced' ? 'text-secondary/80' : 'text-black/60'"
+              >
+                {{ isPending(draft.id) ? 'Saving...' : cardSyncLabel(draft.id) }}
               </span>
             </div>
 
@@ -117,35 +215,97 @@ import {
 	IonSpinner,
 } from "@ionic/vue";
 import {
+	mdiCloudCheckOutline,
+	mdiCloudDownloadOutline,
+	mdiCloudOffOutline,
+	mdiCloudUploadOutline,
 	mdiDeleteOutline,
 	mdiDotsVertical,
+	mdiInformationOutline,
 	mdiPencilOutline,
+	mdiRefresh,
 	mdiShareOutline,
 } from "@mdi/js";
-import { computed } from "vue";
+import { computed, toRef } from "vue";
+import { useDraftThumbnails } from "@/composables/home/useDraftThumbnails";
 import type { DrawingDraftMetadata } from "@/draw/document/document.store";
 import { svg } from "@/helper/general.helper";
 import { shareImg } from "@/helper/share.helper";
+import type { DraftSyncStatus } from "@/store/draftSync.store";
 
-const props = defineProps<{
-	drafts: DrawingDraftMetadata[];
-	loading: boolean;
-	pendingIds: Set<string>;
-}>();
+const props = withDefaults(
+	defineProps<{
+		drafts: DrawingDraftMetadata[];
+		loading: boolean;
+		pendingIds: Set<string>;
+		syncEnabled?: boolean;
+		syncStatus?: DraftSyncStatus;
+		syncStates?: Record<string, string>;
+		checkingForUpdates?: boolean;
+	}>(),
+	{
+		syncEnabled: false,
+		syncStatus: "off",
+		syncStates: () => ({}),
+		checkingForUpdates: false,
+	},
+);
 
 const emit = defineEmits<{
 	(e: "open", id: string): void;
 	(e: "delete", id: string): void;
+	/** Open the backup explainer sheet (both tiers — it doubles as the upsell). */
+	(e: "explain"): void;
+	/** Force a cloud metadata check for revisions created on another device. */
+	(e: "check-updates"): void;
 }>();
 
 const sortedDrafts = computed(() =>
 	[...props.drafts].sort((a, b) => b.updatedAt - a.updatedAt),
 );
 
+const { thumbnailUrls } = useDraftThumbnails(toRef(props, "drafts"));
+
 const isPending = (id: string) => props.pendingIds.has(id);
 
+const syncState = (id: string) => props.syncStates[id];
+
+const CLOUD_ICONS: Record<string, string> = {
+	synced: mdiCloudCheckOutline,
+	uploading: mdiCloudUploadOutline,
+	cloud: mdiCloudDownloadOutline,
+	downloading: mdiCloudDownloadOutline,
+};
+
+const CARD_LABELS: Record<string, string> = {
+	synced: "Backed up",
+	uploading: "Backing up…",
+	cloud: "Tap to download",
+	downloading: "Downloading…",
+};
+
+/** States where bytes are still moving, so the badge must animate. */
+const BUSY_STATES = new Set(["uploading", "downloading"]);
+
+const cloudIcon = (id: string) => CLOUD_ICONS[syncState(id) ?? ""];
+
+const isBusy = (id: string) => BUSY_STATES.has(syncState(id) ?? "");
+
+const cardSyncLabel = (id: string) =>
+	props.syncEnabled ? (CARD_LABELS[syncState(id) ?? ""] ?? "") : "";
+
+const syncLabel = computed(() => {
+	if (!props.syncEnabled) return "On this device";
+	if (props.syncStatus === "syncing") return "Syncing";
+	if (props.syncStatus === "offline") return "Offline";
+	if (props.syncStatus === "error") return "Sync retrying";
+	return "Backed up";
+});
+
 const handleCardClick = (id: string) => {
-	if (isPending(id)) return;
+	// A cloud-only draft is downloading; a second tap would start nothing new
+	// but would look like the first one failed.
+	if (isPending(id) || syncState(id) === "downloading") return;
 	emit("open", id);
 };
 
@@ -160,8 +320,20 @@ const presentActionSheet = async (draft: DrawingDraftMetadata) => {
 				text: "Share Sketch",
 				icon: svg(mdiShareOutline),
 				handler: async () => {
-					if (draft.thumbnail) shareImg(draft.thumbnail);
+					// The object url, not the Blob: shareImg fetches whatever it is
+					// given, and an object url resolves without another copy.
+					const url = thumbnailUrls.value[draft.id];
+					if (url) shareImg(url);
 				},
+			},
+			{
+				// Second route to the explainer, for anyone who reads the menu
+				// before they think to tap a 16px badge.
+				text: props.syncEnabled ? "Backup & sync" : "Back up my drafts",
+				icon: svg(
+					props.syncEnabled ? mdiCloudCheckOutline : mdiCloudOffOutline,
+				),
+				handler: () => emit("explain"),
 			},
 			{
 				text: "Discard Draft",
@@ -208,6 +380,23 @@ const formatDate = (date: number) =>
 }
 .fade-slow-enter-from, .fade-slow-leave-to {
   opacity: 0;
+}
+
+/* Slow, low-contrast sweep on the free-tier chip. Enough motion to read as
+   "there is something here", far too slow to nag. */
+.sync-shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.75) 50%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  animation: shimmer 4.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-shimmer { animation: none; }
 }
 
 .pending-shimmer {

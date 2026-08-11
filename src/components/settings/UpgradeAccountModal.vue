@@ -110,8 +110,28 @@
               <ion-spinner name="crescent" slot="end" color="secondary" v-if="googleloading" />
             </ion-button>
 
+            <ion-button
+              v-if="required"
+              expand="block"
+              fill="clear"
+              color="danger"
+              class="mt-2"
+              @click="logoutConfirmationOpen = true"
+            >
+              Log out instead
+            </ion-button>
+
         </form>
       </div>
+
+      <ConfirmationAlert
+        v-if="required"
+        v-model:is-open="logoutConfirmationOpen"
+        confirmationtext="Log out"
+        header="Log out of this guest profile?"
+        message="Your recovery key and local drafts will stay on this device, so you can return from the login screen."
+        @confirm="authStore.logout"
+      />
     </ion-content>
   </ion-modal>
 </template>
@@ -152,6 +172,7 @@ import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import connectImage from "@/assets/illustrations/connect.webp";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import { finalizeGuestRecovery } from "@/service/guestRecovery.service";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
@@ -173,6 +194,7 @@ const isRegisterInvalid = computed(
 
 const loginLoading = ref(false);
 const googleloading = ref(false);
+const logoutConfirmationOpen = ref(false);
 
 async function onEmailLoginSubmit() {
 	await v$.value.$validate();

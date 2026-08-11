@@ -8,7 +8,10 @@ import { Purchases } from "@revenuecat/purchases-capacitor";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
-import { getCurrentAuthUser } from "@/helper/firebase.helper";
+import {
+	getCurrentAuthUser,
+	hasDurableSignInProvider,
+} from "@/helper/firebase.helper";
 import {
 	compareVersions,
 	generateDeviceFingerprint,
@@ -64,7 +67,7 @@ export const useAuthStore = defineStore("auth", () => {
 	const isNewAccount = ref(false);
 	const showForceUpdateModal = ref(false);
 	const showTutorial = ref(false);
-	const mustLinkGuestAccount = ref(false);
+	const isRecoveredGuestAccount = ref(false);
 	const deviceFingerprint = ref<string>();
 	const localUserImg = ref<string>();
 
@@ -77,6 +80,9 @@ export const useAuthStore = defineStore("auth", () => {
 
 	// --- DERIVED ---
 	const hasConfirmedAge = computed(() => !!user.value?.date_of_birth);
+	const isGuestAccount = computed(
+		() => !!firebaseUser.value?.isAnonymous || isRecoveredGuestAccount.value,
+	);
 	// Default-DENY: an account whose age we haven't confirmed is treated as a
 	// child account until it tells us otherwise. Anything else leaves a window
 	// (guest sign-in, a failed DOB save, a legacy row) where social features are
@@ -126,17 +132,41 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 
 		firebaseUser.value = status.user;
-		const recoveryLink = await Preferences.get({
-			key: LocalStorage.guestRecoveryLinkRequired,
-		});
-		const recoveryIsRequired = recoveryLink.value === "true";
-		const alreadyLinked = status.user.providerData.length > 0;
-		mustLinkGuestAccount.value = recoveryIsRequired && !alreadyLinked;
-		if (recoveryIsRequired && alreadyLinked) {
-			await Preferences.remove({
-				key: LocalStorage.guestRecoveryLinkRequired,
+		const [recoveredSession, legacyRecoveryLink] = await Promise.all([
+			Preferences.get({ key: LocalStorage.recoveredGuestSession }),
+			Preferences.get({ key: LocalStorage.guestRecoveryLinkRequired }),
+		]);
+		const alreadyLinked = hasDurableSignInProvider(status.user);
+		const providerlessRecoveredGuest =
+			!status.user.isAnonymous && !alreadyLinked;
+		const recoverySessionMatches = recoveredSession.value === status.user.uid;
+		const legacyRecoverySession =
+			!alreadyLinked &&
+			(recoveredSession.value === "true" ||
+				legacyRecoveryLink.value === "true");
+		const recoverySessionActive =
+			recoverySessionMatches ||
+			legacyRecoverySession ||
+			providerlessRecoveredGuest;
+		isRecoveredGuestAccount.value = recoverySessionActive && !alreadyLinked;
+		if (
+			isRecoveredGuestAccount.value &&
+			recoveredSession.value !== status.user.uid
+		) {
+			await Preferences.set({
+				key: LocalStorage.recoveredGuestSession,
+				value: status.user.uid,
 			});
-			mustLinkGuestAccount.value = false;
+		}
+		if (
+			legacyRecoveryLink.value === "true" ||
+			recoveredSession.value === "true"
+		) {
+			await Preferences.remove({ key: LocalStorage.guestRecoveryLinkRequired });
+		}
+		if (recoverySessionMatches && alreadyLinked) {
+			await Preferences.remove({ key: LocalStorage.recoveredGuestSession });
+			isRecoveredGuestAccount.value = false;
 			void finalizeGuestRecovery();
 		}
 
@@ -189,7 +219,6 @@ export const useAuthStore = defineStore("auth", () => {
 	 */
 	async function handlePostBootstrapRouting(arrivedFromLogin: boolean) {
 		if (!ionRouter || !user.value) return;
-		if (mustLinkGuestAccount.value) return;
 
 		// 1. New signup — onboarding flow drives the stack, nothing to do here
 		if (arrivedFromLogin && isNewAccount.value) {
@@ -280,10 +309,11 @@ export const useAuthStore = defineStore("auth", () => {
 				Preferences.remove({ key: LocalStorage.loggedOut }),
 			]);
 
-			if (authUser.isAnonymous) {
+			if (authUser.isAnonymous || isRecoveredGuestAccount.value) {
 				void ensureGuestRecovery({
 					guestUid: authUser.uid,
 					profileName: user.value.name,
+					profileImage: user.value.img,
 				}).catch((error) =>
 					console.warn("Could not provision guest recovery:", error),
 				);
@@ -448,20 +478,42 @@ export const useAuthStore = defineStore("auth", () => {
 	}
 
 	async function logout() {
-		// There is no password/provider credential that can sign an anonymous
-		// Firebase UID back in. Keep this invariant in the store as well as the UI
-		// so a future logout button cannot accidentally strand a guest profile.
-		if (firebaseUser.value?.isAnonymous || mustLinkGuestAccount.value) {
-			useToast().toast(
-				"Connect an email or Google account before logging out.",
-				{
-					color: "warning",
-				},
-			);
-			return;
+		if (isGuestAccount.value && firebaseUser.value && user.value) {
+			// Bootstrap normally provisions this already. Awaiting it here closes the
+			// small first-session race where someone signs out before the background
+			// enrollment has written the device recovery record. The timeout ensures
+			// recovery service trouble can never prevent or stall logout for long.
+			let recoveryTimeout: ReturnType<typeof setTimeout> | undefined;
+			const timeout = new Promise<never>((_, reject) => {
+				recoveryTimeout = setTimeout(
+					() => reject(new Error("Guest recovery enrollment timed out")),
+					2000,
+				);
+			});
+			await Promise.race([
+				ensureGuestRecovery({
+					guestUid: firebaseUser.value.uid,
+					profileName: user.value.name,
+					profileImage: user.value.img,
+				}),
+				timeout,
+			])
+				.catch((error) => {
+					console.warn(
+						"Could not prepare guest recovery before logout:",
+						error,
+					);
+					useToast().toast(
+						"Recovery could not be confirmed, but you can still log out. Local drafts remain on this device.",
+						{ color: "warning" },
+					);
+				})
+				.finally(() => clearTimeout(recoveryTimeout));
 		}
 
 		Preferences.remove({ key: LocalStorage.user_id });
+		Preferences.remove({ key: LocalStorage.recoveredGuestSession });
+		Preferences.remove({ key: LocalStorage.guestRecoveryLinkRequired });
 		// Tells the Android widget this is a real sign-out, not a cold start it
 		// happened to beat — it drops its cached drawing on seeing this.
 		Preferences.set({ key: LocalStorage.loggedOut, value: "1" });
@@ -499,14 +551,11 @@ export const useAuthStore = defineStore("auth", () => {
 	}
 
 	async function completeGuestRecoveryLink(): Promise<void> {
-		const wasRequired = mustLinkGuestAccount.value;
-		mustLinkGuestAccount.value = false;
-		await Preferences.remove({
-			key: LocalStorage.guestRecoveryLinkRequired,
-		});
-		if (wasRequired && ionRouter) {
-			ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
-		}
+		isRecoveredGuestAccount.value = false;
+		await Promise.all([
+			Preferences.remove({ key: LocalStorage.recoveredGuestSession }),
+			Preferences.remove({ key: LocalStorage.guestRecoveryLinkRequired }),
+		]);
 	}
 
 	async function waitUntilInitialized(): Promise<User | undefined> {
@@ -546,7 +595,7 @@ export const useAuthStore = defineStore("auth", () => {
 		firebaseUser.value = undefined;
 		isLoggedIn.value = false;
 		isNewAccount.value = false;
-		mustLinkGuestAccount.value = false;
+		isRecoveredGuestAccount.value = false;
 		showTutorial.value = false;
 		lastHydratedAt.value = 0;
 		isHydrating.value = false;
@@ -564,7 +613,8 @@ export const useAuthStore = defineStore("auth", () => {
 		isLoggedIn,
 		isAuthLoading,
 		isNewAccount,
-		mustLinkGuestAccount,
+		isRecoveredGuestAccount,
+		isGuestAccount,
 		isHydrating,
 		lastHydratedAt,
 		showForceUpdateModal,

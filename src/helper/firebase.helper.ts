@@ -1,4 +1,7 @@
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import {
+	FirebaseAuthentication,
+	type User as FirebaseUser,
+} from "@capacitor-firebase/authentication";
 import { initializeApp } from "firebase/app";
 
 export function initFirebase() {
@@ -23,4 +26,19 @@ export const getCurrentUser = async () => {
 export async function getCurrentAuthUser() {
 	const result = await FirebaseAuthentication.getCurrentUser();
 	return result.user;
+}
+
+const NON_LINKED_PROVIDER_IDS = new Set(["firebase", "anonymous", "custom"]);
+
+/**
+ * Native Firebase includes its internal `firebase` user-info row in
+ * `providerData`, even for anonymous and custom-token sessions. Only an actual
+ * sign-in provider such as `password` or `google.com` protects the account.
+ */
+export function hasDurableSignInProvider(user: {
+	providerData: Array<Pick<FirebaseUser["providerData"][number], "providerId">>;
+}): boolean {
+	return user.providerData.some(
+		(provider) => !NON_LINKED_PROVIDER_IDS.has(provider.providerId),
+	);
 }

@@ -30,8 +30,27 @@
           :drafts="mergedDrafts"
           :loading="isLoadingDrafts"
           :pending-ids="pendingDraftIds"
+          :sync-enabled="syncEnabled"
+          :sync-status="syncStatus"
+          :sync-states="draftSyncStates"
+          :checking-for-updates="isCheckingForUpdates"
           @open="openDraft"
           @delete="handleDeleteDraft"
+          @explain="openSyncSheet"
+          @check-updates="checkForUpdates"
+        />
+
+        <!-- Lazy on first use, then retained so Ionic can animate dismissal. -->
+        <DraftSyncSheet
+          v-if="isSyncSheetLoaded"
+          :is-open="isSyncSheetOpen"
+          :sync-enabled="syncEnabled"
+          :sync-status="syncStatus"
+          :used="syncUsed"
+          :limit="syncLimit"
+          @close="closeSyncSheet"
+          @upgrade="upgradeForSync"
+          @wipe="wipeAllDrafts"
         />
 
         <!-- COMMUNITY FEED -->
@@ -70,12 +89,28 @@ const CompetitionDevPanel = defineAsyncComponent(
 );
 const { isUnderAge, communityFeed, communityFeedMounted } =
 	useHomePageLifecycle();
+const DraftSyncSheet = defineAsyncComponent(
+	() => import("@/components/home/DraftSyncSheet.vue"),
+);
 const {
 	mergedDrafts,
 	pendingDraftIds,
 	isLoadingDrafts,
+	draftSyncStates,
+	syncEnabled,
+	syncStatus,
+	syncUsed,
+	syncLimit,
+	isSyncSheetOpen,
+	isSyncSheetLoaded,
+	isCheckingForUpdates,
 	openDraft,
 	deleteDraft: handleDeleteDraft,
+	openSyncSheet,
+	closeSyncSheet,
+	upgradeForSync,
+	checkForUpdates,
+	wipeAllDrafts,
 } = useHomeDrafts();
 const { publicLobbies, joinLobby } = useHomeLobbies(isUnderAge);
 const { handleQuickAction, prefetchDrawView } = useHomeQuickActions();

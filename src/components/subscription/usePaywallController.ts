@@ -1,6 +1,7 @@
 import { Browser } from "@capacitor/browser";
 import {
 	mdiBrush,
+	mdiCloudCheckOutline,
 	mdiCrownOutline,
 	mdiLayersTripleOutline,
 	mdiMotionPlayOutline,
@@ -21,6 +22,9 @@ const PRIVACY_URL = "https://sketchmate.ninja/legal";
 type PlanId = "monthly" | "yearly" | "lifetime";
 
 const proBullets = [
+	// First on purpose: every other perk adds something, this one is the only
+	// one that stops the user LOSING something.
+	{ label: "Drafts backed up & on all devices", icon: mdiCloudCheckOutline },
 	{ label: "All brushes", icon: mdiBrush },
 	{ label: "10 layers per drawing", icon: mdiLayersTripleOutline },
 	{ label: "Animated avatar", icon: mdiMotionPlayOutline },
@@ -35,6 +39,7 @@ const compare: Array<{
 	life: boolean | string;
 }> = [
 	{ label: "Unlock all cosmetics", pro: false, life: true },
+	{ label: "Draft backup & cross-device sync", pro: true, life: true },
 	{ label: "All brushes", pro: true, life: true },
 	{ label: "Layers per drawing", pro: "10", life: "10" },
 	{ label: "Animated avatar", pro: true, life: true },

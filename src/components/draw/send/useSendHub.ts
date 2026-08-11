@@ -28,7 +28,7 @@ export function useSendHub() {
 	const { user, isUnderAge } = storeToRefs(auth);
 	const parental = useParentalStore();
 	const drawStore = useDrawStore();
-	const { preview, newPreview } = storeToRefs(drawStore);
+	const { preview, newPreview, isLoadingPreview } = storeToRefs(drawStore);
 	const shareService = useShareService();
 	const quotaStore = useQuotaStore();
 	const drawUI = useDrawUIStore();
@@ -103,6 +103,11 @@ export function useSendHub() {
 			!isBalloon.value &&
 			!isCompetition.value,
 	);
+	// A pending preview/crop is awaited before we read the image, so this is
+	// only about telling the user why the tap didn't fire yet.
+	const isPreparing = computed(
+		() => isLoadingPreview.value && !shareService.isSending,
+	);
 
 	watch(competitionDisabled, (disabled) => {
 		if (disabled) isCompetition.value = false;
@@ -152,6 +157,9 @@ export function useSendHub() {
 		}
 	}
 	async function shareOutsideApp() {
+		// A crop started moments ago may still be rendering; without this the
+		// share sheet gets the pre-crop image.
+		await drawStore.waitForPendingPreview();
 		const image = newPreview.value || preview.value;
 		if (!image) return;
 		try {
@@ -264,6 +272,7 @@ export function useSendHub() {
 		postResetCountdown,
 		sendButtonLabel,
 		noActionSelected,
+		isPreparing,
 		goBack,
 		toggleSection,
 		goToPro,

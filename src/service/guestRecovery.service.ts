@@ -9,12 +9,17 @@ import { LocalStorage } from "@/types/storage.types";
 
 const RECOVERY_PATH = "SketchMate/recovery.json";
 
+let ensureInFlight:
+	| { guestUid: string; request: Promise<StoredGuestRecovery> }
+	| undefined;
+
 export interface StoredGuestRecovery {
 	version: 1;
 	credentialId: string;
 	secret: string;
 	guestUid: string;
 	profileName: string;
+	profileImage?: string;
 	updatedAt: number;
 }
 
@@ -84,14 +89,19 @@ export async function clearGuestRecovery(): Promise<void> {
 	}
 }
 
-export async function ensureGuestRecovery(params: {
+async function createOrRefreshGuestRecovery(params: {
 	guestUid: string;
 	profileName: string;
+	profileImage?: string;
 }): Promise<StoredGuestRecovery> {
 	const existing = await readGuestRecovery();
 	if (existing?.guestUid === params.guestUid) {
-		if (existing.profileName !== params.profileName) {
+		if (
+			existing.profileName !== params.profileName ||
+			existing.profileImage !== params.profileImage
+		) {
 			existing.profileName = params.profileName;
+			existing.profileImage = params.profileImage;
 			existing.updatedAt = Date.now();
 			await writeGuestRecovery(existing);
 		}
@@ -102,13 +112,42 @@ export async function ensureGuestRecovery(params: {
 	const recovery: StoredGuestRecovery = {
 		version: 1,
 		...registration,
+		profileName: params.profileName || registration.profileName,
+		profileImage: params.profileImage,
 		updatedAt: Date.now(),
 	};
 	await writeGuestRecovery(recovery);
 	return recovery;
 }
 
+export function ensureGuestRecovery(params: {
+	guestUid: string;
+	profileName: string;
+	profileImage?: string;
+}): Promise<StoredGuestRecovery> {
+	// Auth bootstrap and an immediate logout can request enrollment together.
+	// Sharing the request prevents two registrations from rotating each other and
+	// leaving the device with a stale credential.
+	if (ensureInFlight?.guestUid === params.guestUid) {
+		return ensureInFlight.request;
+	}
+
+	const previousRequest = ensureInFlight?.request.catch(() => undefined);
+	const request = (
+		previousRequest
+			? previousRequest.then(() => createOrRefreshGuestRecovery(params))
+			: createOrRefreshGuestRecovery(params)
+	).finally(() => {
+		if (ensureInFlight?.request === request) ensureInFlight = undefined;
+	});
+	ensureInFlight = { guestUid: params.guestUid, request };
+	return request;
+}
+
 export async function finalizeGuestRecovery(): Promise<void> {
+	// Do not let an enrollment that started just before account linking recreate
+	// the local recovery proof after it has been cleared.
+	await ensureInFlight?.request.catch(() => undefined);
 	const recovery = await readGuestRecovery();
 	await clearGuestRecovery();
 	if (recovery) {

@@ -2,8 +2,8 @@
   <ion-content class="bg-primary my-safe-area">
     <div class="w-full h-full flex flex-col justify-between items-center">
       <div class="p-4">
-        <p class="cabin-sketch-regular text-4xl text-center">Enable Notifications</p>
-        <p class="cabin-sketch-regular text-3xl text-center pt-4">
+        <h1 class="cabin-sketch-regular text-4xl font-bold text-center">Enable Notifications</h1>
+        <p class="text-xl font-bold leading-snug text-center pt-4 max-w-lg">
           Stay up to date with the latest drawings from your friends
         </p>
       </div>

@@ -148,9 +148,13 @@ export function useLoginActions() {
 			await Promise.all([
 				Preferences.set({ key: LocalStorage.login, value: "true" }),
 				Preferences.set({
-					key: LocalStorage.guestRecoveryLinkRequired,
-					value: "true",
+					key: LocalStorage.recoveredGuestSession,
+					value: guestRecovery.value.guestUid,
 				}),
+				Preferences.remove({
+					key: LocalStorage.guestRecoveryLinkRequired,
+				}),
+				Preferences.remove({ key: LocalStorage.guestUpgradeDismissed }),
 			]);
 			await onLoginResult(
 				await FirebaseAuthentication.signInWithCustomToken({
@@ -159,9 +163,12 @@ export function useLoginActions() {
 			);
 		} catch (error) {
 			console.warn("Guest recovery failed:", error);
-			await Preferences.remove({
-				key: LocalStorage.guestRecoveryLinkRequired,
-			});
+			await Promise.all([
+				Preferences.remove({ key: LocalStorage.recoveredGuestSession }),
+				Preferences.remove({
+					key: LocalStorage.guestRecoveryLinkRequired,
+				}),
+			]);
 			guestRecoveryError.value =
 				"We couldn't recover this guest profile. You can forget it and start again, or contact support.";
 		} finally {

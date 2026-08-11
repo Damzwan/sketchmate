@@ -21,11 +21,14 @@
       <div class="flex justify-center -mt-1">
         <button
           @click="shareOutsideApp"
+          :disabled="isPreparing"
           class="inline-flex cursor-pointer hover:scale-105 items-center gap-2 px-4
-          py-2 rounded-full bg-white/70 border border-primary/40 shadow-sm text-secondary font-bold active:scale-95 transition-all"
+          py-2 rounded-full bg-white/70 border border-primary/40 shadow-sm text-secondary font-bold active:scale-95 transition-all
+          disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
-          <ion-icon :icon="svg(mdiShareVariant)" class="text-[20px]" />
-          <span class="text-sm pt-0.5">Share to other apps</span>
+          <ion-spinner v-if="isPreparing" name="crescent" class="w-5 h-5" />
+          <ion-icon v-else :icon="svg(mdiShareVariant)" class="text-[20px]" />
+          <span class="text-sm pt-0.5">{{ isPreparing ? 'Preparing…' : 'Share to other apps' }}</span>
         </button>
       </div>
 
@@ -206,9 +209,12 @@
 
     <div class="absolute bottom-6 left-0 right-0 px-6 z-20">
       <ion-button expand="block" shape="round" color="secondary" size="large" @click="executeShares"
-                  :disabled="shareService.isSending || noActionSelected">
-        <span v-if="!shareService.isSending">{{ sendButtonLabel }}</span>
-        <ion-spinner v-else name="crescent" class="text-white" />
+                  :disabled="shareService.isSending || isPreparing || noActionSelected">
+        <span v-if="!shareService.isSending && !isPreparing">{{ sendButtonLabel }}</span>
+        <span v-else class="flex items-center gap-2">
+          <ion-spinner name="crescent" class="text-white" />
+          <span v-if="isPreparing" class="pt-0.5">Preparing…</span>
+        </span>
       </ion-button>
     </div>
   </div>
@@ -259,6 +265,7 @@ const {
 	postResetCountdown,
 	sendButtonLabel,
 	noActionSelected,
+	isPreparing,
 	goBack,
 	toggleSection,
 	goToPro,

@@ -27,6 +27,12 @@ export function useCanvasPreview() {
 	// instead of racing a heavy (gallery/swiper-loaded) canvas.
 	let previewPromise: Promise<void> | null = null;
 
+	// Same for the crop: croppedRect is set synchronously but newPreview only
+	// lands after cropCanvas resolves, so a fast Send would otherwise read
+	// croppedRect-without-newPreview and fall through to the uncropped branch.
+	let cropPromise: Promise<void> | null = null;
+	let cropGeneration = 0;
+
 	function createPreview(canvas: Canvas): Promise<void> {
 		previewPromise = runPreview(canvas);
 		return previewPromise;
@@ -68,8 +74,15 @@ export function useCanvasPreview() {
 		}
 	}
 
-	async function crop(rect: any) {
+	function crop(rect: any): Promise<void> {
+		cropPromise = runCrop(rect);
+		return cropPromise;
+	}
+
+	async function runCrop(rect: any) {
 		if (!originalCanvas) return;
+
+		const generation = ++cropGeneration;
 
 		if (rect.x === 0 && rect.y === 0 && rect.width === 1 && rect.height === 1) {
 			newPreview.value = undefined;
@@ -80,14 +93,25 @@ export function useCanvasPreview() {
 		croppedRect = rect;
 		isLoading.value = true;
 
-		// Pass the original canvas!
-		// Assuming cropCanvas is non-destructive (uses dataURL with viewport/clipping)
-		const result = await cropCanvas(originalCanvas, rect);
-		if (!result) return;
+		try {
+			// Pass the original canvas!
+			// Assuming cropCanvas is non-destructive (uses dataURL with viewport/clipping)
+			const result = await cropCanvas(originalCanvas, rect);
+			if (generation !== cropGeneration) return;
 
-		newPreview.value = result.img;
-		aspect_ratio = result.aspect_ratio;
-		isLoading.value = false;
+			if (!result) {
+				// Drop the rect too — otherwise getDataToSend sees a crop that has
+				// no image behind it.
+				croppedRect = undefined;
+				newPreview.value = undefined;
+				return;
+			}
+
+			newPreview.value = result.img;
+			aspect_ratio = result.aspect_ratio;
+		} finally {
+			if (generation === cropGeneration) isLoading.value = false;
+		}
 	}
 
 	function reset(handleAbort = true) {
@@ -97,19 +121,27 @@ export function useCanvasPreview() {
 		originalCanvas = null;
 		croppedRect = undefined;
 		cachedJson = null;
+		cropGeneration++;
+		cropPromise = null;
 		if (handleAbort) previewPromise = null;
 	}
 
-	async function getDataToSend() {
-		// Wait for any in-flight preview so a fast tap (or a heavy, slow-to-load
-		// gallery/swiper canvas) can't read half-built state.
-		if (previewPromise) {
+	// Wait for any in-flight preview so a fast tap (or a heavy, slow-to-load
+	// gallery/swiper canvas) can't read half-built state, then for the crop, so
+	// tapping Send right after Crop still sends the crop.
+	async function waitForPending() {
+		for (const pending of [previewPromise, cropPromise]) {
+			if (!pending) continue;
 			try {
-				await previewPromise;
+				await pending;
 			} catch {
-				// fall through to the readiness check below
+				// callers do their own readiness check
 			}
 		}
+	}
+
+	async function getDataToSend() {
+		await waitForPending();
 
 		if (!originalCanvas || !preview.value) {
 			throw new Error("Canvas or preview not ready");
@@ -136,6 +168,7 @@ export function useCanvasPreview() {
 		crop,
 		reset,
 		getDataToSend,
+		waitForPending,
 		isLoading,
 	};
 }

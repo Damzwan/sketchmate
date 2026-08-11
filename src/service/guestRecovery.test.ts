@@ -51,10 +51,15 @@ describe("guest recovery persistence", () => {
 	});
 
 	it("enrolls once, persists the proof, and reuses it for the same guest", async () => {
-		await ensureGuestRecovery({ guestUid: "guest-uid", profileName: "Guest" });
+		await ensureGuestRecovery({
+			guestUid: "guest-uid",
+			profileName: "Guest",
+			profileImage: "guest.webp",
+		});
 		await ensureGuestRecovery({
 			guestUid: "guest-uid",
 			profileName: "Renamed guest",
+			profileImage: "renamed.webp",
 		});
 
 		expect(state.register).toHaveBeenCalledTimes(1);
@@ -62,7 +67,44 @@ describe("guest recovery persistence", () => {
 			credentialId: "credential",
 			guestUid: "guest-uid",
 			profileName: "Renamed guest",
+			profileImage: "renamed.webp",
 		});
+	});
+
+	it("shares enrollment when startup and logout request it together", async () => {
+		let finishRegistration:
+			| ((value: {
+					credentialId: string;
+					secret: string;
+					guestUid: string;
+					profileName: string;
+			  }) => void)
+			| undefined;
+		state.register.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishRegistration = resolve;
+				}),
+		);
+
+		const startup = ensureGuestRecovery({
+			guestUid: "guest-uid",
+			profileName: "Guest",
+		});
+		const logout = ensureGuestRecovery({
+			guestUid: "guest-uid",
+			profileName: "Guest",
+		});
+
+		await vi.waitFor(() => expect(state.register).toHaveBeenCalledTimes(1));
+		finishRegistration?.({
+			credentialId: "credential",
+			secret: "secret",
+			guestUid: "guest-uid",
+			profileName: "Guest",
+		});
+		expect(await startup).toEqual(await logout);
+		expect(state.register).toHaveBeenCalledTimes(1);
 	});
 
 	it("revokes and removes the local proof after account linking", async () => {

@@ -47,6 +47,7 @@ export const useDrawStore = defineStore("draw", () => {
 		crop,
 		reset: resetPreview,
 		getDataToSend,
+		waitForPending: waitForPendingPreview,
 		isLoading: isLoadingPreview,
 	} = useCanvasPreview();
 
@@ -208,6 +209,7 @@ export const useDrawStore = defineStore("draw", () => {
 		crop,
 		resetPreview,
 		getDataToSend,
+		waitForPendingPreview,
 		isLoadingPreview,
 	};
 });

@@ -4,7 +4,7 @@
       <div>
         <div class="w-fit mx-auto flex items-center relative">
           <p class="cabin-sketch-regular text-5xl">SketchMate</p>
-          <img :src="logo" alt="" class="w-12 h-12 absolute -mr-12 mb-4 right-0" />
+<img width="48" height="48" loading="lazy" decoding="async" :src="logo" alt="" class="w-12 h-12 absolute -mr-12 mb-4 right-0" />
         </div>
 
         <div class="w-full flex flex-col gap-4 pt-4">

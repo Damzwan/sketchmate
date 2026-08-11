@@ -18,7 +18,7 @@
         class="relative aspect-square rounded-[2rem] overflow-hidden border border-primary/35 bg-tertiary shadow-sm text-left cursor-pointer active:scale-[0.98] transition-all md:hover:scale-[1.02] md:hover:shadow-md"
         @click="open(index)"
       >
-        <img :src="entry.thumbnail_url" :alt="entry.theme" class="w-full h-full object-cover" loading="lazy" decoding="async" />
+<img width="1" height="1" :src="entry.thumbnail_url" :alt="entry.theme" class="w-full h-full object-cover" loading="lazy" decoding="async" />
         <span v-if="entry.is_winner" class="absolute top-2 left-2 h-7 px-2 rounded-full bg-black/70 text-white flex items-center gap-1 text-[10px] font-black">
           <ion-icon :icon="svg(mdiTrophyOutline)" />
           Winner

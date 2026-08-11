@@ -58,7 +58,11 @@
 
                   <div class="winner-content p-2.5 sm:p-4 grid md:grid-cols-[minmax(0,1.18fr)_minmax(16rem,0.82fr)] gap-2.5 md:gap-4 items-center">
                     <div class="winner-art-wrap relative min-w-0">
-                    <img
+<img
+                      width="1"
+                      height="1"
+                      loading="lazy"
+                      decoding="async"
                       v-if="row.entry"
                       :src="row.entry.image_url"
                       :alt="`${row.winner?.name ?? 'Artist'} winning drawing`"

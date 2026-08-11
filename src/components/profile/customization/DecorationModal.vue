@@ -27,7 +27,11 @@
       >
         <div class="relative w-16 h-16 shrink-0">
           <div class="absolute inset-0 rounded-[1.25rem] border-2 border-white bg-zinc-200 overflow-hidden">
-            <img
+<img
+              width="1"
+              height="1"
+              loading="lazy"
+              decoding="async"
               v-if="user?.img"
               :src="user.img"
               alt=""

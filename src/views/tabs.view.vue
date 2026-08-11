@@ -24,7 +24,7 @@
               class="w-7 h-7 rounded-full border-2 transition-all duration-300 overflow-hidden flex justify-center items-center"
               :class="isTabActive(tab.route) ? 'border-secondary scale-110 shadow-sm' : 'border-black/20'"
             >
-              <img v-if="profileImg" :src="profileImg" class="w-full h-full object-cover" alt="Profile" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="profileImg" :src="profileImg" class="w-full h-full object-cover" alt="Profile" />
               <ion-icon v-else :icon="personOutline" class="text-[18px]" />
             </div>
           </template>

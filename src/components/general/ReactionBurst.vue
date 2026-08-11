@@ -4,7 +4,11 @@
     :class="['reaction-overlay', `react-${activeAnim}`]"
     class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
   >
-    <img
+<img
+      width="1"
+      height="1"
+      loading="lazy"
+      decoding="async"
       :src="reactionImages[activeAnim]"
       :class="['w-32 h-32 drop-shadow-2xl object-contain absolute z-20', `anim-react-${activeAnim}`]"
       alt=""

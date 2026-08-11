@@ -36,7 +36,11 @@
         <div class="wn-rise wn-note relative bg-tertiary rounded-xl p-3.5 shadow-sm" style="--d: .06s">
           <span class="wn-tape" aria-hidden="true"></span>
           <div class="flex items-center gap-2.5 mb-2">
-            <img
+<img
+              width="36"
+              height="36"
+              loading="lazy"
+              decoding="async"
               :src="bigbossImage"
               alt="Developer"
               class="w-9 h-9 rounded-full object-cover shadow-sm shrink-0"

@@ -22,7 +22,11 @@
         class="relative block w-full overflow-hidden rounded-[1.75rem] border border-primary/35 bg-tertiary shadow-sm cursor-pointer transition-all active:scale-[0.99] md:hover:scale-[1.01] md:hover:shadow-md"
         @click="$emit('fullscreen', entry)"
       >
-        <img
+<img
+          width="1"
+          height="1"
+          loading="lazy"
+          decoding="async"
           :src="entry.image_url || entry.thumbnail_url"
           alt="Your competition entry"
           class="w-full max-h-[46vh] object-contain bg-primary/10"

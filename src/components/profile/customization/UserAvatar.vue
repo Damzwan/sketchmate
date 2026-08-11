@@ -6,7 +6,11 @@
       :class="borderClass"
       :style="{ borderColor: borderColor }"
     >
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         :src="img || user?.img"
         alt=""
         class="w-full h-full object-cover "

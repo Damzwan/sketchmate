@@ -14,7 +14,7 @@
           :class="index ? '-ml-2.5' : ''"
           :style="{ zIndex: 3 - index }"
         >
-          <img :src="reactionImages[key]" class="w-5 h-5 object-contain" alt="" />
+<img width="20" height="20" loading="lazy" decoding="async" :src="reactionImages[key]" class="w-5 h-5 object-contain" alt="" />
         </div>
       </div>
       <span class="text-sm font-black text-black/80 tracking-tight" :style="legibleStyle(strongText)">
@@ -32,7 +32,7 @@
           :class="post.user_reaction ? 'bg-secondary/10 border-secondary/30 text-secondary' : 'bg-white border-black/10 text-black/80'"
           aria-label="React"
         >
-          <img v-if="post.user_reaction" :src="reactionImages[post.user_reaction]" class="w-5 h-5 object-contain" alt="" />
+<img width="20" height="20" loading="lazy" decoding="async" v-if="post.user_reaction" :src="reactionImages[post.user_reaction]" class="w-5 h-5 object-contain" alt="" />
           <ion-icon v-else :icon="svg(mdiHeartOutline)" class="text-lg" />
         </button>
         <button

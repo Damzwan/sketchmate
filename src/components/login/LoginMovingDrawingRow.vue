@@ -8,13 +8,21 @@
       }"
       :style="{ width: totalWidth + 'px' }"
     >
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         v-for="(img, index) in drawings"
         :key="'row1-' + index"
         :src="img"
         :class="[isShortScreen ? 'h-36 w-[120px]' : 'h-48 w-[140px]', 'object-cover rounded-xl shrink-0 opacity-60']"
       />
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         v-for="(img, index) in drawings"
         :key="'row1-dupe-' + index"
         :src="img"

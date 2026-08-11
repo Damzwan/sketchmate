@@ -24,7 +24,11 @@
 
       <div class="px-4 py-4">
         <div class="entry-showcase grid grid-cols-[minmax(0,1.1fr)_minmax(8.5rem,0.9fr)] items-center gap-0 mb-3 rounded-[1.75rem] border border-primary/35 bg-tertiary p-3 overflow-hidden">
-          <img
+<img
+            width="1"
+            height="1"
+            loading="lazy"
+            decoding="async"
             :src="entry.thumbnail_url || entry.image_url"
             :alt="`${entry.author?.name ?? 'Artist'} competition entry`"
             class="relative z-10 w-full h-40 rounded-2xl object-cover border-2 border-white/80 shadow-lg rotate-[-1.5deg]"

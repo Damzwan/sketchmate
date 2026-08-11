@@ -45,7 +45,11 @@
                         class="text-xl opacity-30 grayscale group-hover:rotate-12 transition-transform duration-300" />
             </div>
 
-            <img
+<img
+              width="1"
+              height="1"
+              loading="lazy"
+              decoding="async"
               v-if="lobby.thumbnailUrl"
               :src="lobby.thumbnailUrl"
               class="w-full h-full object-cover transition-opacity duration-500 ease-in-out"

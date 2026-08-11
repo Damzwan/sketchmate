@@ -37,7 +37,7 @@
     <div v-else-if="category === 'decoration'" class="w-full h-full bg-[#FAF6F0] flex items-center justify-center">
       <div class="relative w-10 h-10">
         <div class="w-full h-full rounded-full border border-black/15 bg-white overflow-hidden flex items-center justify-center">
-          <img v-if="userImg" :src="userImg" class="w-full h-full object-cover" alt="" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="userImg" :src="userImg" class="w-full h-full object-cover" alt="" />
         </div>
         <AvatarDecoration v-if="decorationDef" :def="decorationDef" />
       </div>

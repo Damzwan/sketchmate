@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { defineStore } from "pinia";
-import { computed, markRaw, ref } from "vue";
+import { computed, markRaw, ref, shallowRef, triggerRef } from "vue";
 import {
 	getActiveChats,
 	getChatMessages,
@@ -83,15 +83,16 @@ interface ChatNotificationEntry extends ChatNotification {
 
 export const useChatStore = defineStore("chat", () => {
 	// --- STATE ---
-	const activeChats = ref<PopulatedConversation[]>([]);
-	// Deep `ref`, but every SETTLED message goes in via `freeze()` below. A
+	const activeChats = shallowRef<PopulatedConversation[]>([]);
+	// Shallow state plus raw SETTLED messages avoids recursively proxying server
+	// payloads. A
 	// delivered message is immutable data — nothing ever mutates one in place, so
 	// there is no reason to pay for a reactive Proxy per message and a tracked
 	// dep per property. The array itself stays reactive, which is all the UI
 	// needs (append / prepend / splice). Only in-flight optimistic messages stay
 	// reactive, because their `status` genuinely changes under them, and there
 	// are never more than a handful of those.
-	const messagesByChat = ref<Record<string, FrontendMessage[]>>({});
+	const messagesByChat = shallowRef<Record<string, FrontendMessage[]>>({});
 
 	const freeze = <T extends object>(m: T): T => markRaw(m);
 	const freezeAll = (list: BaseMessage[]): FrontendMessage[] =>
@@ -131,6 +132,7 @@ export const useChatStore = defineStore("chat", () => {
 		const msgs = messagesByChat.value[chatId];
 		if (!msgs || msgs.length <= MAX_RETAINED_MESSAGES) return;
 		messagesByChat.value[chatId] = msgs.slice(msgs.length - TRIM_TARGET);
+		triggerRef(messagesByChat);
 		hasMoreMessagesByChat.value[chatId] = true;
 	}
 
@@ -173,6 +175,7 @@ export const useChatStore = defineStore("chat", () => {
 			messageCacheAccess.delete(id);
 			retained--;
 		}
+		triggerRef(messagesByChat);
 	}
 
 	function resetRuntimeState() {
@@ -466,6 +469,8 @@ export const useChatStore = defineStore("chat", () => {
 			}
 		}
 		pruneMessageCaches();
+		triggerRef(messagesByChat);
+		triggerRef(activeChats);
 	}
 
 	// --- MESSAGING & OPTIMISTIC ENGINE ---
@@ -550,6 +555,8 @@ export const useChatStore = defineStore("chat", () => {
 						updatedAt: response.message.createdAt,
 					};
 				}
+				triggerRef(messagesByChat);
+				triggerRef(activeChats);
 
 				resolveOptimisticMessage(
 					realChatId,
@@ -576,7 +583,10 @@ export const useChatStore = defineStore("chat", () => {
 			const msgs = messagesByChat.value[currentTabId];
 			if (msgs) {
 				const m = msgs.find((msg) => msg._id === tempId);
-				if (m) m.status = "error";
+				if (m) {
+					m.status = "error";
+					triggerRef(messagesByChat);
+				}
 			}
 			throw error;
 		}
@@ -585,6 +595,7 @@ export const useChatStore = defineStore("chat", () => {
 	function addOptimisticMessage(chatId: string, message: OptimisticMessage) {
 		if (!messagesByChat.value[chatId]) messagesByChat.value[chatId] = [];
 		messagesByChat.value[chatId].push(message);
+		triggerRef(messagesByChat);
 		touchMessageCache(chatId);
 		pruneMessageCaches();
 	}
@@ -642,6 +653,7 @@ export const useChatStore = defineStore("chat", () => {
 				};
 			}
 		}
+		triggerRef(activeChats);
 	}
 
 	function resolveOptimisticMessage(
@@ -679,6 +691,7 @@ export const useChatStore = defineStore("chat", () => {
 				} else chatMessages.splice(index, 1, freeze(resolvedMessage));
 			}
 		}
+		triggerRef(messagesByChat);
 		touchMessageCache(targetId);
 		pruneMessageCaches();
 	}
@@ -733,6 +746,7 @@ export const useChatStore = defineStore("chat", () => {
 					? freezeAll(response.data)
 					: [...freezeAll(response.data), ...existing];
 			}
+			triggerRef(messagesByChat);
 			pruneMessageCaches();
 			return response.data.length;
 		} catch (e) {
@@ -765,6 +779,7 @@ export const useChatStore = defineStore("chat", () => {
 		if (chat) {
 			if (!chat.unread_counts) chat.unread_counts = {};
 			chat.unread_counts[me] = 0;
+			triggerRef(activeChats);
 		}
 
 		// Record the read even when the conversation isn't in the list yet.
@@ -787,6 +802,7 @@ export const useChatStore = defineStore("chat", () => {
 					chat.unread_counts[me] || 0,
 					previousUnread,
 				);
+				triggerRef(activeChats);
 			}
 		}
 	}
@@ -815,6 +831,7 @@ export const useChatStore = defineStore("chat", () => {
 			chat.unread_counts[me] = 0;
 			readAcknowledged.add(chat._id);
 		}
+		triggerRef(activeChats);
 
 		try {
 			await markAllAsRead();
@@ -829,6 +846,7 @@ export const useChatStore = defineStore("chat", () => {
 				);
 				readAcknowledged.delete(chat._id);
 			}
+			triggerRef(activeChats);
 			console.error("Failed to mark all chats as read:", e);
 			throw e;
 		}
@@ -848,6 +866,7 @@ export const useChatStore = defineStore("chat", () => {
 			chat.unread_counts[me] = 0;
 		};
 		activeChats.value.forEach(apply);
+		triggerRef(activeChats);
 		friendStore.pendingRequests.forEach(apply);
 	}
 
@@ -924,6 +943,7 @@ export const useChatStore = defineStore("chat", () => {
 		} else {
 			activeChats.value.unshift(payload.conversation);
 		}
+		triggerRef(activeChats);
 
 		const partner = payload.conversation.participants.find(
 			(p) => p._id !== authStore.user?._id,
@@ -978,6 +998,7 @@ export const useChatStore = defineStore("chat", () => {
 				...payload.conversation,
 				status: "mate", // FIX: 'active' -> 'mate'
 			};
+		triggerRef(activeChats);
 		const partner = payload.conversation.participants.find(
 			(p) => p._id !== authStore.user?._id,
 		) as Mate;
@@ -1011,6 +1032,7 @@ export const useChatStore = defineStore("chat", () => {
 				initiator_id: undefined,
 			};
 		}
+		triggerRef(activeChats);
 		const partner = payload.conversation.participants.find(
 			(p) => p._id !== authStore.user?._id,
 		);
@@ -1048,6 +1070,7 @@ export const useChatStore = defineStore("chat", () => {
 		} else {
 			activeChats.value.unshift(payload.conversation);
 		}
+		triggerRef(activeChats);
 		if (partner) friendStore.removeFriendLocally(partner._id);
 		addNotification({
 			tabId: payload.conversation_id,
@@ -1076,6 +1099,7 @@ export const useChatStore = defineStore("chat", () => {
 				status: "pending_mate",
 			};
 		else activeChats.value.unshift(payload.conversation);
+		triggerRef(activeChats);
 		const partner = payload.conversation.participants.find(
 			(p) => p._id !== authStore.user?._id,
 		);
@@ -1135,6 +1159,7 @@ export const useChatStore = defineStore("chat", () => {
 				if (widgetStore.activeTab === conversationId)
 					widgetStore.activeTab = "overview";
 			}
+			triggerRef(activeChats);
 		} catch (e) {
 			console.error("Failed to respond to request:", e);
 		}
@@ -1149,6 +1174,7 @@ export const useChatStore = defineStore("chat", () => {
 				...activeChats.value[idx],
 				status: "none",
 			};
+			triggerRef(activeChats);
 		}
 	}
 
@@ -1167,6 +1193,7 @@ export const useChatStore = defineStore("chat", () => {
 				cooldown_until: undefined,
 				initiator_id: undefined,
 			};
+			triggerRef(activeChats);
 		}
 	}
 
@@ -1181,6 +1208,7 @@ export const useChatStore = defineStore("chat", () => {
 					status: response.status,
 					initiator_id: undefined,
 				};
+				triggerRef(activeChats);
 			}
 		} catch (e) {
 			console.error("Failed to cancel mate request", e);

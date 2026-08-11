@@ -122,7 +122,7 @@
                     :aria-label="`Select ${entry.artist.name}'s drawing ${postIndex + 1}`"
                     @click="focusArtwork(entry._id, $event)"
                   >
-                    <img :src="post.thumbnail_url || post.image_url" class="absolute inset-0 w-full h-full object-contain" alt="" loading="lazy" decoding="async" fetchpriority="low" />
+<img width="1" height="1" :src="post.thumbnail_url || post.image_url" class="absolute inset-0 w-full h-full object-contain" alt="" loading="lazy" decoding="async" fetchpriority="low" />
                   </button>
                   <button
                     type="button"

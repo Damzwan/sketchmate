@@ -49,7 +49,11 @@
         >
           <!-- Drawing Board Preview Area Frame (Using full edge-to-edge object-cover layout) -->
           <div class="h-24 w-full relative border-b border-primary/10 overflow-hidden bg-[#FAF8F5] flex items-center justify-center">
-            <img
+<img
+              width="1"
+              height="1"
+              loading="lazy"
+              decoding="async"
               v-if="draft.thumbnail"
               :src="draft.thumbnail"
               class="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"

@@ -8,7 +8,10 @@
     @contextmenu.prevent
   >
     <div class="aspect-square bg-[#FAF8F5] rounded-xl relative overflow-hidden border border-black/5">
-      <img
+<img
+        width="1"
+        height="1"
+        decoding="async"
         v-if="sharedPost?.thumbnail_url"
         :src="sharedPost.thumbnail_url"
         class="w-full h-full object-cover"
@@ -38,7 +41,10 @@
     @contextmenu.prevent
   >
     <div class="aspect-square bg-[#FAF8F5] rounded-xl relative overflow-hidden border border-black/5">
-      <img
+<img
+        width="1"
+        height="1"
+        decoding="async"
         v-if="sharedInboxItem?.thumbnail"
         :src="sharedInboxItem.thumbnail"
         class="w-full h-full object-cover"

@@ -4,7 +4,11 @@
        on the paywall before this existed; anywhere the app wants to talk to the
        user as a person rather than as an interface, it goes here. -->
   <div class="flex items-start gap-3">
-    <img
+<img
+      width="44"
+      height="44"
+      loading="lazy"
+      decoding="async"
       :src="bigbossImage"
       alt="Developer"
       class="w-11 h-11 rounded-full object-cover border-2 border-primary/50 shadow-sm shrink-0"

@@ -13,7 +13,7 @@
         <div class="flex flex-col items-center z-10 w-20">
           <div
             class="w-14 h-14 rounded-full border-2 border-primary/20 bg-black/5 overflow-hidden flex items-center justify-center">
-            <img v-if="user?.img" :src="user.img" class="w-full h-full object-cover" alt="You" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="user?.img" :src="user.img" class="w-full h-full object-cover" alt="You" />
             <ion-icon v-else :icon="svg(mdiAccount)" class="text-3xl text-primary/40" />
           </div>
           <span class="text-[11px] uppercase tracking-widest mt-2 opacity-70">You</span>
@@ -25,7 +25,7 @@
           <div class="animate-fly-direct flex flex-col items-center">
             <Lottie :src="balloonLottie" :loop="true" :speed="0.8" class="h-24 drop-shadow-md" />
             <div class="w-10 h-12 bg-white border-2 border-primary/30 rounded-md overflow-hidden animate-swing">
-              <img :src="drawingImg" class="w-full h-full object-cover opacity-95" />
+<img width="1" height="1" loading="lazy" decoding="async" :src="drawingImg" class="w-full h-full object-cover opacity-95" />
             </div>
           </div>
         </div>
@@ -113,7 +113,7 @@
           :key="b._id"
           class="flex items-center gap-3 p-3 rounded-2xl bg-white/70 border border-primary/20"
         >
-          <img :src="b.thumbnail" class="w-14 h-14 rounded-xl object-cover bg-black/5 shrink-0" />
+<img width="56" height="56" loading="lazy" decoding="async" :src="b.thumbnail" class="w-14 h-14 rounded-xl object-cover bg-black/5 shrink-0" />
           <div class="flex-1 min-w-0 pr-2">
             <p class="text-sm font-black text-black truncate leading-none">
               {{ b.message?.trim() || 'No note attached' }}

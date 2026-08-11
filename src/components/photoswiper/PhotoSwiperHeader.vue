@@ -50,7 +50,11 @@
         class="flex -space-x-6 pr-2 cursor-pointer"
         @click="$emit('open-followers')"
       >
-        <img
+<img
+          width="36"
+          height="36"
+          loading="lazy"
+          decoding="async"
           v-for="(follower, i) in [...currItem.followers].reverse().slice(0, badgesCountToShow)"
           :key="follower"
           :src="senderImg(resolveUser(follower))"

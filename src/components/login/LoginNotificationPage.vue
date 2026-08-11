@@ -8,7 +8,11 @@
         </p>
       </div>
 
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         :src="notificationsImage"
         class="md:w-[50%] max-w-[600px] w-[90%] mx-auto"
         alt="friends connect"

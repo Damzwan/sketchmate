@@ -611,7 +611,7 @@ Explicitly **not** in scope: an E2E suite. `QUALITY_PERF_PLAN.md` §8 removed
 Cypress because there were no specs; re-adding it is new work with its own
 justification, not part of this audit.
 
-### Q5 — Perf (2–3 d)
+### Q5 — Perf (2–3 d) — **PARTIAL (1, 2 and 4 done 2026-08-11)**
 
 1. **Images**: `loading="lazy"` + `decoding="async"` + intrinsic `width`/`height`
    on the 79 unlazy `<img>`. Mechanical, and the largest per-hour win in this
@@ -626,6 +626,28 @@ justification, not part of this audit.
    to the 700 kB target §P2 missed.
 4. **Close the listener gap** — 49 vs 36, one pass.
 5. Ratchet `scripts/checkBudget.mjs` down after 3 lands.
+
+#### Q5.1, Q5.2 and Q5.4 implementation notes
+
+- All 80 real `<img>` elements now carry `loading`, `decoding`, `width` and
+  `height` hints. The two hidden Cropper inputs remain eager because lazy-loaded
+  hidden images do not reliably initialize Cropper; existing priority-aware feed
+  images also retain their dynamic eager/lazy behavior.
+- The server-backed collections in `chat`, `post` and `inbox` now use
+  `shallowRef`. The small number of intentional nested optimistic mutations
+  (reaction counts, comments, unread state and message status) explicitly call
+  `triggerRef`, preserving UI updates without recursively proxying every server
+  record.
+- Browser/DOM event listeners are balanced at 27 registrations and 27 explicit
+  removals. Repeated Cropper `ready` handlers are now one-shot and cleaned up,
+  the render-bake abort bridge removes itself when work settles, and the PWA
+  load handler is one-shot. Service-worker and DotLottie event APIs are excluded
+  from that lifecycle count: they live for their owning worker/player and are
+  released by worker lifetime or `destroy()`.
+
+Verification: `pnpm lint`, `pnpm typecheck`, all 426 unit tests, production
+build and bundle budget pass. Q5.3 and Q5.5 remain open and intentionally stay
+coupled because the budget ratchet follows icon consolidation.
 
 ### Q6 — Hygiene (1–2 d)
 

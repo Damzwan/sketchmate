@@ -29,7 +29,7 @@
             @click="identityModalOpen = true"
           >
             <template #preview>
-              <img :src="previewImg || user.img" class="w-6 h-6 rounded-md object-cover border border-white" />
+<img width="24" height="24" loading="lazy" decoding="async" :src="previewImg || user.img" class="w-6 h-6 rounded-md object-cover border border-white" />
             </template>
           </CustomizeOptionRow>
 
@@ -90,7 +90,7 @@
             <template #preview>
               <div class="relative w-6 h-6">
                 <div class="absolute inset-0 rounded-md border border-white bg-zinc-200 overflow-hidden">
-                  <img v-if="user.img" :src="user.img" class="w-full h-full object-cover" alt="" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="user.img" :src="user.img" class="w-full h-full object-cover" alt="" />
                 </div>
                 <AvatarDecoration :decoration-id="draft.decorationId" />
               </div>

@@ -220,11 +220,15 @@ export async function handleWebDeeplink() {
 }
 
 export function setupPwa() {
-	window.addEventListener("load", () => {
-		navigator.serviceWorker.controller?.postMessage({
-			type: "client-ready",
-		});
-	});
+	window.addEventListener(
+		"load",
+		() => {
+			navigator.serviceWorker.controller?.postMessage({
+				type: "client-ready",
+			});
+		},
+		{ once: true },
+	);
 }
 
 export function setupWidget() {

@@ -139,7 +139,9 @@
              past recognition, so a second, distinct object bought nothing and
              doubled the CDN requests for the feed; pointing both at one URL
              makes the browser serve the second from the first's response. -->
-        <img
+<img
+          width="1"
+          height="1"
           :src="feedImageUrl"
           class="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl pointer-events-none transition-opacity duration-500"
           :class="imageLoaded ? blurredBackdropOpacity : 'opacity-0'"
@@ -172,7 +174,9 @@
         <!-- The THUMBNAIL, not the full-res export. This strip is at most one
              phone width by 50vh; the full image is the raw canvas blob and only
              the fullscreen swiper can actually show that detail. -->
-        <img
+<img
+          width="1"
+          height="1"
           :src="feedImageUrl"
           class="relative z-10 w-full object-contain transition-opacity duration-500"
           :class="[imageLoaded ? 'opacity-100' : 'opacity-0', artworkAspect ? 'h-full' : 'max-h-[50vh]']"

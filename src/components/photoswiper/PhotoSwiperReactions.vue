@@ -11,9 +11,17 @@
     >
       <div class="flex -space-x-2.5">
         <!-- Colored heart if no reactions, otherwise top 3 active emojis -->
-        <img v-if="activeReactions.length === 0" :src="reactionImages.love"
+<img
+             width="28"
+             height="28"
+             loading="lazy"
+             decoding="async" v-if="activeReactions.length === 0" :src="reactionImages.love"
              class="w-7 h-7 object-contain drop-shadow-md" />
-        <img v-else v-for="type in activeReactions" :key="type" :src="reactionImages[type]"
+<img
+             width="28"
+             height="28"
+             loading="lazy"
+             decoding="async" v-else v-for="type in activeReactions" :key="type" :src="reactionImages[type]"
              class="w-7 h-7 object-contain drop-shadow-md" />
       </div>
     </button>

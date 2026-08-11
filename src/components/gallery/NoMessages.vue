@@ -1,6 +1,6 @@
 <template>
   <div class="w-full min-h-full flex flex-col items-center text-center px-8 pt-[10vh] gap-5 cabin-sketch-regular">
-    <img :src="img" alt="No messages" class="w-[78%] max-w-[340px] md:w-[38%] mx-auto" />
+<img width="1" height="1" loading="lazy" decoding="async" :src="img" alt="No messages" class="w-[78%] max-w-[340px] md:w-[38%] mx-auto" />
 
     <div class="flex flex-col items-center gap-1.5">
       <h1 class="text-3xl md:text-2xl font-bold text-black leading-tight">{{ title }}</h1>

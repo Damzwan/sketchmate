@@ -147,7 +147,7 @@
             <div v-for="(post, index) in posts" :key="post._id"
                  class="aspect-square rounded-[1.5rem] shadow-sm relative overflow-hidden active:scale-95 cursor-pointer transition-transform duration-200"
                  :style="{ backgroundColor: theme.cardBorderColor }" @click="$emit('open-post', index)">
-              <img :src="post.thumbnail_url" class="w-full h-full object-cover" loading="lazy" alt="sketch" />
+<img width="1" height="1" decoding="async" :src="post.thumbnail_url" class="w-full h-full object-cover" loading="lazy" alt="sketch" />
             </div>
           </div>
         </div>

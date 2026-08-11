@@ -49,7 +49,10 @@
           />
 
           <div class="relative flex-1 min-h-0">
-            <img
+<img
+              width="1"
+              height="1"
+              loading="lazy"
               v-if="chatBackgroundVisible"
               :src="chatCustomization.backgroundImageUrl"
               alt=""

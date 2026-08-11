@@ -48,7 +48,7 @@
         >
           <button @click="openUser(getAuthorId(comment))" class="shrink-0 cursor-pointer active:scale-95 transition-transform">
             <ion-avatar class="h-[38px] w-[38px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
-              <img v-if="getAuthorImg(comment)" :src="getAuthorImg(comment)" class="aspect-square object-cover" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="getAuthorImg(comment)" :src="getAuthorImg(comment)" class="aspect-square object-cover" />
               <span v-else class="w-full h-full flex items-center justify-center font-bold text-black text-sm">
                 {{ getAuthorName(comment).charAt(0) }}
               </span>
@@ -88,7 +88,7 @@
       <div
         class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-3 pb-safe z-10 shrink-0">
         <ion-avatar class="shrink-0 h-[34px] w-[34px] shadow-sm">
-          <img v-if="user?.img" :src="user.img" alt="Me" class="aspect-square object-cover" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="user?.img" :src="user.img" alt="Me" class="aspect-square object-cover" />
           <span v-else class="w-full h-full flex items-center justify-center font-bold text-black bg-black/5 text-sm">
             {{ user?.name?.charAt(0) }}
           </span>

@@ -54,7 +54,11 @@
           </template>
 
           <template v-else>
-            <img
+<img
+              width="32"
+              height="32"
+              loading="lazy"
+              decoding="async"
               :src="toast.thumbnail"
               class="w-8 h-8 rounded-lg object-cover border border-white/10 shadow-md bg-white/5"
             />

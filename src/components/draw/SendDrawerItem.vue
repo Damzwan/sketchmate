@@ -9,7 +9,11 @@
     color="primary"
   >
     <div class="relative">
-      <img
+<img
+        width="48"
+        height="48"
+        loading="lazy"
+        decoding="async"
         :src="mate.img"
         :alt="mate._id"
         class="rounded-full w-12 my-2"

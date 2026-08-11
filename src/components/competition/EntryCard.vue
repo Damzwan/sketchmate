@@ -70,7 +70,9 @@
       @dblclick.prevent="$emit('vote', entry)"
       @contextmenu.prevent
     >
-      <img
+<img
+        width="1"
+        height="1"
         v-if="visible"
         :src="entry.thumbnail_url || entry.image_url"
         :alt="caption || 'Competition entry'"

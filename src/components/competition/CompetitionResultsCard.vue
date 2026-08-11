@@ -13,7 +13,11 @@
         class="relative w-14 h-14 pb-2"
       >
         <div class="w-12 h-12 rounded-xl border-2 border-tertiary shadow-sm bg-tertiary overflow-hidden">
-          <img
+<img
+            width="1"
+            height="1"
+            loading="lazy"
+            decoding="async"
             v-if="row.entry"
             :src="row.entry.thumbnail_url"
             :alt="`${row.category_label} winner`"

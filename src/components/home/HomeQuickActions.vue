@@ -18,7 +18,11 @@
           </div>
         </template>
         <template v-else>
-          <img
+<img
+            width="1"
+            height="1"
+            loading="lazy"
+            decoding="async"
             :src="action.img ?? undefined"
             class="absolute pointer-events-none object-contain transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
             :class="getImageLayoutClasses(action.id)"

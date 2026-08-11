@@ -28,7 +28,7 @@
               @click="openWinners"
             >
               <div class="relative">
-                <img v-if="row.entry" :src="row.entry.thumbnail_url" :alt="row.category_label" class="w-full h-24 object-cover" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="row.entry" :src="row.entry.thumbnail_url" :alt="row.category_label" class="w-full h-24 object-cover" />
                 <div v-if="row.winner" class="absolute -bottom-4 left-2 rounded-full border-2 border-tertiary bg-tertiary shadow-sm">
                   <UserAvatar
                     :user="row.winner"

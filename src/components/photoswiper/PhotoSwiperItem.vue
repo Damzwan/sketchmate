@@ -9,7 +9,10 @@
          That density bump, not the resolution change, is the visible flicker.
          An instant swap of an already-decoded higher-res copy of the same
          picture has nothing to animate. -->
-    <img
+<img
+      width="1"
+      height="1"
+      loading="lazy"
       :src="props.thumbnail"
       :alt="`Drawing ${props.thumbnail}`"
       class="object-contain absolute w-full h-full z-20"
@@ -18,7 +21,10 @@
     />
 
     <!-- Real image -->
-    <img
+<img
+      width="1"
+      height="1"
+      loading="lazy"
       v-if="shouldRenderFullImage"
       ref="fullImageEl"
       :src="props.image"

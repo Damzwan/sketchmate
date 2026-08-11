@@ -17,7 +17,7 @@
       <div class="bg-white border border-primary/50 p-6 rounded-[2.5rem] shadow-sm text-center w-full max-w-xs relative overflow-hidden">
         <div class="absolute -right-4 -bottom-4 w-16 h-16 rounded-full bg-primary/10 blur-xl pointer-events-none"></div>
         <div class="relative inline-block mb-3.5">
-          <img :src="partner?.img" class="w-16 h-16 rounded-[1.35rem] border border-black/5 shadow-sm object-cover grayscale opacity-50" alt="" />
+<img width="64" height="64" loading="lazy" decoding="async" :src="partner?.img" class="w-16 h-16 rounded-[1.35rem] border border-black/5 shadow-sm object-cover grayscale opacity-50" alt="" />
           <div class="absolute -bottom-1 -right-1 bg-zinc-500 rounded-full p-1 border border-white shadow-sm flex items-center justify-center">
             <ion-icon :icon="svg(mdiAccountOff)" class="text-[9px] text-white" />
           </div>

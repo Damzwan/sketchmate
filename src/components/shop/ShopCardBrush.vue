@@ -2,7 +2,7 @@
   <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
     <template #preview>
       <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center p-2 border-b border-black/5">
-        <img v-if="previewUrl" :src="previewUrl" class="max-w-full pointer-events-none" alt="" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="previewUrl" :src="previewUrl" class="max-w-full pointer-events-none" alt="" />
 
         <div class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white border border-black/10 shadow-sm flex items-center justify-center text-black">
           <ion-icon :icon="svg(brushIcon)" class="text-sm" />

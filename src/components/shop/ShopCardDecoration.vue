@@ -4,7 +4,7 @@
       <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center border-b border-black/5">
         <div class="relative w-12 h-12">
           <div class="w-full h-full rounded-full border border-black/20 flex items-center justify-center overflow-hidden bg-white shadow-inner">
-            <img v-if="user?.img" :src="user.img" alt="" class="w-full h-full object-cover" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="user?.img" :src="user.img" alt="" class="w-full h-full object-cover" />
             <ion-icon v-else :icon="svg(mdiAccountCircle)" class="text-xl text-black/40" />
           </div>
           <AvatarDecoration v-if="decorationDef" :def="decorationDef" />

@@ -30,7 +30,11 @@
           :key="entry._id"
           class="rounded-2xl border border-primary/35 bg-tertiary p-2.5 flex items-center gap-3 shadow-sm transition-all md:hover:shadow-md"
         >
-          <img
+<img
+            width="64"
+            height="64"
+            loading="lazy"
+            decoding="async"
             :src="entry.thumbnail_url || entry.image_url"
             :alt="`${entry.author?.name ?? 'Artist'} entry`"
             class="w-16 h-16 rounded-xl object-cover shrink-0"

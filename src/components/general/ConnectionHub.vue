@@ -48,7 +48,7 @@
 
           <div class="flex items-center gap-3 mb-3 min-w-0">
             <ion-avatar class="w-12 h-12 border-2 border-white overflow-hidden bg-white shrink-0">
-              <img :src="user?.img" class="object-cover w-full h-full" />
+<img width="1" height="1" loading="lazy" decoding="async" :src="user?.img" class="object-cover w-full h-full" />
             </ion-avatar>
             <h2 class="text-2xl text-black font-black leading-none truncate min-w-0">
               {{ user?.name }}

@@ -13,7 +13,11 @@
         :animated="true"
         class="absolute inset-0 z-20 w-full h-full m-0"
       />
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         v-show="props.src || newPreview"
 		:src="newPreview || props.src || undefined"
         @load="isLoaded = true"
@@ -56,7 +60,11 @@
             class="crop-stage"
             :class="{ 'is-ready': isCropperReady, 'is-settling': isSettling }"
           >
-            <img
+<img
+              width="1"
+              height="1"
+              loading="lazy"
+              decoding="async"
               ref="imageRef"
 				:src="props.src || undefined"
               class="block max-w-full"

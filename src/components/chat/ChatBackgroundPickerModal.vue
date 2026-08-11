@@ -32,7 +32,9 @@
         :disabled="selectingId !== ''"
         @click="choose(item)"
       >
-        <img
+<img
+          width="1"
+          height="1"
           :src="item.thumbnail"
           alt="Sketch background option"
           loading="lazy"

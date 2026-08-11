@@ -89,7 +89,8 @@ export abstract class RenderBakeCoordinator<
 		this.baking = true;
 		this.bakeAgain = false;
 		// Teardown (leaving the route mid-load) must still be able to stop it.
-		signal?.addEventListener("abort", () => ctrl.abort(), { once: true });
+		const abort = () => ctrl.abort();
+		signal?.addEventListener("abort", abort, { once: true });
 
 		const pass = this.committed
 			.bake(
@@ -104,6 +105,7 @@ export abstract class RenderBakeCoordinator<
 				/* aborted / transient — the normal bake will pick up what is left */
 			})
 			.finally(() => {
+				signal?.removeEventListener("abort", abort);
 				this.baking = false;
 				if (this.bakeCtrl === ctrl) this.bakeCtrl = null;
 			});

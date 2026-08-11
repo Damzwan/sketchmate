@@ -3,7 +3,7 @@
     <CircularLoader v-if="loading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full">
       <div class="flex-grow flex items-center">
-        <img :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
+<img width="1" height="1" loading="eager" decoding="async" :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
       </div>
 
       <div class="h-10 flex justify-between items-center">
@@ -33,9 +33,18 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 const { cropperMenuOpen } = storeToRefs(useMenuStore());
 const { getCanvas } = useDrawStore();
 
-let cropper: Cropper;
+let cropper: Cropper | undefined;
 const imgRef = ref<HTMLImageElement>();
 const loading = ref(true);
+const handleCropperReady = () => {
+	loading.value = false;
+};
+
+function destroyCropper() {
+	imgRef.value?.removeEventListener("ready", handleCropperReady);
+	cropper?.destroy();
+	cropper = undefined;
+}
 
 defineProps<{
 	imgUrl: string | undefined;
@@ -45,12 +54,13 @@ function close() {
 	cropperMenuOpen.value = false;
 	loading.value = true;
 	setAppColors(routeColorConfig(FRONTEND_ROUTES.draw));
-	if (cropper) cropper.destroy();
+	destroyCropper();
 }
 
 function init() {
 	setAppColors(photoSwiperColorConfig);
-	imgRef.value?.addEventListener("ready", () => (loading.value = false));
+	destroyCropper();
+	imgRef.value?.addEventListener("ready", handleCropperReady, { once: true });
 	cropper = new Cropper(imgRef.value!, {
 		aspectRatio: getCanvas().width! / getCanvas().height!,
 		background: false,

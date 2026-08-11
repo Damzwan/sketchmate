@@ -19,7 +19,7 @@
       class="w-full h-14 rounded-2xl border border-primary/35 bg-tertiary p-2 flex items-center gap-3 text-left cursor-pointer shadow-sm transition-all active:scale-[0.98] md:hover:scale-[1.015] md:hover:shadow-md"
       @click="$emit('current-entry')"
     >
-      <img :src="myEntry.thumbnail_url" alt="Your current competition entry" class="w-10 h-10 rounded-xl object-cover shrink-0" />
+<img width="40" height="40" loading="lazy" decoding="async" :src="myEntry.thumbnail_url" alt="Your current competition entry" class="w-10 h-10 rounded-xl object-cover shrink-0" />
       <span class="min-w-0 flex-1">
         <span class="block text-[10px] font-black uppercase tracking-widest text-black/80">Your current entry</span>
         <span class="block text-xs font-black text-black mt-0.5 truncate">View your drawing</span>
@@ -60,7 +60,11 @@
         class="shrink-0 w-40 rounded-2xl border border-primary/35 bg-tertiary p-2 flex items-center gap-2 text-left cursor-pointer transition-all active:scale-[0.98] md:hover:scale-[1.025] md:hover:shadow-md"
         @click="$emit('archive', past)"
       >
-        <img
+<img
+          width="40"
+          height="40"
+          loading="lazy"
+          decoding="async"
           v-if="past.winners[0]?.thumbnail_url"
           :src="past.winners[0].thumbnail_url"
           :alt="past.theme"

@@ -35,7 +35,11 @@
               :class="isSuperShortScreen ? 'max-h-[26vh]' : 'max-h-[36vh]'"
               :style="{ aspectRatio: imageAspectRatio }"
             >
-              <img
+<img
+                width="1"
+                height="1"
+                loading="lazy"
+                decoding="async"
                 :src="balloonStore.receivedBalloon.img"
                 alt="drawing"
                 class="w-full h-full object-contain rounded-[2rem] bg-white/90"
@@ -48,7 +52,11 @@
                   class="absolute left-1/2 top-full -translate-x-1/2 -mt-6 z-20 w-[280px] max-w-[85vw] flex flex-col items-center pointer-events-auto"
                 >
                   <!-- Avatar Overlap -->
-                  <img
+<img
+                    width="48"
+                    height="48"
+                    loading="lazy"
+                    decoding="async"
                     :src="balloonStore.senderInfo?.img"
                     class="w-12 h-12 rounded-full border-2 border-white/80 shadow-xl bg-white object-cover z-30"
                   />

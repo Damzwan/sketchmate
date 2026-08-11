@@ -26,7 +26,11 @@
                that would compete with the emoji itself. -->
           <div v-if="index === 0 && sortedReactions.length > 1" class="winner-halo" />
 
-          <img
+<img
+            width="1"
+            height="1"
+            loading="lazy"
+            decoding="async"
             :src="reactionImages[key]"
             class="object-contain drop-shadow-xl relative"
             :class="{ 'winner-bob': index === 0 && sortedReactions.length > 1 }"

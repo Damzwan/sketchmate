@@ -15,7 +15,7 @@
 
       <!-- Body -->
       <div class="px-5 pb-8 bot-pad-safe flex flex-col items-center">
-        <img :src="connectImage" class="w-64 h-64 object-contain anim-float" alt="friends connect" />
+<img width="256" height="256" loading="lazy" decoding="async" :src="connectImage" class="w-64 h-64 object-contain anim-float" alt="friends connect" />
         <p class="text-base text-black text-center max-w-[300px] leading-snug mb-6">
           Link your guest profile to an email or Google so your art and progress are never lost.
         </p>

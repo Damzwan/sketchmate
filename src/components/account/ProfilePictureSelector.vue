@@ -6,7 +6,11 @@
       class="cursor-pointer w-full h-full rounded-full bg-primary/40 border-4 shadow-md overflow-hidden transition-transform duration-300 relative flex items-center justify-center active:scale-95 md:group-hover/avatar:scale-105"
       :style="{ borderColor: customization?.borderColor || 'var(--ion-color-tertiary)' }"
     >
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         alt="Profile picture"
         :src="img"
         class="object-cover w-full h-full transition-transform duration-500 md:group-hover/avatar:scale-110"
@@ -45,7 +49,7 @@
     <CircularLoader v-if="cropperLoading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full safe-area">
       <div class="grow flex items-center">
-        <img :src="localImgUrl" ref="imgRef" alt="cropper image" class="hidden" />
+<img width="1" height="1" loading="eager" decoding="async" :src="localImgUrl" ref="imgRef" alt="cropper image" class="hidden" />
       </div>
       <div class="h-10 flex justify-between items-center px-4">
         <ion-button fill="clear" size="default" class="text-white" @click="closeCropper">Cancel</ion-button>
@@ -90,9 +94,18 @@ defineProps<{
 
 const emits = defineEmits(["update:img", "upload", "openPaywall"]);
 
-let cropper: Cropper;
+let cropper: Cropper | undefined;
 const cropperMenuOpen = ref(false);
 const cropperLoading = ref(true);
+const handleCropperReady = () => {
+	cropperLoading.value = false;
+};
+
+function destroyCropper() {
+	imgRef.value?.removeEventListener("ready", handleCropperReady);
+	cropper?.destroy();
+	cropper = undefined;
+}
 const imgInput = ref<HTMLInputElement>();
 const localImgUrl = ref();
 const imgRef = ref<HTMLImageElement>();
@@ -157,8 +170,8 @@ const onImageChange = async (e: Event) => {
 
 function initCropper() {
 	setAppColors(photoSwiperColorConfig);
-	imgRef.value?.addEventListener("ready", () => (cropperLoading.value = false));
-	if (cropper) cropper.destroy();
+	destroyCropper();
+	imgRef.value?.addEventListener("ready", handleCropperReady, { once: true });
 	cropper = new Cropper(imgRef.value!, {
 		aspectRatio: 1,
 		background: false,
@@ -170,10 +183,11 @@ function closeCropper() {
 	cropperMenuOpen.value = false;
 	cropperLoading.value = true;
 	setAppColors(settingsModalColorConfig);
-	if (cropper) cropper.destroy();
+	destroyCropper();
 }
 
 function apply() {
+	if (!cropper) return;
 	const imgUrl = cropper.getCroppedCanvas().toDataURL("image/webp");
 	closeCropper();
 	emits("update:img", imgUrl);

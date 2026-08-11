@@ -42,7 +42,10 @@
         @click="openPostSwiper(posts, index)"
       >
         <!-- High-contrast portfolio image snapshot cover -->
-        <img
+<img
+          width="1"
+          height="1"
+          decoding="async"
           :src="post.image_url"
           class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           loading="lazy"

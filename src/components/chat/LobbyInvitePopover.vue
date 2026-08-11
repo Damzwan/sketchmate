@@ -24,7 +24,11 @@
         >
           <div class="flex items-center gap-3 min-w-0">
             <div class="relative shrink-0">
-              <img
+<img
+                width="40"
+                height="40"
+                loading="lazy"
+                decoding="async"
                 :src="friend.img"
                 class="w-10 h-10 rounded-xl object-cover border border-default-light shadow-sm"
               />

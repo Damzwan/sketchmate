@@ -19,7 +19,7 @@
           </ion-button>
           <h2 class="relative text-[28px] font-black text-secondary italic tracking-tighter leading-none cabin-sketch-regular">
             {{ isPro ? 'Go Lifetime' : 'SketchMate Pro' }}
-            <img :src="logo" alt="" class="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 w-9 h-9 drop-shadow-sm" />
+<img width="36" height="36" loading="lazy" decoding="async" :src="logo" alt="" class="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 w-9 h-9 drop-shadow-sm" />
           </h2>
         </div>
         <p class="text-[16px] text-black/90 text-center mt-1.5">
@@ -34,7 +34,7 @@
           <!-- Title + cat share the top row so the cat reads as part of the card -->
           <div class="flex items-start justify-between gap-3">
             <h3 class="text-2xl font-black text-black tracking-tight leading-none cabin-sketch-regular pt-1">Pro</h3>
-            <img :src="crazyCat" alt="" class="w-24 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
+<img width="1" height="1" loading="lazy" decoding="async" :src="crazyCat" alt="" class="w-24 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
           <!-- Billing cycle chips -->
@@ -102,7 +102,7 @@
               </p>
               <p class="text-[14px] text-black/90 mt-0.5">One time purchase, forever yours</p>
             </div>
-            <img :src="fireCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
+<img width="1" height="1" loading="lazy" decoding="async" :src="fireCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
           <!-- Spell out that Lifetime is the SUPERSET: every Pro perk, plus the
@@ -206,7 +206,11 @@
 
         <!-- ─── Support message (avatar bubble, like Shop) ─── -->
         <div class="flex items-start gap-3">
-          <img
+<img
+            width="44"
+            height="44"
+            loading="lazy"
+            decoding="async"
             :src="bigbossImage"
             alt="Developer"
             class="w-11 h-11 rounded-full object-cover border-2 border-primary/50 shadow-sm shrink-0"

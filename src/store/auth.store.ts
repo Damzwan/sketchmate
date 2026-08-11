@@ -28,6 +28,10 @@ import {
 	updateUserTimezone,
 } from "@/service/api/user.api";
 import {
+	ensureGuestRecovery,
+	finalizeGuestRecovery,
+} from "@/service/guestRecovery.service";
+import {
 	mixpanelEvents,
 	mixpanelIdentify,
 	trackEvent,
@@ -60,6 +64,7 @@ export const useAuthStore = defineStore("auth", () => {
 	const isNewAccount = ref(false);
 	const showForceUpdateModal = ref(false);
 	const showTutorial = ref(false);
+	const mustLinkGuestAccount = ref(false);
 	const deviceFingerprint = ref<string>();
 	const localUserImg = ref<string>();
 
@@ -121,6 +126,19 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 
 		firebaseUser.value = status.user;
+		const recoveryLink = await Preferences.get({
+			key: LocalStorage.guestRecoveryLinkRequired,
+		});
+		const recoveryIsRequired = recoveryLink.value === "true";
+		const alreadyLinked = status.user.providerData.length > 0;
+		mustLinkGuestAccount.value = recoveryIsRequired && !alreadyLinked;
+		if (recoveryIsRequired && alreadyLinked) {
+			await Preferences.remove({
+				key: LocalStorage.guestRecoveryLinkRequired,
+			});
+			mustLinkGuestAccount.value = false;
+			void finalizeGuestRecovery();
+		}
 
 		const justLoggedIn = await Preferences.get({ key: LocalStorage.login });
 		const arrivedFromLogin = !!justLoggedIn.value;
@@ -171,6 +189,7 @@ export const useAuthStore = defineStore("auth", () => {
 	 */
 	async function handlePostBootstrapRouting(arrivedFromLogin: boolean) {
 		if (!ionRouter || !user.value) return;
+		if (mustLinkGuestAccount.value) return;
 
 		// 1. New signup — onboarding flow drives the stack, nothing to do here
 		if (arrivedFromLogin && isNewAccount.value) {
@@ -252,9 +271,23 @@ export const useAuthStore = defineStore("auth", () => {
 
 			void socketLogin({ _id: user.value._id });
 
-			Preferences.set({ key: LocalStorage.user_id, value: user.value._id });
-			Preferences.set({ key: LocalStorage.img, value: user.value.img });
-			Preferences.remove({ key: LocalStorage.loggedOut });
+			// Draft mirror reconciliation reads user_id to keep device backups scoped
+			// to the correct account. Commit it before routing can mount the home draft
+			// list; otherwise a cold login can permanently skip this boot's recovery.
+			await Promise.all([
+				Preferences.set({ key: LocalStorage.user_id, value: user.value._id }),
+				Preferences.set({ key: LocalStorage.img, value: user.value.img }),
+				Preferences.remove({ key: LocalStorage.loggedOut }),
+			]);
+
+			if (authUser.isAnonymous) {
+				void ensureGuestRecovery({
+					guestUid: authUser.uid,
+					profileName: user.value.name,
+				}).catch((error) =>
+					console.warn("Could not provision guest recovery:", error),
+				);
+			}
 
 			return true;
 		} catch (e) {
@@ -415,6 +448,19 @@ export const useAuthStore = defineStore("auth", () => {
 	}
 
 	async function logout() {
+		// There is no password/provider credential that can sign an anonymous
+		// Firebase UID back in. Keep this invariant in the store as well as the UI
+		// so a future logout button cannot accidentally strand a guest profile.
+		if (firebaseUser.value?.isAnonymous || mustLinkGuestAccount.value) {
+			useToast().toast(
+				"Connect an email or Google account before logging out.",
+				{
+					color: "warning",
+				},
+			);
+			return;
+		}
+
 		Preferences.remove({ key: LocalStorage.user_id });
 		// Tells the Android widget this is a real sign-out, not a cold start it
 		// happened to beat — it drops its cached drawing on seeing this.
@@ -450,6 +496,17 @@ export const useAuthStore = defineStore("auth", () => {
 		// above still see `user.value`. Previously 8 of 22 stores were reset by
 		// hand here and the rest carried the old account into the next login.
 		resetAllStores();
+	}
+
+	async function completeGuestRecoveryLink(): Promise<void> {
+		const wasRequired = mustLinkGuestAccount.value;
+		mustLinkGuestAccount.value = false;
+		await Preferences.remove({
+			key: LocalStorage.guestRecoveryLinkRequired,
+		});
+		if (wasRequired && ionRouter) {
+			ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
+		}
 	}
 
 	async function waitUntilInitialized(): Promise<User | undefined> {
@@ -489,6 +546,7 @@ export const useAuthStore = defineStore("auth", () => {
 		firebaseUser.value = undefined;
 		isLoggedIn.value = false;
 		isNewAccount.value = false;
+		mustLinkGuestAccount.value = false;
 		showTutorial.value = false;
 		lastHydratedAt.value = 0;
 		isHydrating.value = false;
@@ -506,6 +564,7 @@ export const useAuthStore = defineStore("auth", () => {
 		isLoggedIn,
 		isAuthLoading,
 		isNewAccount,
+		mustLinkGuestAccount,
 		isHydrating,
 		lastHydratedAt,
 		showForceUpdateModal,
@@ -519,6 +578,7 @@ export const useAuthStore = defineStore("auth", () => {
 		hydrateCritical,
 		hydrateBackground,
 		logout,
+		completeGuestRecoveryLink,
 		refresh,
 		waitUntilInitialized,
 		onlineUpdateRequired,

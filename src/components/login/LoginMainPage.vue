@@ -20,6 +20,30 @@
       </div>
 
       <div class="h-full w-full flex flex-col justify-end gap-4 items-center">
+        <div
+          v-if="guestRecovery && !mustLinkGuestAccount"
+          class="w-5/6 max-w-md rounded-3xl border border-amber-500/30 bg-white/70 p-4 shadow-sm"
+        >
+          <p class="text-lg font-black text-amber-900 cabin-sketch-regular">
+            Previous guest profile found
+          </p>
+          <p class="text-sm font-bold text-black/70 mt-1">
+            Recover {{ guestRecovery.profileName || 'your guest profile' }} and connect it to an email or Google account.
+          </p>
+          <p v-if="guestRecoveryError" class="text-sm font-bold text-red-600 mt-2">
+            {{ guestRecoveryError }}
+          </p>
+          <div class="flex items-center gap-2 mt-3">
+            <ion-button shape="round" color="warning" @click="recoverGuestAccount">
+              <ion-spinner v-if="guestRecoveryLoading" name="crescent" slot="end" />
+              Recover & protect
+            </ion-button>
+            <ion-button fill="clear" color="medium" size="small" @click="forgetRecoveryConfirmationOpen = true">
+              Forget
+            </ion-button>
+          </div>
+        </div>
+
         <Transition name="fade">
           <div v-if="showLoginScreen" class="w-full">
             <form v-if="!isPasswordForgotten" class="flex flex-col gap-3 mx-auto max-w-md"
@@ -171,7 +195,7 @@
           Continue With Google
         </ion-button>
         <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md cabin-sketch-regular" fill="clear"
-                    @click="isAnonymousConfirmationOpen=true">Continue
+                    v-if="!guestRecovery" @click="isAnonymousConfirmationOpen=true">Continue
           <ion-spinner name="crescent" slot="end" class="ml-2 text-secondary" v-if="anonymousLoading" />
           As Anonymous
         </ion-button>
@@ -184,8 +208,18 @@
       v-model:is-open="isAnonymousConfirmationOpen"
       confirmationtext="Create anonymous account"
       header="Anonymous Login"
-      message="You won't be able to access this account on other devices or after logout. You can upgrade later."
+      message="This profile stays on this device until you connect an email or Google account. Guest profiles cannot be logged out until they are protected."
       @confirm="onAnonymousLogin"
+    />
+
+    <UpgradeAccountModal v-if="mustLinkGuestAccount" required />
+
+    <ConfirmationAlert
+      v-model:is-open="forgetRecoveryConfirmationOpen"
+      confirmationtext="Forget profile"
+      header="Start without this profile?"
+      message="This removes the account-recovery key from this device. Local draft data is not deleted, but the guest account may require support to recover later."
+      @confirm="forgetGuestRecovery"
     />
 
   </ion-content>
@@ -207,6 +241,7 @@ import {
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
+import { storeToRefs } from "pinia";
 import { onMounted, ref } from "vue";
 import drawing1 from "@/assets/login_images/1.webp";
 import drawing2 from "@/assets/login_images/2.webp";
@@ -231,7 +266,9 @@ import drawing20 from "@/assets/login_images/20.webp";
 import logo from "@/assets/logo.webp";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import LoginMovingDrawingRow from "@/components/login/LoginMovingDrawingRow.vue";
+import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
 import { shuffleArray, svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
 import { useLoginActions } from "./useLoginActions";
 
 const drawings1 = shuffleArray([
@@ -262,9 +299,11 @@ const drawings2 = shuffleArray([
 const showLoginScreen = ref(false);
 const isPasswordForgotten = ref(false);
 const isAnonymousConfirmationOpen = ref(false);
+const forgetRecoveryConfirmationOpen = ref(false);
 
 const isShortScreen = ref(false);
 const isSuperShortScreen = ref(false);
+const { mustLinkGuestAccount } = storeToRefs(useAuthStore());
 
 onMounted(() => {
 	isShortScreen.value = window.innerHeight < 1200;
@@ -281,6 +320,9 @@ const {
 	forgotPassword,
 	forgotPasswordSent,
 	isRegistering,
+	guestRecovery,
+	guestRecoveryLoading,
+	guestRecoveryError,
 	isLoginInValid,
 	isForgetPasswordInvalid,
 	isRegisterInvalid,
@@ -288,6 +330,8 @@ const {
 	onEmailLoginSubmit,
 	onGoogleLogin,
 	onAnonymousLogin,
+	recoverGuestAccount,
+	forgetGuestRecovery,
 } = useLoginActions();
 </script>
 

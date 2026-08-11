@@ -13,6 +13,8 @@ export enum LocalStorage {
 	notificationToken = "notification_token",
 	installId = "install_id",
 	guestUpgradeDismissed = "guest_upgrade_dismissed",
+	guestRecovery = "guest_recovery",
+	guestRecoveryLinkRequired = "guest_recovery_link_required",
 	/**
 	 * Set on logout, cleared on login. Read by the ANDROID home-screen widget
 	 * (Widget.java), which otherwise cannot tell "signed out" from "the WebView

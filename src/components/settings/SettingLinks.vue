@@ -101,20 +101,19 @@
     <SettingCard
       v-if="form"
       :icon="mdiLogoutVariant"
-      label="Logout"
-      tone="danger"
+      :label="isGuest ? 'Protect guest account' : 'Logout'"
+      :tone="isGuest ? undefined : 'danger'"
       @click="logoutHelper"
     />
 
     <IosPwaInstructions :trigger="pwaInstructionId" v-if="showIosSafariInstructions()" />
+    <UpgradeAccountModal :trigger="guestProtectionTriggerId" />
 
     <ConfirmationAlert
       v-model:is-open="logoutWarningOpen"
       confirmationtext="Logout"
-      :header="isGuest ? `Wait! Don't Lose Your Art` : 'Log out?'"
-      :message="isGuest
-        ? `You're drawing as a guest. Logging out will delete your progress forever! Are you sure?`
-        : `You'll need to sign back in to access your account.`"
+      header="Log out?"
+      message="You'll need to sign back in to access your account."
       @confirm="logout"
     />
   </div>
@@ -139,6 +138,7 @@ import { computed, ref } from "vue";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
 import SettingCard from "@/components/settings/SettingCard.vue";
+import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
 import { contact_mail, discord_link } from "@/config/general.config";
 import { masterAnimation } from "@/helper/animation.helper";
 import { installPWA, svg } from "@/helper/general.helper";
@@ -163,6 +163,7 @@ const { openMenu } = useMenuStore();
 const r = useIonRouter();
 
 const pwaInstructionId = uuidv4();
+const guestProtectionTriggerId = uuidv4();
 const logoutWarningOpen = ref(false);
 
 const isGuest = computed(() => !!firebaseUser.value?.isAnonymous);
@@ -186,6 +187,13 @@ function onInstallPWAClick() {
 }
 
 function logoutHelper() {
+	// Anonymous Firebase credentials cannot be recreated after sign-out. Do not
+	// offer a destructive action for a guest; take them straight to the flow
+	// that upgrades this exact Firebase identity instead.
+	if (isGuest.value) {
+		document.getElementById(guestProtectionTriggerId)?.click();
+		return;
+	}
 	logoutWarningOpen.value = true;
 }
 </script>

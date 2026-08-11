@@ -8,6 +8,14 @@ import {
 	precalculateAndSetViewport,
 } from "@/draw/canvas/viewport";
 import {
+	listNativeDraftMetadata,
+	nativeDraftMirrorAvailable,
+	nativeDraftMirrorHasOwner,
+	queueNativeDraftMirror,
+	readNativeDraft,
+	removeNativeDraft,
+} from "@/draw/document/nativeDraftMirror";
+import {
 	documentJsonToBlob,
 	enlivenObjectsTimeSlivered,
 	generateChunkedJSON,
@@ -75,6 +83,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	const dbName = "canvasDB";
 	const objectStoreName = "canvasHistory";
 	const metadataStoreName = "canvasMetadata";
+	const recoveryStoreName = "canvasRecovery";
 
 	// --- Reactive State ---
 	const currentDraftId = ref<string | undefined>();
@@ -116,6 +125,10 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	let autosaveQuietTimer: ReturnType<typeof setTimeout> | undefined;
 	let liveAbortController: AbortController | undefined;
 	let lastDirtyAt = 0;
+	let dirtyRevision = 0;
+	let storagePersistenceRequested = false;
+	let nativeReconciliationDone = false;
+	let dbInitPromise: Promise<void> | undefined;
 
 	const SAVE_INTERVAL_MS = 20000;
 	const AUTOSAVE_QUIET_MS = 1500;
@@ -125,11 +138,24 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	// 💾 DATABASE
 	// ==========================================
 	async function initDB() {
-		if (db.value) return;
+		if (db.value) {
+			await reconcileNativeDrafts();
+			return;
+		}
+		if (!dbInitPromise) {
+			dbInitPromise = initializeDB().finally(() => {
+				dbInitPromise = undefined;
+			});
+		}
+		await dbInitPromise;
+	}
+
+	async function initializeDB() {
+		requestPersistentStorage();
 
 		const open = () =>
 			new Promise<IDBDatabase>((resolve, reject) => {
-				const request = indexedDB.open(dbName, 3);
+				const request = indexedDB.open(dbName, 4);
 				request.onupgradeneeded = (event) => {
 					const localDb = (event.target as IDBOpenDBRequest).result;
 					const transaction = (event.target as IDBOpenDBRequest).transaction!;
@@ -139,6 +165,12 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 					const metadata = localDb.objectStoreNames.contains(metadataStoreName)
 						? transaction.objectStore(metadataStoreName)
 						: localDb.createObjectStore(metadataStoreName, { keyPath: "id" });
+					if (!localDb.objectStoreNames.contains(recoveryStoreName)) {
+						// One previous committed revision per draft. This is intentionally a
+						// separate store so a bad/partial new snapshot never overwrites the
+						// only readable copy.
+						localDb.createObjectStore(recoveryStoreName, { keyPath: "id" });
+					}
 
 					// Version 2 stored list metadata beside the potentially huge JSON blob.
 					// Backfill the new lightweight store inside the upgrade transaction; the
@@ -158,27 +190,129 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 						};
 					}
 				};
-				request.onsuccess = (e) =>
-					resolve((e.target as IDBOpenDBRequest).result);
-				request.onerror = () => reject(new Error("Error opening IndexedDB"));
+				request.onsuccess = (e) => {
+					const opened = (e.target as IDBOpenDBRequest).result;
+					opened.onversionchange = () => opened.close();
+					resolve(opened);
+				};
+				request.onerror = () =>
+					reject(request.error ?? new Error("Error opening IndexedDB"));
+				request.onblocked = () =>
+					reject(new Error("Draft storage upgrade is blocked by another tab"));
 			});
 
-		let database = await open();
-		if (!validateSchema(database)) database = await open();
+		const database = await open();
+		validateSchema(database);
 		db.value = database;
+		await reconcileNativeDrafts();
 	}
 
-	function validateSchema(db: IDBDatabase) {
-		const tx = db.transaction([objectStoreName, metadataStoreName], "readonly");
+	function validateSchema(db: IDBDatabase): void {
+		const tx = db.transaction(
+			[objectStoreName, metadataStoreName, recoveryStoreName],
+			"readonly",
+		);
 		const store = tx.objectStore(objectStoreName);
 		const metadata = tx.objectStore(metadataStoreName);
-		if (store.keyPath !== "id" || metadata.keyPath !== "id") {
-			console.warn("❌ Invalid schema detected. Rebuilding DB...");
+		const recovery = tx.objectStore(recoveryStoreName);
+		if (
+			store.keyPath !== "id" ||
+			metadata.keyPath !== "id" ||
+			recovery.keyPath !== "id"
+		) {
+			// Never delete a database merely because its shape is unexpected. The
+			// old behaviour tried to rebuild it here, permanently erasing every
+			// draft. Preserve the bytes so a later migration/support export can
+			// recover them and fail this save explicitly.
 			db.close();
-			indexedDB.deleteDatabase(dbName);
-			return false;
+			throw new Error(
+				"Unsupported draft storage schema; existing data preserved",
+			);
 		}
-		return true;
+	}
+
+	function requestPersistentStorage(): void {
+		if (storagePersistenceRequested) return;
+		storagePersistenceRequested = true;
+		const persist = navigator.storage?.persist;
+		if (typeof persist !== "function") return;
+		void persist
+			.call(navigator.storage)
+			.catch((error) =>
+				console.warn("Could not request persistent draft storage:", error),
+			);
+	}
+
+	async function reconcileNativeDrafts(): Promise<void> {
+		if (nativeReconciliationDone) return;
+		if (!nativeDraftMirrorAvailable()) {
+			nativeReconciliationDone = true;
+			return;
+		}
+		if (!(await nativeDraftMirrorHasOwner())) return;
+		nativeReconciliationDone = true;
+		try {
+			const metadata = await listNativeDraftMetadata();
+			const nativeUpdatedAt = new Map(
+				metadata.map((item) => [item.id, item.updatedAt]),
+			);
+			for (const item of metadata) {
+				const existing = await readStoredDraft(objectStoreName, item.id);
+				if (existing) continue;
+				const native = await readNativeDraft(item.id);
+				if (!native) continue;
+				await putRecoveredDraft({
+					id: native.id,
+					json: native.json,
+					updatedAt: native.updatedAt,
+					thumbnail: native.thumbnail,
+				});
+			}
+			afterIdle(() => void backfillNativeDrafts(nativeUpdatedAt), 5_000);
+		} catch (error) {
+			console.warn("Native draft reconciliation failed:", error);
+		}
+	}
+
+	async function backfillNativeDrafts(
+		nativeUpdatedAt: Map<string, number>,
+	): Promise<void> {
+		if (!db.value) return;
+		try {
+			const drafts = await new Promise<DrawingDraft[]>((resolve, reject) => {
+				const request = db
+					.value!.transaction([objectStoreName], "readonly")
+					.objectStore(objectStoreName)
+					.getAll();
+				request.onsuccess = () => resolve(request.result ?? []);
+				request.onerror = () => reject(request.error);
+			});
+			for (const draft of drafts) {
+				if ((nativeUpdatedAt.get(draft.id) ?? 0) >= draft.updatedAt) continue;
+				queueNativeDraftMirror(draft);
+			}
+		} catch (error) {
+			console.warn("Native draft backfill failed:", error);
+		}
+	}
+
+	async function putRecoveredDraft(draft: DrawingDraft): Promise<void> {
+		if (!db.value) return;
+		const tx = db.value.transaction(
+			[objectStoreName, metadataStoreName],
+			"readwrite",
+		);
+		tx.objectStore(objectStoreName).put(draft);
+		tx.objectStore(metadataStoreName).put({
+			id: draft.id,
+			updatedAt: draft.updatedAt,
+			thumbnail: draft.thumbnail,
+		} satisfies DrawingDraftMetadata);
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+			tx.onabort = () => reject(tx.error ?? new Error("Draft restore aborted"));
+		});
 	}
 
 	// ==========================================
@@ -424,26 +558,36 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			updatedAt: Date.now(),
 		};
 		const transaction = db.value.transaction(
-			[objectStoreName, metadataStoreName],
+			[objectStoreName, metadataStoreName, recoveryStoreName],
 			"readwrite",
 		);
 		await new Promise<void>((resolve, reject) => {
 			const dispatchStartedAt = performance.now();
-			const req = transaction.objectStore(objectStoreName).put(draft);
-			transaction.objectStore(metadataStoreName).put({
-				id: draft.id,
-				updatedAt: draft.updatedAt,
-				thumbnail: draft.thumbnail,
-			} satisfies DrawingDraftMetadata);
+			const drafts = transaction.objectStore(objectStoreName);
+			const previousRequest = drafts.get(draft.id);
+			previousRequest.onsuccess = () => {
+				const previous = previousRequest.result as DrawingDraft | undefined;
+				if (previous) {
+					transaction.objectStore(recoveryStoreName).put(previous);
+				}
+				drafts.put(draft);
+				transaction.objectStore(metadataStoreName).put({
+					id: draft.id,
+					updatedAt: draft.updatedAt,
+					thumbnail: draft.thumbnail,
+				} satisfies DrawingDraftMetadata);
+			};
 			recordPhase(
 				"draftPersistDispatch",
 				performance.now() - dispatchStartedAt,
 			);
 			transaction.oncomplete = () => resolve();
-			transaction.onerror = () => reject(transaction.error ?? req.error);
+			transaction.onerror = () =>
+				reject(transaction.error ?? previousRequest.error);
 			transaction.onabort = () =>
 				reject(transaction.error ?? new Error("Draft save aborted"));
 		});
+		queueNativeDraftMirror(draft);
 	}
 
 	async function performLiveSave() {
@@ -458,6 +602,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		if (liveAbortController) liveAbortController.abort();
 		liveAbortController = new AbortController();
 		const signal = liveAbortController.signal;
+		const revisionAtStart = dirtyRevision;
 
 		try {
 			isSaving.value = true;
@@ -465,7 +610,10 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			if (!snapshot || signal.aborted) return;
 			await runSave(snapshot, signal);
 			if (signal.aborted) return;
-			isDirty.value = false;
+			// Edits can land while JSON/thumbnail/IDB work is in flight. Only mark
+			// clean if this save includes the latest dirty revision; otherwise the
+			// next quiet save must persist those newer edits.
+			if (dirtyRevision === revisionAtStart) isDirty.value = false;
 			lastSavedAt.value = Date.now();
 		} catch (error: any) {
 			if (error.name !== "AbortError") console.error("🔥 Save Error:", error);
@@ -523,6 +671,11 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		isDirty.value = true;
 		sessionHasContent.value = true;
 		lastDirtyAt = Date.now();
+		dirtyRevision += 1;
+		// Start the debounce on the first edit instead of waiting up to 20 seconds
+		// for the safety interval. Continuous drawing keeps pushing lastDirtyAt;
+		// the snapshot begins once the canvas has actually been quiet.
+		saveWhenQuiet();
 	};
 
 	function saveWhenQuiet() {
@@ -579,14 +732,11 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			.then(([jsonBlob, thumbnail]) =>
 				runSave({ ...snapshot, jsonBlob, thumbnail }, ctrl.signal),
 			)
-			.then(() => {
-				pendingDrafts.value.delete(draftId);
-				pendingDrafts.value = new Map(pendingDrafts.value);
-			})
 			.catch((e) => {
-				// Ignore abort errors visually, log others
 				if (e.name !== "AbortError")
 					console.error("🔥 Background save failed:", e);
+			})
+			.finally(() => {
 				pendingDrafts.value.delete(draftId);
 				pendingDrafts.value = new Map(pendingDrafts.value);
 			});
@@ -605,6 +755,9 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	const exitWithBackgroundSave = async (): Promise<PendingDraft | null> => {
 		if (!currentDraftId.value) currentDraftId.value = uuidv4();
 		if (!hasContent()) return null;
+		// queueBackgroundSave resolves after detaching an immutable JSON snapshot.
+		// Blob conversion and IndexedDB persistence continue independently, so the
+		// UI can navigate immediately without the live canvas being disposed early.
 		return await queueBackgroundSave(currentDraftId.value, true);
 	};
 
@@ -618,13 +771,67 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 	async function getDraft(id: string): Promise<DrawingDraft | undefined> {
 		await initDB();
-		return new Promise((resolve) => {
+		const primary = await readStoredDraft(objectStoreName, id);
+		const readablePrimary = await makeDraftReadable(primary);
+		if (readablePrimary) return readablePrimary;
+
+		const recovery = await readStoredDraft(recoveryStoreName, id);
+		const readableRecovery = await makeDraftReadable(recovery);
+		if (readableRecovery) {
+			console.warn(`[drafts] Restored previous local revision for ${id}`);
+			return readableRecovery;
+		}
+
+		const native = await readNativeDraft(id);
+		const readableNative = await makeDraftReadable(
+			native
+				? {
+						id: native.id,
+						json: native.json,
+						updatedAt: native.updatedAt,
+						thumbnail: native.thumbnail,
+					}
+				: undefined,
+		);
+		if (readableNative) {
+			await putRecoveredDraft(readableNative);
+			console.warn(`[drafts] Restored native filesystem copy for ${id}`);
+			return readableNative;
+		}
+		return undefined;
+	}
+
+	function readStoredDraft(
+		storeName: string,
+		id: string,
+	): Promise<DrawingDraft | undefined> {
+		return new Promise((resolve, reject) => {
 			const req = db
-				.value!.transaction([objectStoreName], "readonly")
-				.objectStore(objectStoreName)
+				.value!.transaction([storeName], "readonly")
+				.objectStore(storeName)
 				.get(id);
-			req.onsuccess = (e) => resolve((e.target as IDBRequest).result);
+			req.onsuccess = () => resolve(req.result as DrawingDraft | undefined);
+			req.onerror = () => reject(req.error);
 		});
+	}
+
+	async function makeDraftReadable(
+		draft: DrawingDraft | undefined,
+	): Promise<DrawingDraft | undefined> {
+		if (!draft) return undefined;
+		try {
+			const json =
+				draft.json instanceof Blob
+					? JSON.parse(await draft.json.text())
+					: typeof draft.json === "string"
+						? JSON.parse(draft.json)
+						: draft.json;
+			if (!json || typeof json !== "object") return undefined;
+			return { ...draft, json };
+		} catch (error) {
+			console.warn(`[drafts] Unreadable local revision ${draft.id}:`, error);
+			return undefined;
+		}
 	}
 
 	async function removeDraft(id?: string): Promise<void> {
@@ -646,15 +853,17 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		await initDB();
 		const tx = db.value!.transaction(
-			[objectStoreName, metadataStoreName],
+			[objectStoreName, metadataStoreName, recoveryStoreName],
 			"readwrite",
 		);
 		tx.objectStore(objectStoreName).delete(targetId);
 		tx.objectStore(metadataStoreName).delete(targetId);
+		tx.objectStore(recoveryStoreName).delete(targetId);
 		await new Promise((resolve, reject) => {
 			tx.oncomplete = () => resolve(null);
 			tx.onerror = () => reject(tx.error);
 		});
+		await removeNativeDraft(targetId);
 	}
 
 	async function getAllDrafts(): Promise<DrawingDraft[]> {
@@ -691,6 +900,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		lastSavedAt.value = undefined;
 		lastManualSaveAt = 0;
 		lastDirtyAt = 0;
+		dirtyRevision = 0;
 		liveAbortController = undefined;
 	}
 
@@ -705,6 +915,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		isSaving.value = false;
 		isPreExistingDraft.value = false;
 		sessionHasContent.value = false;
+		dirtyRevision = 0;
 	}
 
 	const pendingDraftsList = computed<DrawingDraftMetadata[]>(() => {

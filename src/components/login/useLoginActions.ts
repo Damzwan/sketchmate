@@ -6,6 +6,12 @@ import {
 import { computed, ref, watch } from "vue";
 import { useCredentialsValidation } from "@/composables/general/useCredentialsValidation";
 import { isNative } from "@/helper/platform.helper";
+import { redeemGuestRecovery } from "@/service/api/guestRecovery.api";
+import {
+	clearGuestRecovery,
+	readGuestRecovery,
+	type StoredGuestRecovery,
+} from "@/service/guestRecovery.service";
 import { useToast } from "@/service/toast.service";
 import { LocalStorage } from "@/types/storage.types";
 import { ToastDuration } from "@/types/toast.types";
@@ -23,6 +29,11 @@ export function useLoginActions() {
 	const forgotPassword = ref(false);
 	const forgotPasswordSent = ref(false);
 	const isRegistering = ref(false);
+	const guestRecovery = ref<StoredGuestRecovery | null>(null);
+	const guestRecoveryLoading = ref(false);
+	const guestRecoveryError = ref("");
+
+	void refreshGuestRecovery();
 
 	const isLoginInValid = computed(
 		() => v$.value.loginEmail.$invalid || v$.value.password.$invalid,
@@ -121,6 +132,49 @@ export function useLoginActions() {
 		}
 	}
 
+	async function refreshGuestRecovery() {
+		guestRecovery.value = await readGuestRecovery();
+	}
+
+	async function recoverGuestAccount() {
+		if (!guestRecovery.value || guestRecoveryLoading.value) return;
+		guestRecoveryLoading.value = true;
+		guestRecoveryError.value = "";
+		try {
+			const recovery = await redeemGuestRecovery({
+				credentialId: guestRecovery.value.credentialId,
+				secret: guestRecovery.value.secret,
+			});
+			await Promise.all([
+				Preferences.set({ key: LocalStorage.login, value: "true" }),
+				Preferences.set({
+					key: LocalStorage.guestRecoveryLinkRequired,
+					value: "true",
+				}),
+			]);
+			await onLoginResult(
+				await FirebaseAuthentication.signInWithCustomToken({
+					token: recovery.customToken,
+				}),
+			);
+		} catch (error) {
+			console.warn("Guest recovery failed:", error);
+			await Preferences.remove({
+				key: LocalStorage.guestRecoveryLinkRequired,
+			});
+			guestRecoveryError.value =
+				"We couldn't recover this guest profile. You can forget it and start again, or contact support.";
+		} finally {
+			guestRecoveryLoading.value = false;
+		}
+	}
+
+	async function forgetGuestRecovery() {
+		await clearGuestRecovery();
+		guestRecovery.value = null;
+		guestRecoveryError.value = "";
+	}
+
 	async function onLoginResult(result: SignInResult) {
 		if (result.user) return;
 		loginLoading.value = false;
@@ -146,6 +200,9 @@ export function useLoginActions() {
 		forgotPassword,
 		forgotPasswordSent,
 		isRegistering,
+		guestRecovery,
+		guestRecoveryLoading,
+		guestRecoveryError,
 		isLoginInValid,
 		isForgetPasswordInvalid,
 		isRegisterInvalid,
@@ -153,6 +210,8 @@ export function useLoginActions() {
 		onEmailLoginSubmit,
 		onGoogleLogin,
 		onAnonymousLogin,
+		recoverGuestAccount,
+		forgetGuestRecovery,
 	};
 }
 

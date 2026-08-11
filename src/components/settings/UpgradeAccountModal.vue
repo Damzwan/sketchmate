@@ -1,5 +1,12 @@
 <template>
-  <ion-modal ref="modal" :trigger="trigger" class="upgrade-account-modal">
+  <ion-modal
+    ref="modal"
+    :trigger="required ? undefined : trigger"
+    :is-open="required"
+    :backdrop-dismiss="!required"
+    :can-dismiss="!required"
+    class="upgrade-account-modal"
+  >
     <ion-content class="bg-background cabin-sketch-regular">
 
       <!-- Header (shop-style: safe-area top + mdi back button) -->
@@ -7,7 +14,7 @@
         class="sticky top-0 z-50 flex items-center gap-1 px-2 pb-3 bg-background"
         :style="{ paddingTop: 'calc(8px + var(--ion-safe-area-top, 0px))' }"
       >
-        <ion-button fill="clear" class="m-0 active:scale-90 transition-transform" @click="modalController.dismiss()">
+        <ion-button v-if="!required" fill="clear" class="m-0 active:scale-90 transition-transform" @click="modalController.dismiss()">
           <ion-icon :icon="svg(mdiChevronLeft)" class="text-[26px] text-black" slot="icon-only" />
         </ion-button>
         <h1 class="text-2xl font-light text-black leading-none">Save your progress</h1>
@@ -133,23 +140,26 @@ import { svg } from "@/helper/general.helper";
 withDefaults(
 	defineProps<{
 		trigger?: string;
+		required?: boolean;
 	}>(),
 	{
 		trigger: "openUpgradeAccountModal",
+		required: false,
 	},
 );
 
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { GoogleAuthProvider, getAuth, linkWithCredential } from "firebase/auth";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import connectImage from "@/assets/illustrations/connect.webp";
+import { finalizeGuestRecovery } from "@/service/guestRecovery.service";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { ToastDuration } from "@/types/toast.types";
 
 const { toast } = useToast();
-const { firebaseUser } = storeToRefs(useAuthStore());
+const authStore = useAuthStore();
+const { firebaseUser } = storeToRefs(authStore);
 
 const { state, v$ } = useCredentialsValidation();
 const loginErrorMsg = ref("");
@@ -173,8 +183,10 @@ async function onEmailLoginSubmit() {
 		const { user } = await FirebaseAuthentication.getCurrentUser();
 		const params = { email: state.loginEmail, password: state.password };
 
-		if (user && user.isAnonymous) {
+		if (user) {
 			await FirebaseAuthentication.linkWithEmailAndPassword(params);
+			await finalizeGuestRecovery();
+			await authStore.completeGuestRecoveryLink();
 			modalController.dismiss();
 			firebaseUser.value!.isAnonymous = false;
 			toast("Account linked successfully!");
@@ -184,7 +196,8 @@ async function onEmailLoginSubmit() {
 			e.code === "auth/email-already-in-use" ||
 			e.message?.includes("email-already-in-use")
 		) {
-			loginErrorMsg.value = "Account already exists, try logging in instead.";
+			loginErrorMsg.value =
+				"That email already belongs to another SketchMate account. Use a different email or contact support to merge the accounts.";
 		} else {
 			console.error("Auth Error:", e);
 			loginErrorMsg.value = "Something went wrong. Please try again later.";
@@ -197,15 +210,12 @@ async function onEmailLoginSubmit() {
 async function onGoogleLogin() {
 	googleloading.value = true;
 	try {
-		const result = await FirebaseAuthentication.signInWithGoogle();
-		const idToken = result.credential?.idToken;
-		if (!idToken) throw new Error("Missing Google ID Token");
-		const auth = getAuth();
-		const googleCredential = GoogleAuthProvider.credential(idToken);
-		const user = auth.currentUser;
-		if (!user) throw new Error("Missing user");
-
-		await linkWithCredential(user, googleCredential);
+		// This must be a link operation, not a normal Google sign-in. A sign-in can
+		// replace the anonymous native Firebase session before it is linked, which
+		// strands the guest profile we are trying to protect.
+		await FirebaseAuthentication.linkWithGoogle();
+		await finalizeGuestRecovery();
+		await authStore.completeGuestRecoveryLink();
 		modalController.dismiss();
 		firebaseUser.value!.isAnonymous = false;
 		toast("Account linked successfully!");
@@ -214,6 +224,7 @@ async function onGoogleLogin() {
 			color: "danger",
 			duration: ToastDuration.medium,
 		});
+	} finally {
 		googleloading.value = false;
 	}
 }

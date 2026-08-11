@@ -60,14 +60,10 @@
             class="crop-stage"
             :class="{ 'is-ready': isCropperReady, 'is-settling': isSettling }"
           >
-<img
-              width="1"
-              height="1"
-              loading="lazy"
-              decoding="async"
-              ref="imageRef"
+            <img
+				ref="imageRef"
 				:src="props.src || undefined"
-              class="block max-w-full"
+				class="block max-w-full"
               crossorigin="anonymous"
             />
           </div>

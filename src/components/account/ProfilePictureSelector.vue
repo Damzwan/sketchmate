@@ -49,7 +49,7 @@
     <CircularLoader v-if="cropperLoading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full safe-area">
       <div class="grow flex items-center">
-<img width="1" height="1" loading="eager" decoding="async" :src="localImgUrl" ref="imgRef" alt="cropper image" class="hidden" />
+        <img :src="localImgUrl" ref="imgRef" alt="cropper image" class="hidden" />
       </div>
       <div class="h-10 flex justify-between items-center px-4">
         <ion-button fill="clear" size="default" class="text-white" @click="closeCropper">Cancel</ion-button>

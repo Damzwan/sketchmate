@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, shallowRef, triggerRef } from "vue";
+import { ref } from "vue";
 import {
 	toggleReaction as apiReact,
 	deleteComment,
@@ -16,7 +16,7 @@ export const usePostStore = defineStore("post", () => {
 	// One cached list per tab. Switching tabs shouldn't re-hit the network for a
 	// list we already pulled this session — the feed is a single capped fetch, so
 	// there's nothing to page in and a refetch would just reshuffle under the user.
-	const feedByTab = shallowRef<Record<FeedTab, FeedPost[]>>({
+	const feedByTab = ref<Record<FeedTab, FeedPost[]>>({
 		for_you: [],
 		mates: [],
 		latest: [],
@@ -26,14 +26,14 @@ export const usePostStore = defineStore("post", () => {
 		mates: false,
 		latest: false,
 	});
-	const userPosts = shallowRef<FeedPost[]>([]);
+	const userPosts = ref<FeedPost[]>([]);
 	const userPage = ref(1);
 	const hasMoreUserPosts = ref(true);
 	const isProfileDirty = ref(false);
 	const isFeedDirty = ref(false);
 	const limit = 20;
 	const MAX_USER_POSTS = 200;
-	const postCache = shallowRef<Record<string, FeedPost>>({});
+	const postCache = ref<Record<string, FeedPost>>({});
 	const POST_CACHE_LIMIT = 60;
 	const postCacheAccess = new Map<string, number>();
 	const viewedFeedPostIds = new Set<string>();
@@ -53,13 +53,11 @@ export const usePostStore = defineStore("post", () => {
 			delete postCache.value[id];
 			postCacheAccess.delete(id);
 		});
-		if (staleIds.length > 0) triggerRef(postCache);
 	}
 
 	function cachePost(post: FeedPost) {
 		if (!post?._id) return;
 		postCache.value[post._id] = post;
-		triggerRef(postCache);
 		postCacheAccess.set(post._id, ++postCacheClock);
 		prunePostCache();
 	}
@@ -89,7 +87,6 @@ export const usePostStore = defineStore("post", () => {
 		try {
 			const res = await fetchFeed(tab, limit);
 			feedByTab.value[tab] = res.feed;
-			triggerRef(feedByTab);
 			fetchedTabs.value[tab] = true;
 			isFeedDirty.value = false;
 		} catch (error) {
@@ -104,7 +101,6 @@ export const usePostStore = defineStore("post", () => {
 			feedByTab.value[tab] = [];
 			fetchedTabs.value[tab] = false;
 		}
-		triggerRef(feedByTab);
 	}
 
 	/** Apply a mutation to every cached copy of a post across all three tabs. */
@@ -121,10 +117,7 @@ export const usePostStore = defineStore("post", () => {
 			const res = await fetchUserPosts(userId, userPage.value, limit);
 			const fetchedPosts = res.posts || [];
 			if (isInitial) userPosts.value = fetchedPosts;
-			else {
-				userPosts.value.push(...fetchedPosts);
-				triggerRef(userPosts);
-			}
+			else userPosts.value.push(...fetchedPosts);
 
 			// Profile galleries are the one paginated list with no natural end, and
 			// each entry drives a decoded thumbnail. Stop at the ceiling rather than
@@ -147,7 +140,6 @@ export const usePostStore = defineStore("post", () => {
 				(p) => p._id !== postId,
 			);
 		}
-		triggerRef(feedByTab);
 		userPosts.value = userPosts.value.filter((p) => p._id !== postId);
 	}
 
@@ -189,11 +181,6 @@ export const usePostStore = defineStore("post", () => {
 		collect(target);
 
 		seen.forEach((post) => applyReactionToggle(post, type));
-		// Feed records are shallow server snapshots; optimistic field updates need
-		// one explicit notification instead of a proxy per nested property.
-		triggerRef(feedByTab);
-		triggerRef(userPosts);
-
 		return await apiReact(postId, type);
 	}
 
@@ -220,9 +207,6 @@ export const usePostStore = defineStore("post", () => {
 		};
 		eachFeedList(removeFrom);
 		removeFrom(userPosts.value);
-		triggerRef(feedByTab);
-		triggerRef(userPosts);
-
 		return await deleteComment(postId, commentId);
 	}
 

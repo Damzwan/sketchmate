@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef, triggerRef } from "vue";
+import { computed, ref } from "vue";
 import {
 	getInbox,
 	getSingleInboxItem,
@@ -10,9 +10,7 @@ import { useUserCacheStore } from "@/store/userCache.store";
 import type { CommentRes, GetInboxRes, InboxItem } from "@/types/server.types";
 
 export const useInboxStore = defineStore("inbox", () => {
-	// Inbox items are server snapshots. Avoid recursively proxying their drawings,
-	// comments, and participant data; list replacement is the normal update path.
-	const inbox = shallowRef<InboxItem[]>([]);
+	const inbox = ref<InboxItem[]>([]);
 	const isInboxLoading = ref(false);
 
 	// Id → item index. Chat renders one bubble per message and each shared-sketch
@@ -177,8 +175,6 @@ export const useInboxStore = defineStore("inbox", () => {
 		inbox.value[index].comments.push(commentRes.comment);
 		inbox.value[index].comment_count += 1;
 		inbox.value[index].comments_seen_by = [commentRes.comment.sender];
-		// `inbox` is shallow: this is the one intentional nested optimistic update.
-		triggerRef(inbox);
 	}
 
 	function findUserInInboxUsers(id: string) {

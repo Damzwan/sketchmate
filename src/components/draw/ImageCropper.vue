@@ -3,7 +3,7 @@
     <CircularLoader v-if="loading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full">
       <div class="flex-grow flex items-center">
-<img width="1" height="1" loading="eager" decoding="async" :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
+        <img :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
       </div>
 
       <div class="h-10 flex justify-between items-center">

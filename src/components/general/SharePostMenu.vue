@@ -51,7 +51,6 @@
       </div>
 
       <div
-        ref="scrollContainer"
         @touchmove.stop
         class="flex-1 overflow-y-auto overscroll-contain px-1 space-y-3 hide-scrollbar pb-4 scroll-mask"
       >
@@ -146,7 +145,6 @@ const minChatVersion = "0.4.0";
 const loading = ref(false);
 const isSending = ref(false);
 const selectedFriendIds = ref<string[]>([]);
-const scrollContainer = ref<HTMLElement | null>(null);
 let matesFetchedThisSession = false;
 
 // --- Preview adapters (post vs inbox) ---

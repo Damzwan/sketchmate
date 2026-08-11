@@ -107,7 +107,6 @@ defineEmits<{
 const archive = ref<ArchivedCompetition[]>([]);
 const themes = ref<CompetitionTheme[]>([]);
 const archiveOpen = ref(false);
-const leadingTheme = computed(() => themes.value[0] ?? null);
 const colors = computed(() => resolveAccent(props.accent));
 const ctaStyle = computed(() => ({
 	background: `linear-gradient(135deg, ${colors.value.from}, ${colors.value.to})`,

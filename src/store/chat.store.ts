@@ -26,6 +26,7 @@ import type {
 	ChatStatus,
 	Mate,
 	PopulatedConversation,
+	UserCustomization,
 } from "@/types/server.types";
 import { uuidv4 } from "@/utils/uuid";
 
@@ -34,6 +35,51 @@ type FrontendMessage = BaseMessage & {
 	localKey?: string;
 	status?: "sending" | "sent" | "error";
 };
+
+/**
+ * A conversation as it arrives on the socket. The REST endpoints populate
+ * `participants` into `Mate[]`, but the socket payload sometimes carries raw
+ * ObjectId strings — `addIncomingMessage` has always had to cope with both,
+ * which is what the `as any` casts and the `@ts-expect-error` in here were for.
+ * Naming the union makes that explicit instead of implicit.
+ */
+type IncomingConversation = Omit<PopulatedConversation, "participants"> & {
+	participants: (Mate | string)[];
+};
+
+const participantId = (p: Mate | string): string =>
+	typeof p === "string" ? p : p._id;
+
+/**
+ * An in-flight message the client invented before the server echoed one back.
+ * The server-assigned fields are filled with local stand-ins at creation so
+ * consumers can treat it like any other message; `resolveOptimisticMessage`
+ * swaps in the real record when it lands.
+ */
+type OptimisticMessage = FrontendMessage & {
+	isOptimistic: true;
+	localKey: string;
+};
+
+/** One chat toast. `lines` and `timer` are owned by `addNotification`. */
+export interface ChatNotification {
+	tabId: string;
+	subtitle: string;
+	text: string;
+	img: string;
+	senderId?: string;
+	title?: string;
+	isTrial?: boolean;
+	isRequest?: boolean;
+	isJoin?: boolean;
+	isMateProposal?: boolean;
+	customization?: Partial<UserCustomization>;
+}
+
+interface ChatNotificationEntry extends ChatNotification {
+	lines: Array<{ id: number; text: string }>;
+	timer?: ReturnType<typeof setTimeout>;
+}
 
 export const useChatStore = defineStore("chat", () => {
 	// --- STATE ---
@@ -48,7 +94,7 @@ export const useChatStore = defineStore("chat", () => {
 	const messagesByChat = ref<Record<string, FrontendMessage[]>>({});
 
 	const freeze = <T extends object>(m: T): T => markRaw(m);
-	const freezeAll = (list: any[]): FrontendMessage[] =>
+	const freezeAll = (list: BaseMessage[]): FrontendMessage[] =>
 		list.map((m) => freeze(m) as FrontendMessage);
 
 	// Bound on retained messages per chat. Each message is a mounted component
@@ -145,7 +191,7 @@ export const useChatStore = defineStore("chat", () => {
 	}
 	const typingStatuses = ref<Record<string, boolean>>({});
 	const hasMoreMessagesByChat = ref<Record<string, boolean>>({});
-	const notifications = ref<any[]>([]);
+	const notifications = ref<ChatNotificationEntry[]>([]);
 	// Conversations this session has already read. Kept outside `activeChats` so
 	// a read survives the conversation list being re-fetched and replaced.
 	const readAcknowledged = new Set<string>();
@@ -240,7 +286,7 @@ export const useChatStore = defineStore("chat", () => {
 			const chats = await getActiveChats();
 			activeChats.value = chats as PopulatedConversation[];
 			for (const chat of chats) {
-				userCache.upsertMany(chat.participants as any);
+				userCache.upsertMany(chat.participants);
 			}
 			reapplyLocalReads();
 		} catch (e) {
@@ -253,7 +299,7 @@ export const useChatStore = defineStore("chat", () => {
 	function addIncomingMessage(
 		conversation_id: string,
 		message: BaseMessage,
-		fullConversation?: PopulatedConversation,
+		fullConversation?: IncomingConversation,
 	) {
 		const userCache = useUserCacheStore();
 		const me = authStore.user?._id;
@@ -276,14 +322,16 @@ export const useChatStore = defineStore("chat", () => {
 			pruneMessageCaches();
 		}
 
-		// 2. Determine if the incoming socket payload actually contains populated profiles
-		const isPopulated =
+		// 2. Did the socket send populated profiles, or bare ObjectId strings?
+		//    Resolve that once, here, so nothing downstream has to re-check.
+		const incomingProfiles: Mate[] | null =
 			fullConversation?.participants?.length &&
-			typeof fullConversation.participants[0] === "object" &&
-			"_id" in fullConversation.participants[0];
+			typeof fullConversation.participants[0] === "object"
+				? (fullConversation.participants as Mate[])
+				: null;
 
-		if (isPopulated) {
-			userCache.upsertMany(fullConversation.participants as any);
+		if (incomingProfiles) {
+			userCache.upsertMany(incomingProfiles);
 		}
 
 		const activeIdx = activeChats.value.findIndex(
@@ -297,23 +345,21 @@ export const useChatStore = defineStore("chat", () => {
 		let partnerIdStr = "";
 		if (fullConversation?.participants) {
 			const p = fullConversation.participants.find(
-				(p: any) =>
-					(typeof p === "object" ? p._id || p.toString() : p.toString()) !== me,
+				(p) => participantId(p) !== me,
 			);
-			// @ts-expect-error
-			partnerIdStr = typeof p === "object" ? p._id : p?.toString();
+			partnerIdStr = p ? participantId(p) : "";
 		}
 
 		const legacyConvo =
 			activeChats.value.find(
 				(c) =>
 					c._id !== conversation_id &&
-					c.participants?.some((p: any) => p._id === partnerIdStr), // <-- ADDED ?.
+					c.participants?.some((p) => participantId(p) === partnerIdStr),
 			) ||
 			friendStore.pendingRequests.find(
 				(c) =>
 					c._id !== conversation_id &&
-					c.participants?.some((p: any) => p._id === partnerIdStr), // <-- ADDED ?.
+					c.participants?.some((p) => participantId(p) === partnerIdStr),
 			);
 
 		const updateChatMetadata = (chat: PopulatedConversation) => {
@@ -327,8 +373,8 @@ export const useChatStore = defineStore("chat", () => {
 				chat.initiator_id = fullConversation.initiator_id;
 				chat.relationship_id = fullConversation.relationship_id;
 
-				if (isPopulated) {
-					chat.participants = fullConversation.participants;
+				if (incomingProfiles) {
+					chat.participants = incomingProfiles;
 				} else if (legacyConvo?.participants) {
 					// Steal the fully loaded profiles from the old chat so the UI doesn't crash!
 					chat.participants = legacyConvo.participants;
@@ -348,26 +394,21 @@ export const useChatStore = defineStore("chat", () => {
 			});
 			friendStore.pendingRequests.splice(pendingIdx, 1);
 		} else if (fullConversation) {
-			// Brand new chat from socket
-			processedChat = { ...fullConversation };
+			// Brand new chat from socket. Resolve participants to profiles BEFORE
+			// constructing the conversation: prefer what the socket sent, then the
+			// profiles already loaded on the superseded chat, and only then fall
+			// back to the cache (or a placeholder) per id.
+			const participants: Mate[] =
+				incomingProfiles ??
+				legacyConvo?.participants ??
+				fullConversation.participants.map((entry) => {
+					const idStr = participantId(entry);
+					return (
+						userCache.getUser(idStr) ?? { _id: idStr, name: "Artist", img: "" }
+					);
+				});
 
-			if (!isPopulated) {
-				if (legacyConvo?.participants) {
-					processedChat.participants = legacyConvo.participants;
-				} else {
-					// Absolute last resort fallback
-					processedChat.participants = processedChat.participants.map(
-						(id: any) => {
-							const idStr =
-								typeof id === "object"
-									? id._id || id.toString()
-									: id.toString();
-							const cached = userCache.getUser(idStr);
-							return cached || { _id: idStr, name: "Artist", img: "" };
-						},
-					) as any;
-				}
-			}
+			processedChat = { ...fullConversation, participants };
 		}
 
 		if (processedChat) {
@@ -438,16 +479,27 @@ export const useChatStore = defineStore("chat", () => {
 		options: { silent?: boolean } = {},
 	) {
 		if (!socket) throw new Error("Socket not connected");
+		const me = authStore.user?._id;
+		if (!me) throw new Error("Cannot send a message while signed out");
 		const tempId = uuidv4();
+		const sentAt = new Date().toISOString();
 
-		const optimisticMessage = {
+		// `conversation_id` is the tab we are optimistically posting into — for a
+		// brand-new thread that is the recipient id until the server replies with
+		// the real conversation. Filling the server-owned fields here (rather than
+		// leaving them undefined, as the untyped literal used to) means nothing
+		// downstream has to special-case an in-flight message.
+		const optimisticMessage: OptimisticMessage = {
 			_id: tempId,
 			localKey: tempId,
+			conversation_id: currentTabId,
 			content,
-			shared_post_id: shared_post_id || null,
-			shared_inbox_item_id: shared_inbox_item_id || null,
-			sender_id: authStore.user?._id,
-			createdAt: new Date().toISOString(),
+			...(shared_post_id ? { shared_post_id } : {}),
+			...(shared_inbox_item_id ? { shared_inbox_item_id } : {}),
+			sender_id: me,
+			is_invite: false,
+			createdAt: sentAt,
+			updatedAt: sentAt,
 			status: "sending",
 			isOptimistic: true,
 		};
@@ -530,7 +582,7 @@ export const useChatStore = defineStore("chat", () => {
 		}
 	}
 
-	function addOptimisticMessage(chatId: string, message: any) {
+	function addOptimisticMessage(chatId: string, message: OptimisticMessage) {
 		if (!messagesByChat.value[chatId]) messagesByChat.value[chatId] = [];
 		messagesByChat.value[chatId].push(message);
 		touchMessageCache(chatId);
@@ -554,7 +606,7 @@ export const useChatStore = defineStore("chat", () => {
 		for (const rid of receiverIds) {
 			if (rid === me) continue;
 			const chat = activeChats.value.find((c) =>
-				c.participants.some((p: any) => p._id === rid),
+				c.participants.some((p) => p._id === rid),
 			);
 
 			const tabId = chat?._id || rid;
@@ -563,11 +615,13 @@ export const useChatStore = defineStore("chat", () => {
 			addOptimisticMessage(tabId, {
 				_id: tempId,
 				localKey: tempId,
+				conversation_id: tabId,
 				content: "",
-				shared_post_id: null,
 				shared_inbox_item_id: inboxItemId,
 				sender_id: me,
+				is_invite: false,
 				createdAt: now,
+				updatedAt: now,
 				status: "sent",
 				isOptimistic: true,
 			});
@@ -576,12 +630,16 @@ export const useChatStore = defineStore("chat", () => {
 			if (chat) {
 				chat.updatedAt = now;
 				chat.last_message = {
+					_id: tempId,
+					conversation_id: chat._id,
 					type: "user",
 					content: "",
 					sender_id: me,
 					shared_inbox_item_id: inboxItemId,
+					is_invite: false,
 					createdAt: now,
-				} as any;
+					updatedAt: now,
+				};
 			}
 		}
 	}
@@ -589,7 +647,7 @@ export const useChatStore = defineStore("chat", () => {
 	function resolveOptimisticMessage(
 		chatId: string,
 		tempId: string,
-		resolvedMessage: any,
+		resolvedMessage: FrontendMessage,
 		actualConversationId?: string,
 	) {
 		const targetId = actualConversationId || chatId;
@@ -657,15 +715,14 @@ export const useChatStore = defineStore("chat", () => {
 		try {
 			const before =
 				!isInitial && existing.length ? existing[0].createdAt : undefined;
-			const response = (await getChatMessages(conversationId, before)) as any;
+			const response = await getChatMessages(conversationId, before);
 			hasMoreMessagesByChat.value[conversationId] = response.hasMore;
 
 			if (isInitial && force) {
 				// Merge the fresh server page with any still-pending optimistic sends so
 				// an in-flight message the user just typed isn't wiped by the refetch.
 				const pending = (messagesByChat.value[conversationId] || []).filter(
-					(m) =>
-						m.isOptimistic && !response.data.some((s: any) => s._id === m._id),
+					(m) => m.isOptimistic && !response.data.some((s) => s._id === m._id),
 				);
 				messagesByChat.value[conversationId] = [
 					...freezeAll(response.data),
@@ -809,7 +866,7 @@ export const useChatStore = defineStore("chat", () => {
 
 	const MAX_VISIBLE_NOTIFICATIONS = 3;
 
-	function addNotification(notif: any) {
+	function addNotification(notif: ChatNotification) {
 		if (chatWidget.isExpanded && chatWidget.activeTab === notif.tabId) return;
 		const existing = notifications.value.find((n) => n.tabId === notif.tabId);
 		if (existing) {
@@ -924,7 +981,7 @@ export const useChatStore = defineStore("chat", () => {
 		const partner = payload.conversation.participants.find(
 			(p) => p._id !== authStore.user?._id,
 		) as Mate;
-		if (partner) friendStore.addFriendLocally(partner as any);
+		if (partner) friendStore.addFriendLocally(partner);
 		addNotification({
 			tabId: payload.conversation._id,
 			subtitle: partner?.name || "New Mate!",
@@ -1050,10 +1107,10 @@ export const useChatStore = defineStore("chat", () => {
 		}
 
 		try {
-			const response = (await respondToRelationship(
+			const response = await respondToRelationship(
 				chat.relationship_id,
 				action,
-			)) as any;
+			);
 			const widgetStore = useChatWidgetStore();
 
 			if (action === "accept") {
@@ -1115,7 +1172,7 @@ export const useChatStore = defineStore("chat", () => {
 
 	async function handleCancelMateRequest(conversationId: string) {
 		try {
-			const response = (await cancelMateRequest(conversationId)) as any;
+			const response = await cancelMateRequest(conversationId);
 			const idx = activeChats.value.findIndex((c) => c._id === conversationId);
 
 			if (idx !== -1) {

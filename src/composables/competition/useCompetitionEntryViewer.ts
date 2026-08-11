@@ -1,4 +1,4 @@
-import { alertController } from "@ionic/vue";
+import { useConfirm } from "@/composables/useConfirm";
 import router from "@/router";
 import type { CompetitionEntry } from "@/service/api/competition.api";
 import { useToast } from "@/service/toast.service";
@@ -21,31 +21,24 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 export function useCompetitionEntryViewer() {
 	const swiper = usePhotoSwiper();
 	const { toast } = useToast();
+	const { confirm } = useConfirm();
 
 	async function remix(entry: CompetitionEntry) {
 		if (!entry.drawing_url) {
 			toast("This drawing cannot be remixed", { color: "warning" });
 			return;
 		}
-		const alert = await alertController.create({
+		const shouldRemix = await confirm({
 			header: "Remix this drawing?",
 			message: "A copy will open on your canvas. The original stays unchanged.",
-			cssClass: "liquid-alert",
-			buttons: [
-				{ text: "Cancel", role: "cancel" },
-				{
-					text: "Start remixing",
-					handler: () => {
-						swiper.close();
-						router.push({
-							path: FRONTEND_ROUTES.draw,
-							query: { canvas_url: entry.drawing_url, mode: "solo" },
-						});
-					},
-				},
-			],
+			confirmText: "Start remixing",
 		});
-		await alert.present();
+		if (!shouldRemix) return;
+		swiper.close();
+		void router.push({
+			path: FRONTEND_ROUTES.draw,
+			query: { canvas_url: entry.drawing_url, mode: "solo" },
+		});
 	}
 
 	function openEntry(entry: CompetitionEntry, withComments = false) {

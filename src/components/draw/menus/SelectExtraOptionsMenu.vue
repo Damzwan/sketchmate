@@ -74,7 +74,6 @@ import {
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { toObjectsIds } from "@/draw/objects/objectSerialization";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { svg } from "@/helper/general.helper";

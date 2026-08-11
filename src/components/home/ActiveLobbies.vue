@@ -95,15 +95,13 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, useIonRouter } from "@ionic/vue";
+import { IonIcon } from "@ionic/vue";
 import { mdiPalette } from "@mdi/js";
 import { computed, ref } from "vue";
 import PremiumLobbyModal from "@/components/draw/PremiumLobbyModal.vue";
 import { svg } from "@/helper/general.helper";
-import { useMenuStore } from "@/store/menu.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { Menu } from "@/types/menu.types";
 
 export interface PublicLobbyProps {
 	id: string;
@@ -121,7 +119,6 @@ const props = defineProps<{
 
 const emit = defineEmits<(e: "join", id: string) => void>();
 
-const router = useIonRouter();
 const quotaStore = useQuotaStore();
 
 const showPremiumModal = ref(false);

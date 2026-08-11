@@ -205,22 +205,22 @@
     </LazyMount>
 
     <LazyMount :when="themeModalOpen">
-      <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="(id: any) => updateField('themeId', id)" />
+      <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="updateField('themeId', $event)" />
     </LazyMount>
     <LazyMount :when="fontModalOpen">
-      <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="(id: any) => updateField('fontId', id)" />
+      <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="updateField('fontId', $event)" />
     </LazyMount>
     <LazyMount :when="fontEffectModalOpen">
-      <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="(id: any) => updateField('fontEffectId', id)" />
+      <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="updateField('fontEffectId', $event)" />
     </LazyMount>
     <LazyMount :when="decorationModalOpen">
-      <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="(id: any) => updateField('decorationId', id)" />
+      <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="updateField('decorationId', $event)" />
     </LazyMount>
     <LazyMount :when="effectModalOpen">
-      <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="(id: any) => updateField('effectId', id)" />
+      <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="updateField('effectId', $event)" />
     </LazyMount>
     <LazyMount :when="worldModalOpen">
-      <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="(id: any) => updateField('worldId', id)" />
+      <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="updateField('worldId', $event)" />
     </LazyMount>
     <LazyMount :when="titlesModalOpen">
       <TitleModal :is-open="titlesModalOpen" :current-title-id="draft.titleId" @close="titlesModalOpen = false" @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)" />
@@ -491,14 +491,6 @@ const handleSaveSketch = (data: { path: string; viewBox: string }) => {
 		backgroundSketchViewBox: data.viewBox,
 	};
 	sketchModalOpen.value = false;
-};
-
-const clearSketch = () => {
-	draft.value = {
-		...draft.value,
-		backgroundSketchPath: "",
-		backgroundSketchViewBox: "",
-	};
 };
 
 const revert = () => {

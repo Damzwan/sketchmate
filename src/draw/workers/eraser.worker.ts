@@ -7,17 +7,7 @@ import {
 	measureAlphaCoverage,
 	preciseErasureMultiplier,
 } from "@/draw/tools/erasureAnalysisPolicy";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { registerBrushClasses } from "@/draw/utils/brushes/registry";
 
 const COARSE_PIXEL_BUDGET = 262_144;
 
@@ -184,20 +174,7 @@ self.onmessage = async (e: MessageEvent) => {
 	const { reqId, object, width, height, multiplier } = e.data;
 
 	try {
-		const brushes = [
-			[OptimizedEraserStroke, "OptimizedEraserStroke"],
-			[PixelStroke, "PixelStroke"],
-			[CharcoalStroke, "CharcoalStroke"],
-			[WaterColorStroke, "WaterColorStroke"],
-			[CalligraphyStroke, "CalligraphyStroke"],
-			[BucketFillPath, "BucketFillPath"],
-			[OptimizedPencilStroke, "OptimizedPencilStroke"],
-			[CircleStroke, CircleStroke.type],
-			[SprayStroke, SprayStroke.type],
-			[NeonStroke, NeonStroke.type],
-			[CrayonStroke, CrayonStroke.type],
-		] as const;
-		brushes.forEach(([cls, name]) => classRegistry.setClass(cls, name));
+		registerBrushClasses();
 		classRegistry.setClass(ClippingGroup as any);
 
 		const enlivened = await util.enlivenObjects([object]);

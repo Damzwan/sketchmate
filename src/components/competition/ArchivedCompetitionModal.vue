@@ -93,7 +93,7 @@
         @vote="() => {}"
       />
 
-      <SwiperCommentDrawer
+    <CommentDrawer
         :open="!!selectedCommentEntry"
         :curr-item="selectedCommentEntry"
         type="competition"
@@ -105,21 +105,16 @@
 </template>
 
 <script setup lang="ts">
-import {
-	alertController,
-	IonButton,
-	IonIcon,
-	IonModal,
-	IonSpinner,
-} from "@ionic/vue";
+import { IonButton, IonIcon, IonModal, IonSpinner } from "@ionic/vue";
 import { mdiArrowLeft } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import CompetitionEntrySheet from "@/components/competition/CompetitionEntrySheet.vue";
 import CompetitionRewards from "@/components/competition/CompetitionRewards.vue";
 import EntryCard from "@/components/competition/EntryCard.vue";
-import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
+import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useConfirm } from "@/composables/useConfirm";
 import { svg } from "@/helper/general.helper";
 import router from "@/router";
 import {
@@ -163,6 +158,7 @@ const competitionDate = computed(() => {
 	return `${monthDay.format(start)} – ${monthDay.format(end)}, ${end.getFullYear()}`;
 });
 const photoSwiper = usePhotoSwiper();
+const { confirm } = useConfirm();
 const competitionStore = useCompetitionStore();
 const menuStore = useMenuStore();
 
@@ -193,25 +189,17 @@ function openFullscreen(entry: CompetitionEntry) {
 
 async function remixEntry(entry: CompetitionEntry) {
 	if (!entry.drawing_url) return;
-	const alert = await alertController.create({
+	const shouldRemix = await confirm({
 		header: "Remix this drawing?",
 		message: "A copy will open on your canvas. The original stays unchanged.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Start remixing",
-				handler: () => {
-					photoSwiper.close();
-					router.push({
-						path: FRONTEND_ROUTES.draw,
-						query: { canvas_url: entry.drawing_url, mode: "solo" },
-					});
-				},
-			},
-		],
+		confirmText: "Start remixing",
 	});
-	await alert.present();
+	if (!shouldRemix) return;
+	photoSwiper.close();
+	void router.push({
+		path: FRONTEND_ROUTES.draw,
+		query: { canvas_url: entry.drawing_url, mode: "solo" },
+	});
 }
 
 function entryPageSize() {

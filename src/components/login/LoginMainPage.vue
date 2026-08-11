@@ -33,7 +33,6 @@
                   autocomplete="username"
                   v-model="state.loginEmail"
                   @ionBlur="v$.loginEmail.$validate()"
-                  ref="mailInput"
                   name="email"
                   type="email" placeholder="sketcher@gmail.com"
                   class="autofill-override">
@@ -118,7 +117,6 @@
                   fill="outline"
                   v-model="state.loginEmail"
                   @ionBlur="v$.loginEmail.$validate()"
-                  ref="mailInput"
                   type="email" placeholder="sketcher@gmail.com"
                   class="autofill-override">
                   <ion-icon slot="start" :icon="svg(mdiEmailOutline)" aria-hidden="true" size="large"
@@ -214,7 +212,7 @@ import {
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import drawing1 from "@/assets/login_images/1.webp";
 import drawing2 from "@/assets/login_images/2.webp";
 import drawing3 from "@/assets/login_images/3.webp";
@@ -276,7 +274,6 @@ const showLoginScreen = ref(false);
 const isPasswordForgotten = ref(false);
 const isAnonymousConfirmationOpen = ref(false);
 
-const mailInput = ref();
 const loginErrorMsg = ref("");
 const loginLoading = ref(false);
 const googleloading = ref(false);

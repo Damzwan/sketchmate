@@ -95,9 +95,8 @@
 
 <script setup lang="ts">
 import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
-import { mdiAccountOff, mdiChatOutline, mdiDraw } from "@mdi/js";
+import { mdiAccountOff, mdiChatOutline } from "@mdi/js";
 import { useIntersectionObserver } from "@vueuse/core";
-import { closeCircle } from "ionicons/icons";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import ChatDrawInviteCard from "@/components/chat/ChatDrawInviteCard.vue";

@@ -67,7 +67,6 @@ import {
 import { storeToRefs } from "pinia";
 import { ref } from "vue";
 import TopBar from "@/components/general/TopBar.vue";
-import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
 import ProfileCompetitions from "@/components/profile/ProfileCompetitions.vue";

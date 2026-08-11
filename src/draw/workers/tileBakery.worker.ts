@@ -35,17 +35,7 @@ import {
 	SceneRevisionGate,
 	type WorkerTiming,
 } from "@/draw/rendering/bakery/protocol";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { registerBrushClasses } from "@/draw/utils/brushes/registry";
 
 // --- fonts -------------------------------------------------------------------
 // A worker has no CSS, so text used to be refused per-tile (wrong metrics in a
@@ -170,20 +160,7 @@ if (typeof document === "undefined") {
 	(globalThis as any).window = globalThis;
 }
 
-const brushes = [
-	[OptimizedEraserStroke, "OptimizedEraserStroke"],
-	[PixelStroke, "PixelStroke"],
-	[CharcoalStroke, "CharcoalStroke"],
-	[WaterColorStroke, "WaterColorStroke"],
-	[CalligraphyStroke, "CalligraphyStroke"],
-	[BucketFillPath, "BucketFillPath"],
-	[OptimizedPencilStroke, "OptimizedPencilStroke"],
-	[CircleStroke, CircleStroke.type],
-	[SprayStroke, SprayStroke.type],
-	[NeonStroke, NeonStroke.type],
-	[CrayonStroke, CrayonStroke.type],
-] as const;
-brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name));
+registerBrushClasses();
 
 // Register the eraser's clip class (type 'clipping'). It self-registers via a
 // module side-effect on the MAIN thread (CustomEraserBrush imports it), but the

@@ -166,7 +166,7 @@ export class TracedPath extends Path {
 		}
 	}
 
-	_renderPathCommands(ctx: CanvasRenderingContext2D): void {
+	override _renderPathCommands(ctx: CanvasRenderingContext2D): void {
 		const packed = this._packedPath;
 		if (!packed) {
 			super._renderPathCommands(ctx);
@@ -218,7 +218,7 @@ export class TracedPath extends Path {
 		}
 	}
 
-	_calcBoundsFromPath(): TBBox {
+	override _calcBoundsFromPath(): TBBox {
 		const packed = this._packedPath;
 		if (!packed) return super._calcBoundsFromPath();
 
@@ -295,11 +295,11 @@ export class TracedPath extends Path {
 		return util.makeBoundingBoxFromPoints(bounds);
 	}
 
-	complexity(): number {
+	override complexity(): number {
 		return this._packedPath?.commands.length ?? super.complexity();
 	}
 
-	_toSVG(): string[] {
+	override _toSVG(): string[] {
 		const packed = this._packedPath;
 		if (!packed) return super._toSVG();
 

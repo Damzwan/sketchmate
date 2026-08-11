@@ -91,12 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-	actionSheetController,
-	alertController,
-	IonIcon,
-	IonPopover,
-} from "@ionic/vue";
+import { actionSheetController, IonIcon } from "@ionic/vue";
 import {
 	mdiChatOutline,
 	mdiDeleteOutline,
@@ -111,6 +106,7 @@ import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import CommentPreview from "@/components/photoswiper/CommentPreview.vue";
 import PhotoSwiperReactions from "@/components/photoswiper/PhotoSwiperReactions.vue";
+import { useConfirm } from "@/composables/useConfirm";
 import { reactionImages } from "@/config/post.config";
 import { useShareService } from "@/draw/sharing/shareService.store";
 import { svg } from "@/helper/general.helper";
@@ -140,6 +136,7 @@ const emit = defineEmits([
 ]);
 
 const moderationStore = useModerationStore();
+const { confirm } = useConfirm();
 
 // Both branches were identical — the ternary carried no information.
 const displayCommentCount = computed(() => props.currItem.comment_count || 0);
@@ -260,7 +257,7 @@ async function openOverflow() {
 }
 
 async function confirmDelete() {
-	const alert = await alertController.create({
+	const shouldDelete = await confirm({
 		header:
 			props.type === "post"
 				? "Delete Post?"
@@ -269,18 +266,10 @@ async function confirmDelete() {
 					: "Delete Drawing?",
 		subHeader: "This can't be undone.",
 		message: "Are you sure?",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-			{
-				text: "Delete",
-				role: "destructive",
-				cssClass: "alert-button-confirm",
-				handler: () => emit("delete"),
-			},
-		],
+		confirmText: "Delete",
+		destructive: true,
 	});
-	await alert.present();
+	if (shouldDelete) emit("delete");
 }
 </script>
 

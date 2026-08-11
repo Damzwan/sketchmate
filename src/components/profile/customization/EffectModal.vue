@@ -1,51 +1,33 @@
 <template>
-  <BaseSheetModal
+  <CatalogPickerModal
     :is-open="isOpen"
-    scrollable
     :title="previewMode === 'chat' ? 'Chat Effect' : 'Profile Effect'"
+    :user="user"
+    :preview-customization="previewCustomization"
+    :preview-mode="previewMode"
+    :selection-locked="selectionLocked"
+    :selection-name="selectionName"
+    :purchasing="purchasing"
+    apply-label="Apply Effect"
     @close="handleDismiss"
+    @apply="confirm"
+    @unlock="unlock"
   >
-    <template #sub-header>
-      <div class="px-3">
-        <ChatWidgetStylePager v-if="previewMode === 'chat'" :customization="previewCustomization" :user="user" />
-        <PreviewSurfacePager
-          v-else
-          :user="user"
-          :customization="previewCustomization"
-          :active="isOpen"
-          v-bind="pickerPreview"
-        />
-      </div>
-    </template>
-
     <div
       data-content-scroll="true"
       @touchmove.stop
       class="grid grid-cols-2 gap-3 pb-4"
     >
-      <button
+      <CatalogPickerTile
         v-for="effect in visibleEffects"
         :key="effect.id"
-        class="relative rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left cursor-pointer"
-        :class="[
-          localSelection === effect.id
-            ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-primary/40 shadow-sm',
-          !isItemOwned(effect.id) && 'locked-tile'
-        ]"
-        @click="handleSelect(effect)"
+        class="rounded-[2rem] h-28 text-left"
+        :selected="localSelection === effect.id"
+        :owned="isItemOwned(effect.id)"
+        @select="localSelection = effect.id"
       >
         <div class="absolute inset-0 bg-gradient-to-br from-zinc-100 to-zinc-200">
           <ProfileEffect :def="effect" :preview="true" />
-        </div>
-
-        <div
-          v-if="!isItemOwned(effect.id)"
-          class="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
-        >
-          <div class="bg-white/95 rounded-full w-9 h-9 flex items-center justify-center shadow-lg">
-            <ion-icon :icon="svg(mdiLock)" class="text-base text-black/70" />
-          </div>
         </div>
 
         <div class="absolute inset-x-0 bottom-0 bg-white/85 backdrop-blur-sm px-3 py-2">
@@ -57,131 +39,59 @@
           </p>
         </div>
 
-        <div
-          v-if="localSelection === effect.id && isItemOwned(effect.id)"
-          class="absolute top-2 right-2 w-6 h-6 rounded-full bg-secondary shadow-lg flex items-center justify-center"
-        >
-          <ion-icon :icon="svg(mdiCheck)" class="text-white text-sm" />
-        </div>
-      </button>
+      </CatalogPickerTile>
     </div>
 
-    <template #footer>
-      <div class="px-1 pt-2 pb-1 bg-background">
-        <ion-button
-          v-if="selectionLocked"
-          expand="block"
-          color="secondary"
-          shape="round"
-          size="large"
-          :disabled="purchasing"
-          @click="unlock"
-        >
-          <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
-          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
-        </ion-button>
-        <ion-button
-          v-else
-          expand="block"
-          color="secondary"
-          shape="round"
-          size="large"
-          @click="confirm"
-        >
-          Apply Effect
-        </ion-button>
-      </div>
-    </template>
-  </BaseSheetModal>
+  </CatalogPickerModal>
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiCheck, mdiLock } from "@mdi/js";
-import { computed, defineAsyncComponent, ref, watch } from "vue";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
-import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import { buildItemId } from "@/config/catalog.config";
-import { usePickerPreview } from "@/config/preview.config";
+import { computed } from "vue";
+import CatalogPickerModal from "@/components/profile/customization/CatalogPickerModal.vue";
+import CatalogPickerTile from "@/components/profile/customization/CatalogPickerTile.vue";
+import { useCatalogPicker } from "@/composables/profile/useCatalogPicker";
 import {
 	type Customization,
 	DEFAULT_EFFECT_ID,
 	PROFILE_EFFECTS,
-	type ProfileEffectDef,
 } from "@/config/profile_options.config";
-import { svg } from "@/helper/general.helper";
-import { useInventoryStore } from "@/store/inventory.store";
+import type { User } from "@/types/server.types";
 import ProfileEffect from "./ProfileEffect.vue";
-
-const ChatWidgetStylePager = defineAsyncComponent(
-	() => import("@/components/chat/ChatWidgetStylePager.vue"),
-);
-const pickerPreview = usePickerPreview();
 
 const props = defineProps<{
 	isOpen: boolean;
-	user: any;
+	user?: User;
 	customization: Partial<Customization>;
 	previewMode?: "profile" | "chat";
 }>();
 
-const emit = defineEmits(["close", "select"]);
+const emit = defineEmits<{ close: []; select: [id: string] }>();
 
-const inventoryStore = useInventoryStore();
-const { purchasing, unlockItem } = useUnlockItem();
-
-const localSelection = ref(props.customization.effectId || DEFAULT_EFFECT_ID);
-
-watch(
-	() => props.isOpen,
-	(open) => {
-		if (open)
-			localSelection.value = props.customization.effectId || DEFAULT_EFFECT_ID;
-	},
-);
-
-const isItemOwned = (effectId: string) =>
-	inventoryStore.isOwned(buildItemId("effect", effectId));
-
-// Exclusive (OG) effects are granted, never sold — so there's no unlock path.
-// Only surface them to users who already own them; hide from everyone else.
-const visibleEffects = computed(() =>
-	PROFILE_EFFECTS.filter((e) => !e.exclusive || isItemOwned(e.id)),
-);
-
-const selectionLocked = computed(() => !isItemOwned(localSelection.value));
-
-const selectionName = computed(
-	() => PROFILE_EFFECTS.find((e) => e.id === localSelection.value)?.name || "",
-);
+const {
+	localSelection,
+	visibleItems: visibleEffects,
+	isItemOwned,
+	selectionLocked,
+	selectionName,
+	purchasing,
+	confirm,
+	unlock,
+} = useCatalogPicker({
+	isOpen: () => props.isOpen,
+	initialId: () => props.customization.effectId || DEFAULT_EFFECT_ID,
+	items: PROFILE_EFFECTS,
+	category: "effect",
+	idOf: (effect) => effect.id,
+	nameOf: (effect) => effect.name,
+	isVisible: (effect, owned) => !effect.exclusive || owned,
+	onSelect: (id) => emit("select", id),
+	onClose: () => emit("close"),
+});
 
 const previewCustomization = computed(() => ({
 	...props.customization,
 	effectId: localSelection.value,
 }));
 
-const handleSelect = (effect: ProfileEffectDef) => {
-	localSelection.value = effect.id;
-};
-
-const confirm = () => {
-	if (selectionLocked.value) return unlock();
-	emit("select", localSelection.value);
-	emit("close");
-};
-
-const unlock = async () => {
-	const ok = await unlockItem(buildItemId("effect", localSelection.value));
-	if (ok) {
-		emit("select", localSelection.value);
-		emit("close");
-	}
-};
-
 const handleDismiss = () => emit("close");
 </script>
-
-<style scoped>
-.locked-tile { opacity: 0.92; }
-</style>

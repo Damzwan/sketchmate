@@ -112,10 +112,7 @@ import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue"
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue"; // <-- Imported UserAvatar
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import { resolveSenderStyle } from "@/composables/chat/useSenderStyle";
-import {
-	resolveReadableCustomizationPalette,
-	resolveWorld,
-} from "@/config/profile_options.config";
+import { resolveReadableCustomizationPalette } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 import { useUserCacheStore } from "@/store/userCache.store";
 

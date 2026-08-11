@@ -5,8 +5,8 @@ import {
 } from "@/draw/utils/brushes/brush.helpers";
 
 export class BucketFillPath extends Path {
-	static type = "BucketFillPath";
-	static cacheProperties = [...Path.cacheProperties, "isBucketFill"];
+	static override type = "BucketFillPath";
+	static override cacheProperties = [...Path.cacheProperties, "isBucketFill"];
 
 	// @ts-expect-error
 	toObject(additionalProperties: string[] = []) {
@@ -53,7 +53,7 @@ export class BucketFillPath extends Path {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// INFLATION: Convert the compressed trace back into an SVG string
 		if (object.compressedTrace && !object.path) {
 			let svg = "";

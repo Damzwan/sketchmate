@@ -70,13 +70,14 @@
 </template>
 
 <script lang="ts" setup>
-import { alertController, IonButton, IonIcon, IonSpinner } from "@ionic/vue";
+import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
 import { mdiCancel, mdiDeleteOutline, mdiDrawPen } from "@mdi/js";
 import * as Sentry from "@sentry/capacitor";
 import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 import StickerEmblemSavedItem from "@/components/draw/menus/stickersEmblemsSavedMenu/StickerEmblemSavedItem.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { useConfirm } from "@/composables/useConfirm";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { svg } from "@/helper/general.helper";
@@ -94,6 +95,7 @@ const { user } = storeToRefs(useAuthStore());
 const { stickerMenuOpen } = storeToRefs(useMenuStore());
 const drawStore = useDrawStore();
 const { toast } = useToast();
+const { confirm } = useConfirm();
 
 // State
 const isLoading = ref(false);
@@ -136,25 +138,14 @@ function handleSelect(saved: any) {
 }
 
 async function confirmDelete(saved: any) {
-	const alert = await alertController.create({
+	const shouldDelete = await confirm({
 		header: "Delete Drawing?",
 		subHeader: "This can't be undone.",
 		message: "Remove this drawing from your library?",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-			{
-				text: "Delete",
-				role: "destructive",
-				cssClass: "alert-button-confirm",
-				// Fire-and-forget: UI updates optimistically, alert dismisses instantly
-				handler: () => {
-					removeDrawing(saved);
-				},
-			},
-		],
+		confirmText: "Delete",
+		destructive: true,
 	});
-	await alert.present();
+	if (shouldDelete) void removeDrawing(saved);
 }
 
 async function removeDrawing(saved: any) {

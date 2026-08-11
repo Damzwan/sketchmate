@@ -279,6 +279,13 @@ export interface User {
 	last_name_change?: string;
 	migration_version: number;
 
+	/**
+	 * Weekly competition state. `last_seen_results_week` is server-side on
+	 * purpose: the winners moment must fire once per user, not once per device,
+	 * and must not re-fire after a reinstall.
+	 */
+	competition?: UserCompetitionState;
+
 	// Features
 	balloon?: {
 		sent?: string;
@@ -328,6 +335,31 @@ export interface UserStats {
 	followers: number;
 	following: number;
 	mates?: number;
+}
+
+export interface UserCompetitionState {
+	/** Weekly competition pushes. Defaults on; capped at 3 a week server-side. */
+	notifications?: boolean;
+	/** Week key of the last results the user was shown, e.g. "2026-W33". */
+	last_seen_results_week?: string | null;
+	wins?: number;
+}
+
+/**
+ * A user as other users see them — the server's `PUBLIC_USER_FIELDS`
+ * projection. This is what `/user/public_users` returns and what rides along
+ * as the `author` on posts, comments and chat participant lists.
+ *
+ * Everything past the identity triple is optional because `userCache.store`
+ * merges partial payloads from several sources: the batch endpoint omits
+ * nothing, but a chat participant list or an embedded post author carries less.
+ * The cache merges rather than replaces for exactly this reason, so a narrower
+ * payload must be assignable.
+ */
+export interface PublicUser extends Mate {
+	description?: string;
+	stats?: UserStats;
+	competition?: Pick<UserCompetitionState, "wins">;
 }
 
 export interface UserRelationship {
@@ -400,7 +432,13 @@ export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
 		customization?: Partial<UserCustomization>;
 	};
 	user_reaction: string | null;
-	comments: any[];
+	/**
+	 * Preview slice only — the feed ships the latest two, hydrated with their
+	 * author. The full list arrives from `GET /post/:id/comments`, which returns
+	 * the same shape. `commentsLoaded` marks that the full list has replaced the
+	 * preview.
+	 */
+	comments: HydratedPostComment[];
 	createdAt: string;
 	updatedAt: string;
 	commentsLoaded?: boolean;
@@ -523,7 +561,14 @@ export interface Report {
 	reason: ReportReason;
 	details?: string;
 	status: ReportStatus;
-	content_snapshot?: any;
+	/**
+	 * Frozen copy of the reported content, taken at report time so the mod queue
+	 * still has something to look at after the author deletes it. Stored as
+	 * `Schema.Types.Mixed` server-side because the shape follows `target_type`
+	 * (a post, an inbox item, a comment, a profile). Nothing in the app reads it
+	 * today; `unknown` keeps it that way until someone narrows it deliberately.
+	 */
+	content_snapshot?: unknown;
 	resolved_at?: string;
 	resolved_by?: string;
 	createdAt: string;
@@ -732,9 +777,26 @@ export interface ChangeUserNameParams {
 	name: string;
 }
 
+// =============================================================================
+// UPLOAD PARAMS — the one place this file and the server's copy genuinely differ
+// =============================================================================
+// This file mirrors `sketchmate_server/src/types/types.ts` by hand, and the two
+// copies agree everywhere except here. The upload interfaces are *handler input*
+// shapes, not wire contracts: server-side `img` is a parsed multipart upload
+// (`{ filepath, mimetype }`, which `mongodb.ts` passes straight to
+// `s3Creator.uploadFile`), while client-side it is whatever gets appended to a
+// `FormData` or wrapped in a `Blob`. One name, two types — which is exactly why
+// both sides had settled on `any`.
+//
+// Typed here from the client's side, since that is the only side this file is
+// compiled against. When these move into a shared domain package, the split to
+// make is upload *transport* (client) vs upload *handler input* (server); do not
+// try to reconcile them into one interface.
+
+/** Server-side handler input. No client call site — see the note above. */
 export interface UploadProfileImgParams {
 	_id: string;
-	img: any;
+	img: unknown;
 	previousImage?: string;
 }
 
@@ -762,11 +824,12 @@ export interface RemoveFromInboxParams {
 	inbox_id: string;
 }
 
+/** Server-side handler input. No client call site — see the note above. */
 export interface CreateBalloonPostParams {
 	sender: string;
 	message: string;
 	drawing: string;
-	img: any;
+	img: unknown;
 	aspect_ratio: number;
 	version?: number;
 }
@@ -777,7 +840,8 @@ export interface CreateBalloonPostRes {
 
 export interface CreateStickerParams {
 	_id: string;
-	img: any;
+	/** Appended to a `FormData` by `user.api.createSticker`. */
+	img: Blob;
 }
 
 export interface DeleteStickerParams {
@@ -787,7 +851,8 @@ export interface DeleteStickerParams {
 
 export interface CreateEmblemParams {
 	_id: string;
-	img: any;
+	/** Appended to a `FormData` by `user.api.createEmblem`. */
+	img: Blob;
 }
 
 export interface DeleteEmblemParams {
@@ -797,8 +862,14 @@ export interface DeleteEmblemParams {
 
 export interface CreateSavedParams {
 	_id: string;
-	img: any;
-	drawing: any;
+	/**
+	 * Raster export of the drawing. `exportBoundingBoxImage` returns
+	 * `string | ArrayBuffer` depending on `asBuffer`, and both callers wrap it in
+	 * a `Blob`/`File`, so the contract is whatever `Blob` accepts.
+	 */
+	img: BlobPart;
+	/** Serialized document JSON, wrapped in an `application/json` Blob. */
+	drawing: string;
 }
 
 export interface DeleteSavedParams {
@@ -848,12 +919,13 @@ export interface UnMatchParams {
 	_id: string;
 }
 
+/** Server-side handler input. No client call site — see the note above. */
 export interface SendParams {
 	_id: string;
 	name: string;
 	followers: string[];
 	drawing: string;
-	img: any;
+	img: unknown;
 	aspect_ratio: number;
 }
 
@@ -982,6 +1054,67 @@ export interface NotificationTargetPreview {
 	text?: string;
 }
 
+/** `payload.kind` for `type: "competition"` entries. */
+export type CompetitionNotificationKind =
+	| "win"
+	| "results"
+	| "submissions_closed"
+	| "entry_comment";
+
+/**
+ * Structured payload the server attaches to system-generated notifications.
+ *
+ * Which fields are present is determined by `Notification["type"]`, and for
+ * `competition` additionally by `payload.kind`:
+ *
+ * | `type`               | `kind`               | fields                                                            |
+ * |----------------------|----------------------|-------------------------------------------------------------------|
+ * | `moderation_strike`  | —                    | the whole of {@link ModerationStrikePayload}                        |
+ * | `moderation_content` | —                    | `status`, `content_type`, `target_id`, `title`, `body`              |
+ * | `competition`        | `win`                | `title`, `body`, `competition_id`, `week_key`, `category_id`, `category_label`, `granted_items`, `vote_count` |
+ * | `competition`        | `results`            | `title`, `body`, `competition_id`, `week_key`, `vote_count?`        |
+ * | `competition`        | `submissions_closed` | `title`, `body`, `competition_id`, `week_key`, `ends_at`            |
+ * | `competition`        | `entry_comment`      | `competition_id`, `entry_id`                                        |
+ * | `moderation_lifted`  | —                    | no payload                                                          |
+ *
+ * Every field is optional rather than this being a discriminated union,
+ * because the discriminant lives on the *entry* (`Notification["type"]`), not
+ * on the payload — and `Notification` is a plain interface built and stored in
+ * bulk by `inAppNotificationStore`. Narrowing therefore happens at the call
+ * site (`NotificationCard` already branches on `type`); this type's job is to
+ * stop the field names being guesswork, not to prove the variant.
+ */
+export interface NotificationPayload {
+	// competition
+	kind?: CompetitionNotificationKind;
+	competition_id?: string;
+	entry_id?: string;
+	week_key?: string;
+	category_id?: string;
+	category_label?: string;
+	granted_items?: string[];
+	vote_count?: number;
+	ends_at?: string;
+
+	// moderation_content
+	status?: "under_review" | "removed" | "restored";
+	content_type?: ReportableType;
+	target_id?: string;
+
+	// moderation_strike — see ModerationStrikePayload, mirrored here because the
+	// server persists the same object it sends over the socket.
+	level?: number;
+	name?: string;
+	description?: string;
+	reason?: ReportReason;
+	expires_at?: string;
+	blocked_capabilities?: Capability[];
+
+	// shared display copy (moderation_content, announcement, competition)
+	title?: string;
+	body?: string;
+}
+
 export interface Notification {
 	_id: string;
 	recipient_id: string;
@@ -1007,9 +1140,8 @@ export interface Notification {
 	read: boolean;
 	seen: boolean;
 
-	// Free-form payload for moderation/announcement types that need
-	// structured data beyond the standard fields (level, expires_at, etc.)
-	payload?: any;
+	// Structured payload for the system-generated types. See NotificationPayload.
+	payload?: NotificationPayload;
 
 	createdAt: string;
 	updatedAt: string;

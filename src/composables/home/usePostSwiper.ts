@@ -1,7 +1,5 @@
-import { alertController } from "@ionic/vue";
-import { isInRoom } from "@/draw/sync/syncStatus";
+import { useDrawingRemix } from "@/composables/gallery/useDrawingRemix";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
-import router from "@/router";
 import { deletePost } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";
 import { useMenuStore } from "@/store/menu.store";
@@ -10,15 +8,16 @@ import { usePostStore } from "@/store/post.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { Menu } from "@/types/menu.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { FeedPost } from "@/types/server.types";
 
 export function usePostSwiper() {
 	const swiperStore = usePhotoSwiper();
 	const { toast } = useToast();
 	const postStore = usePostStore();
 	const quotaStore = useQuotaStore();
+	const { openDrawingCopy } = useDrawingRemix();
 
-	function openPostSwiper(posts: any[], index: number) {
+	function openPostSwiper(posts: FeedPost[], index: number) {
 		if (swiperStore.open && useMenuStore().viewProfileMenuOpen) {
 			useMenuStore().closeMenu(Menu.ViewProfileMenu);
 			if (swiperStore.isCommentDrawerOpen) {
@@ -37,36 +36,13 @@ export function usePostSwiper() {
 			canReply: (item, currentUser) =>
 				item.author_id === currentUser?._id || !!item.enable_remix,
 			onReply: async (item) => {
-				if (isInRoom()) {
-					toast("Not allowed when in a lobby", { color: "warning" });
-					return;
-				}
-
-				const alert = await alertController.create({
+				await openDrawingCopy({
+					canvasUrl: item.drawing_url || item.drawing,
 					header: "Remix this Drawing?",
 					message:
 						"This will load a copy of this drawing onto your canvas so you can edit and reply to it.",
-					cssClass: "liquid-alert",
-					buttons: [
-						{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-						{
-							text: "Start Remixing",
-							cssClass: "alert-button-confirm",
-							handler: () => {
-								swiperStore.close();
-
-								router.push({
-									path: FRONTEND_ROUTES.draw,
-									query: {
-										canvas_url: item.drawing_url || item.drawing,
-										mode: "solo",
-									},
-								});
-							},
-						},
-					],
+					confirmText: "Start Remixing",
 				});
-				await alert.present();
 			},
 			canDelete: (item, currentUser) => item.author_id === currentUser._id,
 			userLookup: (userId: string) => {

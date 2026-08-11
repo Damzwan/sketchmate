@@ -120,7 +120,7 @@
           @remix="remixCompetitionEntry"
         />
 
-        <SwiperCommentDrawer
+        <CommentDrawer
           :open="!!selectedCommentEntry"
           :curr-item="selectedCommentEntry"
           type="competition"
@@ -163,7 +163,6 @@
 
 <script setup lang="ts">
 import {
-	alertController,
 	IonContent,
 	IonPage,
 	IonSpinner,
@@ -183,9 +182,10 @@ import MyCompetitionEntrySheet from "@/components/competition/MyCompetitionEntry
 import MyCompetitionVotesModal from "@/components/competition/MyCompetitionVotesModal.vue";
 import ThemesPanel from "@/components/competition/ThemesPanel.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import SubPageBar from "@/components/general/SubPageBar.vue";
-import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
 import { useOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
+import { useConfirm } from "@/composables/useConfirm";
 import {
 	formatRemaining,
 	phaseFor,
@@ -215,6 +215,7 @@ const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const { paused: ambientPaused } = storeToRefs(useAmbientPause());
 const { toast } = useToast();
+const { confirm } = useConfirm();
 const selectedEntry = ref<CompetitionEntry | null>(null);
 const selectedCommentEntry = ref<CompetitionEntry | null>(null);
 const myVotesOpen = ref(false);
@@ -449,29 +450,24 @@ async function remixCompetitionEntry(entry: CompetitionEntry) {
 		toast("This drawing cannot be remixed", { color: "warning" });
 		return;
 	}
-	const alert = await alertController.create({
+	const shouldRemix = await confirm({
 		header: "Remix this drawing?",
 		message: "A copy will open on your canvas. The original stays unchanged.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Start remixing",
-				handler: () => {
-					myEntryOpen.value = false;
-					photoSwiper.close();
-					router.push({
-						path: FRONTEND_ROUTES.draw,
-						query: { canvas_url: entry.drawing_url, mode: "solo" },
-					});
-				},
-			},
-		],
+		confirmText: "Start remixing",
 	});
-	await alert.present();
+	if (!shouldRemix) return;
+	myEntryOpen.value = false;
+	photoSwiper.close();
+	void router.push({
+		path: FRONTEND_ROUTES.draw,
+		query: { canvas_url: entry.drawing_url, mode: "solo" },
+	});
 }
 
-async function deleteCurrentEntry(entry: CompetitionEntry, confirm = true) {
+async function deleteCurrentEntry(
+	entry: CompetitionEntry,
+	shouldConfirm = true,
+) {
 	const remove = async () => {
 		try {
 			await withdrawEntry(entry.competition_id);
@@ -482,21 +478,19 @@ async function deleteCurrentEntry(entry: CompetitionEntry, confirm = true) {
 			toast("This entry can no longer be deleted", { color: "danger" });
 		}
 	};
-	if (!confirm) {
+	if (!shouldConfirm) {
 		await remove();
 		return;
 	}
-	const alert = await alertController.create({
+	const shouldDelete = await confirm({
 		header: "Delete your entry?",
 		message:
 			"Its votes and comments will also be removed. You can submit another entry while submissions are open.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Keep it", role: "cancel" },
-			{ text: "Delete entry", role: "destructive", handler: remove },
-		],
+		cancelText: "Keep it",
+		confirmText: "Delete entry",
+		destructive: true,
 	});
-	await alert.present();
+	if (shouldDelete) await remove();
 }
 function openArchive(past: ArchivedCompetition) {
 	void openOverlay(() => {

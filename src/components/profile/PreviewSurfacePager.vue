@@ -138,6 +138,7 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import exampleImg from "@/assets/example.webp";
 import AmbientScope from "@/components/general/AmbientScope.vue";
 import PreviewSurface from "@/components/profile/PreviewSurface.vue";
+import { useSnapPager } from "@/composables/general/useSnapPager";
 import type { Customization } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 import { useAmbientPause } from "@/store/ambientPause.store";
@@ -266,60 +267,17 @@ const markVisited = (id: Mode) => {
 	if (tabs[idx + 1]) visited.add(tabs[idx + 1].id);
 };
 
-const pagerRef = ref<HTMLElement | null>(null);
-let pagerRaf = 0;
-
-const scrollToPane = (idx: number, smooth = true) => {
-	const el = pagerRef.value;
-	const child = el?.children[idx] as HTMLElement | undefined;
-	if (!el || !child) return;
-	el.scrollTo({
-		left: child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2,
-		behavior: smooth ? "smooth" : "auto",
-	});
-};
-
-const setMode = (id: Mode, scroll = true) => {
-	if (mode.value !== id) {
-		mode.value = id;
-		markVisited(id);
-	}
-	if (scroll) scrollToPane(tabs.findIndex((t) => t.id === id));
-};
-
-// Tapping a PEEKED (non-active) pane navigates to it instead of interacting
-// with its content — capture phase so inner buttons never fire. The active
-// pane's clicks pass through untouched.
-const onPaneClick = (id: Mode, e: Event) => {
-	if (mode.value === id) return;
-	e.stopPropagation();
-	e.preventDefault();
-	setMode(id);
-};
-
-// Track swipes: whichever pane's center is nearest the pager's center is the
-// active mode. rAF-throttled — scroll events fire far faster than paints.
-const onPagerScroll = () => {
-	if (pagerRaf) return;
-	pagerRaf = requestAnimationFrame(() => {
-		pagerRaf = 0;
-		const el = pagerRef.value;
-		if (!el) return;
-		const center = el.scrollLeft + el.clientWidth / 2;
-		let best = 0;
-		let bestDist = Infinity;
-		for (let i = 0; i < el.children.length; i++) {
-			const child = el.children[i] as HTMLElement;
-			const d = Math.abs(child.offsetLeft + child.offsetWidth / 2 - center);
-			if (d < bestDist) {
-				bestDist = d;
-				best = i;
-			}
-		}
-		const id = tabs[best]?.id;
-		if (id && id !== mode.value) setMode(id, false);
-	});
-};
+const {
+	pagerRef,
+	scrollToPane,
+	setActive: setMode,
+	onPaneClick,
+	onPagerScroll,
+} = useSnapPager(
+	tabs.map((tab) => tab.id),
+	mode,
+	{ onChange: markVisited },
+);
 
 // Host opened → reset to Card, mount ONLY the card, and pull the neighbor in
 // after the open transition settles — mounting a second world+effect surface
@@ -346,7 +304,6 @@ watch(
 );
 
 onBeforeUnmount(() => {
-	if (pagerRaf) cancelAnimationFrame(pagerRaf);
 	window.clearTimeout(neighborTimer);
 	if (holding) {
 		holding = false;

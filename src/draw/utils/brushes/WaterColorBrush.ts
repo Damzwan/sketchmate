@@ -203,8 +203,11 @@ export class WaterColorBrush extends BaseBrush {
 // THE OPTIMIZED WATERCOLOR STROKE
 // ==========================================
 export class WaterColorStroke extends Path {
-	static type = "WaterColorStroke";
-	static cacheProperties = [...Path.cacheProperties, "compressedTrace"];
+	static override type = "WaterColorStroke";
+	static override cacheProperties = [
+		...Path.cacheProperties,
+		"compressedTrace",
+	];
 
 	/**
 	 * Float32Array, not `number[]` — half the bytes, and this is the most
@@ -246,7 +249,7 @@ export class WaterColorStroke extends Path {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Never write the expanded path back into `object`. drawload.helper stashes
 		// that exact source blob as __bakeJSON; mutating it made the compact trace
 		// carry a second, huge SVG path through structured clone and into the

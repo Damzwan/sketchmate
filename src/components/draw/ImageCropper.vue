@@ -59,8 +59,12 @@ function init() {
 }
 
 function apply() {
-	const imgUrl = cropper.getCroppedCanvas().toDataURL();
-	// selectAction(DrawAction.AddBackgroundImage, { img: imgUrl })
+	// NOTE: this only closes the modal — the crop is computed and thrown away.
+	// The dispatch below was commented out and the cropped data URL was left
+	// assigned to an unused local, so "Apply" has been a no-op. Restoring it
+	// needs the AddBackgroundImage action re-checked against the tile renderer,
+	// which is a draw-engine change, not a cleanup.
+	//   selectAction(DrawAction.AddBackgroundImage, { img: cropper.getCroppedCanvas().toDataURL() })
 	close();
 }
 </script>

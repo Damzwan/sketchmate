@@ -29,7 +29,7 @@ export interface RawPoint {
 
 // @ts-expect-error
 export class CalligraphyBrush extends BaseBrush {
-	width = 40;
+	override width = 40;
 	private _rawPoints: RawPoint[] = [];
 	private _seed: number = 0;
 
@@ -381,8 +381,8 @@ function inflateTrace(compressed: number[]): RawPoint[] {
 // 5. THE STROKE — a real vector Path (crisp everywhere, sync-friendly)
 // ------------------------------------------------------------------
 export class CalligraphyStroke extends Path {
-	static type = "CalligraphyStroke";
-	static cacheProperties = [
+	static override type = "CalligraphyStroke";
+	static override cacheProperties = [
 		...Path.cacheProperties,
 		"seed",
 		"baseWidth",
@@ -441,7 +441,7 @@ export class CalligraphyStroke extends Path {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		let path = object.path;
 		if (!path || (Array.isArray(path) && path.length === 0)) {
 			const pts = inflateTrace(object.compressedTrace || []);

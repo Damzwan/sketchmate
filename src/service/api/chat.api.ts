@@ -18,18 +18,25 @@ export async function getPendingRequests() {
 	return await request<PopulatedConversation[]>("/chats/requests");
 }
 
+export interface ChatMessagesPage {
+	data: BaseMessage[];
+	hasMore: boolean;
+}
+
 /**
- * Standard message history fetcher.
+ * Standard message history fetcher. Returns a page, not a bare array — this
+ * was declared as `BaseMessage[]` and the one caller cast the result to `any`
+ * to reach `.data`, so the declared type had never been right.
  */
 export async function getChatMessages(
 	conversationId: string,
 	before?: string,
 	limit = 30,
-) {
+): Promise<ChatMessagesPage> {
 	let url = `/chats/${conversationId}/messages?limit=${limit}`;
 	if (before) url += `&before=${before}`;
 
-	return await request<BaseMessage[]>(url);
+	return await request<ChatMessagesPage>(url);
 }
 
 /**

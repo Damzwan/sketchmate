@@ -42,9 +42,10 @@
 </template>
 
 <script setup lang="ts">
-import { alertController, IonIcon } from "@ionic/vue";
+import { IonIcon } from "@ionic/vue";
 import { mdiTrophyOutline, mdiVoteOutline } from "@mdi/js";
 import { computed, onMounted, ref, watch } from "vue";
+import { useConfirm } from "@/composables/useConfirm";
 import { svg } from "@/helper/general.helper";
 import router from "@/router";
 import {
@@ -63,6 +64,7 @@ const loading = ref(true);
 const swiper = usePhotoSwiper();
 const competitionStore = useCompetitionStore();
 const { toast } = useToast();
+const { confirm } = useConfirm();
 
 const displayEntries = computed(() =>
 	entries.value.map((entry) => ({
@@ -104,25 +106,17 @@ function open(index: number) {
 
 async function remixEntry(entry: ProfileCompetitionEntry) {
 	if (!entry.drawing_url) return;
-	const alert = await alertController.create({
+	const shouldRemix = await confirm({
 		header: "Remix this drawing?",
 		message: "A copy will open on your canvas. The original stays unchanged.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Start remixing",
-				handler: () => {
-					swiper.close();
-					router.push({
-						path: FRONTEND_ROUTES.draw,
-						query: { canvas_url: entry.drawing_url, mode: "solo" },
-					});
-				},
-			},
-		],
+		confirmText: "Start remixing",
 	});
-	await alert.present();
+	if (!shouldRemix) return;
+	swiper.close();
+	void router.push({
+		path: FRONTEND_ROUTES.draw,
+		query: { canvas_url: entry.drawing_url, mode: "solo" },
+	});
 }
 
 async function load() {

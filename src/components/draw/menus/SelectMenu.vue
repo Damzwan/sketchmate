@@ -33,7 +33,6 @@ import {
 } from "@ionic/vue";
 import { mdiCursorDefaultClickOutline, mdiLasso } from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { useDrawStore } from "@/draw/session/draw.store";
 import { DrawTool, type SelectTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { svg } from "@/helper/general.helper";

@@ -9,7 +9,7 @@ import {
 
 export class FastSprayBrush extends BaseBrush {
 	/** Width of a spray */
-	width = 10;
+	override width = 10;
 
 	/** Density of a spray (number of dots per chunk) */
 	density = 20;
@@ -183,8 +183,8 @@ export function generateSprayImage(
 }
 
 export class SprayStroke extends FabricImage {
-	static type = "SprayStroke";
-	static cacheProperties = [
+	static override type = "SprayStroke";
+	static override cacheProperties = [
 		...FabricImage.cacheProperties,
 		"color",
 		"dotWidth",
@@ -253,7 +253,7 @@ export class SprayStroke extends FabricImage {
 		return { ...baseObj, compressedDots: flat };
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Pixels supplied by the tile worker (transferred ImageBitmap). Use them
 		// directly instead of re-running the generator on every enliven — that
 		// regeneration is why these strokes were refused off-thread.

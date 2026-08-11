@@ -186,8 +186,8 @@ export function generateNeonImage(
 }
 
 export class NeonStroke extends FabricImage {
-	static type = "NeonStroke";
-	static cacheProperties = [
+	static override type = "NeonStroke";
+	static override cacheProperties = [
 		...FabricImage.cacheProperties,
 		"color",
 		"baseWidth",
@@ -252,7 +252,7 @@ export class NeonStroke extends FabricImage {
 		return { ...baseObj, compressedTrace: flat };
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Pixels supplied by the tile worker (transferred ImageBitmap). Use them
 		// directly instead of re-running the generator on every enliven — that
 		// regeneration is why these strokes were refused off-thread.

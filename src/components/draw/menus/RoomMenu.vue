@@ -150,7 +150,7 @@
         <div class="flex items-center justify-center gap-3 w-full">
           <div class="flex space-x-2" @paste="handlePaste">
             <input
-              v-for="(digit, index) in code"
+              v-for="(_, index) in code"
               :key="index"
               :id="'code-' + index"
               v-model="code[index]"
@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
+import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiAccountPlus,
 	mdiCamera,
@@ -236,8 +236,6 @@ import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useParentalStore } from "@/store/parental.store";
-
-const router = useIonRouter();
 
 const drawSyncerStore = useDrawSyncer();
 const {

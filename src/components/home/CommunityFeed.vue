@@ -102,10 +102,12 @@
     />
 
     <!-- Comments Drawer Slide Controller -->
-    <PostCommentDrawer
-      :is-open="isCommentsOpen"
-      :post="activePost"
-      @close="isCommentsOpen = false"
+    <CommentDrawer
+      :open="isCommentsOpen"
+      :curr-item="activePost"
+      type="post"
+      :user="user"
+      @update:open="isCommentsOpen = $event"
     />
 
     <!-- One sheet for the feed. It used to be instantiated once per post. -->
@@ -122,11 +124,11 @@
 import { useIntersectionObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { computed, onUnmounted, ref, watch } from "vue";
+import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import ArtistHighlights from "@/components/home/ArtistHighlights.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
-import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
 import { provideOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";

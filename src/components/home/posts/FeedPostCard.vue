@@ -372,7 +372,7 @@
 </template>
 
 <script setup lang="ts">
-import { alertController, IonIcon } from "@ionic/vue";
+import { IonIcon } from "@ionic/vue";
 import {
 	mdiArrowExpand,
 	mdiChatOutline,
@@ -395,6 +395,7 @@ import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import { useOverlayScrollGuardContext } from "@/composables/general/useOverlayScrollGuard";
 import { useTextClamp } from "@/composables/general/useTextClamp";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { useConfirm } from "@/composables/useConfirm";
 import { playSelectionTick, reactionImages } from "@/config/post.config";
 import {
 	calculateSignatureStroke,
@@ -458,6 +459,7 @@ const {
 	toggle: toggleDescription,
 } = useTextClamp(descriptionEl);
 const menuStore = useMenuStore();
+const { confirm } = useConfirm();
 
 const imageLoaded = ref(false);
 const reactionSurface = ref<HTMLElement | null>(null);
@@ -698,31 +700,23 @@ const openComments = () => {
 };
 
 const remixPost = async () => {
-	const alert = await alertController.create({
+	const shouldRemix = await confirm({
 		header: "Remix this drawing?",
 		message:
 			"This will open a copy of this drawing on your canvas so you can edit it.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Remix Drawing",
-				handler: () => {
-					trackEvent(mixpanelEvents.postRemix, {
-						post_id: props.post._id,
-						author_id: props.post.author._id,
-					});
-					setTimeout(() => {
-						router.push({
-							path: FRONTEND_ROUTES.draw,
-							query: { canvas_url: props.post.drawing_url, mode: "solo" },
-						});
-					}, 100);
-				},
-			},
-		],
+		confirmText: "Remix Drawing",
 	});
-	await alert.present();
+	if (!shouldRemix) return;
+	trackEvent(mixpanelEvents.postRemix, {
+		post_id: props.post._id,
+		author_id: props.post.author._id,
+	});
+	setTimeout(() => {
+		void router.push({
+			path: FRONTEND_ROUTES.draw,
+			query: { canvas_url: props.post.drawing_url, mode: "solo" },
+		});
+	}, 100);
 };
 
 const handleDoubleTap = (e: MouseEvent | TouchEvent) => {

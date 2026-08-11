@@ -31,6 +31,12 @@ import { chooseOverviewDimensions } from "./overviewSizing";
 interface OverviewOptions {
 	px?: number;
 	targetDensity?: number;
+	/**
+	 * Accepted from the device memory profile (4–32 by tier) but NOT honoured
+	 * here — the overview does its own chunking. The field it used to be stored
+	 * in was write-only, so it was removed rather than left as dead state; wiring
+	 * the knob up is a draw-engine change tracked separately.
+	 */
 	renderChunk?: number;
 	remoteOverview?: RemoteOverview<any>;
 	/** Cost ceiling for one synchronous `patchRect`. See renderCost.ts. */
@@ -38,14 +44,6 @@ interface OverviewOptions {
 }
 
 export class WorldOverview<T extends Bounded> {
-	/**
-	 * Assigned from the device memory profile's `renderChunk` (4–32 by tier) but
-	 * never read here, so the per-tier chunking never reaches this overview.
-	 * Kept as-is rather than deleted: the knob is intended to be honoured. Wiring
-	 * it up is a draw-engine change and is tracked separately.
-	 */
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: see above.
-	private readonly CHUNK: number;
 	private readonly PIXEL_BUDGET_EDGE: number;
 	private readonly TARGET_DENSITY: number;
 	private readonly SYNC_COST_BUDGET: number;
@@ -71,7 +69,6 @@ export class WorldOverview<T extends Bounded> {
 		this.renderer = renderer;
 		this.PIXEL_BUDGET_EDGE = opts.px ?? 2048;
 		this.TARGET_DENSITY = opts.targetDensity ?? 0.5;
-		this.CHUNK = opts.renderChunk ?? 128;
 		this.SYNC_COST_BUDGET = opts.syncCostBudget ?? Infinity;
 		this.remoteOverview = opts.remoteOverview;
 	}

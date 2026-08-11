@@ -55,7 +55,6 @@ import {
 } from "@ionic/vue";
 import { homeOutline, imagesOutline, personOutline } from "ionicons/icons";
 import { storeToRefs } from "pinia";
-import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { masterAnimation } from "@/helper/animation.helper";
 import { useAuthStore } from "@/store/auth.store";

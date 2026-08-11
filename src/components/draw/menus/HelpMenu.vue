@@ -28,7 +28,6 @@ const helpActionSheetButtons: ActionSheetButton[] = [
 		role: "selected",
 		icon: svg(mdiBookOpenOutline),
 		handler: () => {
-			const { openMenu } = useMenuStore();
 			document.getElementById("docsMenu")?.click();
 		},
 	},

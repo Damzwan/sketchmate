@@ -122,7 +122,6 @@
 <script setup lang="ts">
 import {
 	actionSheetController,
-	alertController,
 	IonAvatar,
 	IonButton,
 	IonIcon,
@@ -141,6 +140,7 @@ import { useInfiniteScroll } from "@vueuse/core";
 import dayjs from "dayjs";
 import { computed, nextTick, ref, watch } from "vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { useConfirm } from "@/composables/useConfirm";
 import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
 import {
@@ -169,6 +169,7 @@ const { openUserActions } = useUserContextSheet();
 const postStore = usePostStore();
 const moderationStore = useModerationStore();
 const { toast } = useToast();
+const { confirm } = useConfirm();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const input = ref<any>();
@@ -301,12 +302,19 @@ async function submitComment() {
 	try {
 		if (isPost.value) {
 			const res = await postComment(props.currItem._id, message);
-			comments.value.push(res.comment);
+			const hydrated = {
+				...res.comment,
+				author: props.user
+					? {
+							_id: props.user._id,
+							name: props.user.name,
+							img: props.user.img,
+						}
+					: { _id: res.comment.author_id, name: "You", img: "" },
+			};
+			comments.value.push(hydrated);
 			props.currItem.comment_count++;
-			props.currItem.comments = [
-				...(props.currItem.comments || []),
-				res.comment,
-			];
+			props.currItem.comments = [...(props.currItem.comments || []), hydrated];
 		} else if (isCompetition.value) {
 			const res = await postCompetitionComment(props.currItem._id, message);
 			comments.value.push(res.comment);
@@ -392,7 +400,7 @@ function close() {
 // --- Comment actions
 async function openCommentActions(comment: any) {
 	const authorId = getAuthorId(comment);
-	const isMine = authorId === props.user._id;
+	const isMine = authorId === props.user?._id;
 	const buttons: any[] = [];
 
 	if (isMine) {
@@ -433,55 +441,38 @@ async function openCommentActions(comment: any) {
 }
 
 async function confirmDeleteComment(comment: any) {
-	const alert = await alertController.create({
+	const shouldDelete = await confirm({
 		header: "Delete Comment?",
 		subHeader: "This can't be undone.",
 		message: "Are you sure you want to remove this comment?",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-			{
-				text: "Delete",
-				role: "destructive",
-				cssClass: "alert-button-confirm",
-				handler: async () => {
-					if (!props.currItem) return;
-					try {
-						if (isPost.value) {
-							await postStore.deletePostComment(
-								props.currItem._id,
-								comment._id,
-							);
-						} else if (isCompetition.value) {
-							await deleteCompetitionComment(props.currItem._id, comment._id);
-						} else {
-							await deleteInboxComment(props.currItem._id, comment._id);
-						}
-
-						comments.value = comments.value.filter(
-							(c) => c._id !== comment._id,
-						);
-						if (props.currItem.comments) {
-							props.currItem.comments = props.currItem.comments.filter(
-								(c: any) => c._id !== comment._id,
-							);
-						}
-
-						if (
-							typeof props.currItem.comment_count === "number" &&
-							props.currItem.comment_count > 0
-						) {
-							props.currItem.comment_count--;
-						}
-						toast("Comment deleted");
-					} catch (e) {
-						toast("Failed to delete comment", { color: "danger" });
-					}
-				},
-			},
-		],
+		confirmText: "Delete",
+		destructive: true,
 	});
-	await alert.present();
+	if (!shouldDelete || !props.currItem) return;
+	try {
+		if (isPost.value) {
+			await postStore.deletePostComment(props.currItem._id, comment._id);
+		} else if (isCompetition.value) {
+			await deleteCompetitionComment(props.currItem._id, comment._id);
+		} else {
+			await deleteInboxComment(props.currItem._id, comment._id);
+		}
+		comments.value = comments.value.filter((c) => c._id !== comment._id);
+		if (props.currItem.comments) {
+			props.currItem.comments = props.currItem.comments.filter(
+				(c: any) => c._id !== comment._id,
+			);
+		}
+		if (
+			typeof props.currItem.comment_count === "number" &&
+			props.currItem.comment_count > 0
+		) {
+			props.currItem.comment_count--;
+		}
+		toast("Comment deleted");
+	} catch {
+		toast("Failed to delete comment", { color: "danger" });
+	}
 }
 </script>
 

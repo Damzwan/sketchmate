@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiAccountCancelOutline,
 	mdiAccountMinusOutline,
@@ -155,6 +155,7 @@ import AmbientScope from "@/components/general/AmbientScope.vue";
 import ProfileSheetView from "@/components/profile/ProfileSheetView.vue";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { useConfirm } from "@/composables/useConfirm";
 import {
 	hydrateCustomization,
 	resolveReadableCustomizationPalette,
@@ -186,6 +187,7 @@ const friendStore = useFriendStore();
 const { closeSheet } = useUserContextSheet();
 const { openPostSwiper } = usePostSwiper();
 const { toast } = useToast();
+const { confirm } = useConfirm();
 
 const swiper = usePhotoSwiper();
 const { viewProfileMenuOpen } = storeToRefs(menuStore);
@@ -267,7 +269,7 @@ const isOnline = computed(() =>
 const status = computed(() => {
 	if (!targetProfile.value?._id) return undefined;
 	return (
-		(targetProfile.value as any).chat_status ||
+		targetProfile.value.chat_status ||
 		friendStore.resolvePartnerInfo(targetProfile.value._id)?.chat_status
 	);
 });
@@ -371,33 +373,26 @@ async function onUnfriend() {
 	const isPermanent = status.value === "mate";
 	const partner = targetProfile.value;
 
-	const alert = await alertController.create({
+	const shouldRemove = await confirm({
 		header: isPermanent ? "Unfriend?" : "End Trial?",
-		cssClass: "liquid-alert",
 		message: isPermanent
 			? `Remove ${partner.name}? Chat invites locked for 48h.`
 			: `Stop chatting with ${partner.name}?`,
-		buttons: [
-			{ text: "Keep", role: "cancel" },
-			{
-				text: isPermanent ? "Remove" : "End",
-				role: "destructive",
-				handler: async () => {
-					try {
-						await unfriendUser(partner._id);
-						friendStore.removeFriendLocally(partner._id);
-						void friendStore.refreshMyStats();
-						useChatStore().expireChat(partner._id);
-						toast(isPermanent ? `Removed ${partner.name}` : "Trial ended");
-						closeSheet();
-					} catch {
-						toast("Action failed", { color: "danger" });
-					}
-				},
-			},
-		],
+		cancelText: "Keep",
+		confirmText: isPermanent ? "Remove" : "End",
+		destructive: true,
 	});
-	await alert.present();
+	if (!shouldRemove) return;
+	try {
+		await unfriendUser(partner._id);
+		friendStore.removeFriendLocally(partner._id);
+		void friendStore.refreshMyStats();
+		useChatStore().expireChat(partner._id);
+		toast(isPermanent ? `Removed ${partner.name}` : "Trial ended");
+		closeSheet();
+	} catch {
+		toast("Action failed", { color: "danger" });
+	}
 }
 
 async function confirmToggleBlock() {
@@ -416,46 +411,37 @@ async function confirmToggleBlock() {
 		return;
 	}
 
-	const alert = await alertController.create({
+	const shouldBlock = await confirm({
 		header: "Block User?",
 		message: `Are you sure you want to block ${target.name}? They will no longer be able to message you or see your sketches.`,
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Block",
-				role: "destructive",
-				handler: async () => {
-					try {
-						await blockUser(target._id);
-						friendStore.blockUserLocally(target._id);
-						void friendStore.refreshMyStats();
-						if (useDrawSyncer().isLobby) {
-							// Only a live lobby needs canvas cleanup. Keep the Fabric-backed
-							// object manager out of ordinary profile-sheet chunks.
-							const { useDrawObjectManager } = await import(
-								"@/draw/canvas/drawObjectManager"
-							);
-							useDrawObjectManager().purgeBlockedObjects();
-						}
-
-						toast(`${target.name} blocked`);
-						closeSheet();
-					} catch {
-						toast("Action failed", { color: "danger" });
-					}
-				},
-			},
-		],
+		confirmText: "Block",
+		destructive: true,
 	});
-	await alert.present();
+	if (!shouldBlock) return;
+	try {
+		await blockUser(target._id);
+		friendStore.blockUserLocally(target._id);
+		void friendStore.refreshMyStats();
+		if (useDrawSyncer().isLobby) {
+			const { useDrawObjectManager } = await import(
+				"@/draw/canvas/drawObjectManager"
+			);
+			useDrawObjectManager().purgeBlockedObjects();
+		}
+		toast(`${target.name} blocked`);
+		closeSheet();
+	} catch {
+		toast("Action failed", { color: "danger" });
+	}
 }
 
 function report() {
+	const profile = targetProfile.value;
+	if (!profile?._id) return;
 	useModerationStore().openReport({
 		type: "user",
-		id: targetProfile.value._id,
-		label: targetProfile.value.name,
+		id: profile._id,
+		label: profile.name,
 	});
 }
 

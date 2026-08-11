@@ -1,0 +1,27 @@
+{
+	// Q0 ratchet — docs/CODE_QUALITY_AUDIT.md §4.
+	//
+	// An opt-in, project-wide strictness pass. NOT part of `pnpm verify`: it does
+	// not pass yet. Run it with `pnpm typecheck:strict` to see the remaining work,
+	// and drive the counts down; when a flag reaches zero, move it into
+	// tsconfig.json and delete it from here.
+	//
+	// Measured 2026-08-11 against a green `vue-tsc --noEmit` (0 errors):
+	//
+	//   exactOptionalPropertyTypes          153 errors
+	//   noPropertyAccessFromIndexSignature  124 errors   (not enabled below)
+	//   noUncheckedIndexedAccess            934 errors   (not enabled below)
+	//
+	// Only the cheapest is on. The other two are recorded so the next phase can
+	// be scheduled against real numbers rather than a guess.
+	//
+	// Why this is project-wide rather than scoped to src/store + src/service, as
+	// the audit originally proposed: the type graph is not separable. Stores
+	// import .vue components, and Fabric's module augmentation lives in
+	// src/draw/canvas/fabric.types.ts — a subset program drops both and reports
+	// ~189 phantom errors that say nothing about strictness.
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"exactOptionalPropertyTypes": true
+	}
+}

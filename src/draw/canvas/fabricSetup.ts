@@ -1,7 +1,6 @@
 import {
 	Canvas,
 	type CanvasOptions,
-	classRegistry,
 	config,
 	FabricObject,
 	InteractiveFabricObject,
@@ -14,17 +13,7 @@ import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { BACKGROUND } from "@/draw/config/canvas.config";
 import { getRenderDpr } from "@/draw/config/renderQuality.config";
 import { activeLayerId } from "@/draw/layers/layerRegistry";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { registerBrushClasses } from "@/draw/utils/brushes/registry";
 import { useAuthStore } from "@/store/auth.store";
 import { uuidv4 } from "@/utils/uuid";
 
@@ -49,20 +38,6 @@ const customProperties = [
 	"flattened",
 ];
 
-const drawableClasses = [
-	[OptimizedEraserStroke, "OptimizedEraserStroke"],
-	[PixelStroke, "PixelStroke"],
-	[CharcoalStroke, "CharcoalStroke"],
-	[WaterColorStroke, "WaterColorStroke"],
-	[CalligraphyStroke, "CalligraphyStroke"],
-	[BucketFillPath, "BucketFillPath"],
-	[OptimizedPencilStroke, "OptimizedPencilStroke"],
-	[NeonStroke, NeonStroke.type],
-	[SprayStroke, SprayStroke.type],
-	[CircleStroke, CircleStroke.type],
-	[CrayonStroke, CrayonStroke.type],
-] as const;
-
 let configured = false;
 
 export function applyRenderDpr(): void {
@@ -75,7 +50,7 @@ export function configureFabric(): void {
 	configured = true;
 
 	disableObjectCaching();
-	registerDrawableClasses();
+	registerBrushClasses();
 	installObjectMetadata();
 	installZoomCalculation();
 	installControlRenderer();
@@ -107,12 +82,6 @@ function disableObjectCaching(): void {
 	FabricObject.prototype.objectCaching = false;
 	IText.prototype.editable = false;
 	FabricObject.customProperties = customProperties;
-}
-
-function registerDrawableClasses(): void {
-	for (const [drawableClass, name] of drawableClasses) {
-		classRegistry.setClass(drawableClass, name);
-	}
 }
 
 function installObjectMetadata(): void {

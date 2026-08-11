@@ -142,7 +142,7 @@ withDefaults(
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { GoogleAuthProvider, getAuth, linkWithCredential } from "firebase/auth";
 import { storeToRefs } from "pinia";
-import { computed, reactive, ref } from "vue";
+import { computed, ref } from "vue";
 import connectImage from "@/assets/illustrations/connect.webp";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";

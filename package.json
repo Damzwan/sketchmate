@@ -19,6 +19,7 @@
 		"prepare": "git config core.hooksPath .githooks || true",
 		"lint:fix": "biome check . --write",
 		"typecheck": "vue-tsc --noEmit",
+		"typecheck:strict": "vue-tsc -p tsconfig.strict.json --noEmit",
 		"verify": "biome check . && vue-tsc --noEmit && vitest run && vite build && node scripts/checkBudget.mjs",
 		"budget": "node scripts/checkBudget.mjs",
 		"mem": "node scripts/memProfile.mjs"

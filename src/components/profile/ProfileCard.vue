@@ -43,7 +43,6 @@
 
       <div class="flex flex-col items-center relative mt-2">
         <div
-          ref="doodleZoneRef"
           class="js-doodle-zone relative w-full flex flex-col items-center py-6 transition-[transform,background-color]"
           :class="allowSketchEdit ? 'cursor-pointer rounded-[2rem] border-2 border-dashed hover:bg-black/[0.03] active:scale-[0.99]' : ''"
           :style="allowSketchEdit ? { borderColor: theme.cardBorderColor } : {}"
@@ -263,7 +262,7 @@ import {
 	mdiPalette,
 	mdiTrophyOutline,
 } from "@mdi/js";
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
@@ -320,8 +319,6 @@ defineEmits([
 	"edit-sketch",
 	"edit-signature",
 ]);
-
-const doodleZoneRef = ref<HTMLElement | null>(null);
 
 const displayStats = computed(() => props.showStats ?? !props.isPreview);
 

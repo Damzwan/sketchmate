@@ -148,8 +148,8 @@ export function generateCrayonImage(
 }
 
 export class CrayonStroke extends FabricImage {
-	static type = "CrayonStroke";
-	static cacheProperties = [
+	static override type = "CrayonStroke";
+	static override cacheProperties = [
 		...FabricImage.cacheProperties,
 		"color",
 		"baseWidth",
@@ -216,7 +216,7 @@ export class CrayonStroke extends FabricImage {
 		return { ...baseObj, compressedTrace: flat };
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Pixels supplied by the tile worker (transferred ImageBitmap). Use them
 		// directly instead of re-running the generator on every enliven — that
 		// regeneration is why these strokes were refused off-thread.
@@ -269,14 +269,14 @@ export class CrayonBrush extends PatternBrush {
 		this.strokeLineJoin = "round";
 	}
 
-	needsFullRender() {
+	override needsFullRender() {
 		return true;
 	}
 	_needsFullRender() {
 		return true;
 	}
 
-	onMouseDown(pointer: Point, ev: any) {
+	override onMouseDown(pointer: Point, ev: any) {
 		// New seed + pattern per stroke; the SAME pattern drives the live preview
 		// AND the committed flatten, so they can't disagree.
 		this._seed = Math.floor(Math.random() * 1_000_000);
@@ -288,7 +288,7 @@ export class CrayonBrush extends PatternBrush {
 	// tiling in world space (ctx is viewport-transformed here), so the texture
 	// layout matches the committed image exactly — no solid→pattern pop, no phase
 	// mismatch.
-	_render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
+	override _render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
 		const pts = (this as any)._points as Point[];
 		if (!pts || pts.length === 0 || !this._patternCanvas) return;
 
@@ -313,13 +313,13 @@ export class CrayonBrush extends PatternBrush {
 		ctx.restore();
 	}
 
-	onMouseUp(o: { e: any }): boolean {
+	override onMouseUp(o: { e: any }): boolean {
 		if (!this.canvas._isMainEvent?.(o.e)) return true;
 		this._finalizeAndAddPath();
 		return false;
 	}
 
-	_finalizeAndAddPath(): void {
+	override _finalizeAndAddPath(): void {
 		const topCtx = this.canvas.contextTop;
 		const pts = ((this as any)._points as Point[]) || [];
 

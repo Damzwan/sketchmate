@@ -245,7 +245,7 @@ interface CharcoalPoint {
 
 // --- Stroke Implementation ---
 export class CharcoalStroke extends FabricObject {
-	static type = "CharcoalStroke";
+	static override type = "CharcoalStroke";
 	public trace: any[];
 	public stampCanvas?: HTMLCanvasElement;
 	public stampSize: number;
@@ -311,7 +311,7 @@ export class CharcoalStroke extends FabricObject {
 		this.top = minY - this.stampSize / 2 + this.height / 2;
 	}
 
-	_render(ctx: CanvasRenderingContext2D) {
+	override _render(ctx: CanvasRenderingContext2D) {
 		if (!this.stampCanvas) return;
 		const halfWidth = this.width / 2,
 			halfHeight = this.height / 2;
@@ -327,7 +327,7 @@ export class CharcoalStroke extends FabricObject {
 		}
 	}
 
-	toObject(additionalProperties: string[] = []) {
+	override toObject(additionalProperties: string[] = []) {
 		const flatTrace: number[] = [];
 		let lastX = 0,
 			lastY = 0;
@@ -362,7 +362,7 @@ export class CharcoalStroke extends FabricObject {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Attach the stamp to the COPY, never to `object`. An HTMLCanvasElement in
 		// the source blob makes it un-structured-cloneable, and at load that blob
 		// is stashed as `__bakeJSON` and posted to the tile worker — postMessage

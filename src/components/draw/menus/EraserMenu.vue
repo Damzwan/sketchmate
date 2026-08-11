@@ -45,27 +45,15 @@ import { storeToRefs } from "pinia";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useEraser } from "@/draw/tools/eraser.store";
-import { DrawTool, EraserSize } from "@/draw/tools/tool.types";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 
 const drawStore = useDrawStore();
-const { selectTool } = useToolSelection();
 const { eraserSize } = storeToRefs(useEraser());
 const { eraserMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
 function clearAll() {
 	drawStore.selectAction(DrawAction.FullErase, undefined);
-	close();
-}
-
-function selectEraserSize(size: EraserSize) {
-	eraserSize.value = size;
-}
-
-function selectEraser() {
-	selectTool(DrawTool.MobileEraser);
 	close();
 }
 

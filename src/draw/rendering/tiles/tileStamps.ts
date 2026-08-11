@@ -442,7 +442,7 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	 * place keep that tile hot across the idle gap instead of paying a
 	 * demote/promote round trip on their next stroke.
 	 */
-	trimPool(keep = 2): void {
+	override trimPool(keep = 2): void {
 		this.demoteHotTiles(1);
 		super.trimPool(keep);
 	}

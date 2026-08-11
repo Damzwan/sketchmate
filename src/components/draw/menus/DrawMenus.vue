@@ -50,14 +50,12 @@ import TextEditMenu from "@/components/draw/TextEditMenu.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import { ObjectType } from "@/draw/objects/object.types";
 import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { useShapeCreation } from "@/draw/tools/shapeCreation.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 const { selectedObjectsRef } = storeToRefs(useSelect());
 const { selectAction } = useDrawStore();
-const { roomId } = storeToRefs(useDrawSyncer());
 
 const isText = computed(
 	() =>

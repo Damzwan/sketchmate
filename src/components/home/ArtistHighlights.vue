@@ -1,7 +1,6 @@
 <template>
   <section
     v-if="visible"
-    ref="rootEl"
     class="artist-highlights mb-6"
     aria-labelledby="artist-highlights-title"
   >
@@ -255,7 +254,6 @@ const { toast } = useToast();
 const config = ref<ArtistHighlightConfig | null>(null);
 const loading = ref(false);
 const loaded = ref(false);
-const rootEl = ref<HTMLElement | null>(null);
 // The feed owns the guard for this scroller; a second one here would stomp
 // its overflowAnchor bookkeeping.
 const { captureOverlayScroll, guardScroll, endOverlay, presentActionSheet } =

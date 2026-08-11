@@ -87,7 +87,7 @@
         @select="onLongPressReaction"
       />
 
-      <SwiperCommentDrawer
+      <CommentDrawer
         v-model:open="isCommentDrawerOpen"
         :curr-item="currItem"
         :type="config.type ?? 'inbox'"
@@ -113,12 +113,12 @@ import { onLongPress, useEventListener } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { register } from "swiper/element/bundle";
 import { computed, nextTick, ref, watch } from "vue";
+import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
 import PhotoSwiperHeader from "@/components/photoswiper/PhotoSwiperHeader.vue";
 import PhotoSwiperItem from "@/components/photoswiper/PhotoSwiperItem.vue";
-import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
 import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
 import { playSelectionTick } from "@/config/post.config";
 import { EventBus } from "@/main";

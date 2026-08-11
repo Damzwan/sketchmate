@@ -94,7 +94,6 @@ import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 
 enum FeedbackOptions {
 	like = "like",
@@ -108,9 +107,6 @@ const { feedbackMenuOpen } = storeToRefs(useMenuStore());
 const likeText = ref("");
 const dislikeText = ref("");
 const score = ref<FeedbackOptions>(FeedbackOptions.empty);
-
-const subscriptionStore = useSubscriptionStore();
-const { isPro } = storeToRefs(subscriptionStore);
 
 const isSubmitting = ref(false);
 const isOptingOut = ref(false);

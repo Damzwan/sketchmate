@@ -71,7 +71,7 @@ import { computed, reactive, ref } from "vue";
 import ProfilePictureSelector from "@/components/account/ProfilePictureSelector.vue";
 import { useProfileUpload } from "@/composables/general/useProfileUpload";
 import { svg } from "@/helper/general.helper";
-import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
+import { updateProfile } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 

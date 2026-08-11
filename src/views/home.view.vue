@@ -66,10 +66,6 @@ import {
 	ref,
 	watch,
 } from "vue";
-// Vector Assets & Lottie Files
-import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
-import draw_together from "@/assets/illustrations/home/draw_together.webp";
-import share from "@/assets/illustrations/home/share.webp";
 import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
 import CommunityFeed from "@/components/home/CommunityFeed.vue";
 import CompetitionCard from "@/components/home/CompetitionCard.vue";
@@ -122,52 +118,6 @@ const constrainedDevice =
 		document.documentElement.classList.contains("android-wv"));
 const FEED_RELEASE_DELAY_MS = constrainedDevice ? 0 : 15_000;
 let feedReleaseTimer: ReturnType<typeof setTimeout> | null = null;
-
-const ALL_QUICK_ACTIONS = [
-	{ id: "draw_alone", label: "Draw", img: draw_alone, requiresAge: false },
-	{
-		id: "draw_together",
-		label: "Together",
-		img: draw_together,
-		requiresAge: false,
-	},
-	{ id: "share", label: "Add Mate", img: share, requiresAge: false },
-	{ id: "balloon", label: "Balloon", img: null, requiresAge: true }, // img null because it switches to lottie
-];
-
-const visibleQuickActions = computed(() =>
-	ALL_QUICK_ACTIONS.filter((a) => !a.requiresAge || !isUnderAge.value),
-);
-
-const getCardLayoutClasses = (id: string) => {
-	switch (id) {
-		case "draw_alone":
-			return "col-span-3 h-24 border-primary/40 bg-gradient-to-br from-primary/20 to-tertiary";
-		case "draw_together":
-			return "col-span-3 h-24 border-primary/40 bg-gradient-to-br from-primary/20 to-tertiary";
-		case "share":
-			return "col-span-3 h-16 border-black/5 bg-tertiary";
-		case "balloon":
-			return "col-span-3 h-16 border-black/5 bg-tertiary";
-		default:
-			return "col-span-3";
-	}
-};
-
-const getImageLayoutClasses = (id: string) => {
-	switch (id) {
-		case "draw_alone":
-			return "w-18 h-18 -right-1 -bottom-1 drop-shadow-sm";
-		case "draw_together":
-			return "w-18 h-18 right-1 -bottom-1 drop-shadow-sm";
-		case "share":
-			return "w-14 h-14 right-2 bottom-1";
-		case "balloon":
-			return "w-14 h-14 right-2 bottom-0.5";
-		default:
-			return "w-12 h-12 right-0 bottom-0";
-	}
-};
 
 const pendingDraftIds = computed(
 	() => new Set(pendingDraftsList.value.map((p) => p.id)),

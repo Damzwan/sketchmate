@@ -7,7 +7,11 @@ import {
 	getBlockedIds,
 	toggleFollow,
 } from "@/service/api/relationship.api";
-import { fetchOnlineFriends, getFullProfile } from "@/service/api/user.api";
+import {
+	type FullProfileRes,
+	fetchOnlineFriends,
+	getFullProfile,
+} from "@/service/api/user.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
@@ -17,6 +21,7 @@ import type {
 	FeedPost,
 	NetworkUser,
 	PopulatedConversation,
+	PublicUser,
 } from "@/types/server.types";
 
 export const useFriendStore = defineStore("friend", () => {
@@ -49,7 +54,7 @@ export const useFriendStore = defineStore("friend", () => {
 
 	const networkLoading = ref(false);
 	const hasMore = ref(true);
-	const targetProfile = ref<any | null>(null);
+	const targetProfile = ref<FullProfileRes["profile"] | null>(null);
 	const targetPosts = ref<FeedPost[]>([]);
 	const loadingProfile = ref(false);
 
@@ -170,7 +175,7 @@ export const useFriendStore = defineStore("friend", () => {
 
 	async function fetchInitialOnlineFriends(): Promise<string[]> {
 		try {
-			return (await fetchOnlineFriends()) as any;
+			return await fetchOnlineFriends();
 		} catch (e) {
 			console.error("Failed to fetch initial online friends", e);
 			return [];
@@ -193,7 +198,7 @@ export const useFriendStore = defineStore("friend", () => {
 			const convos = await getPendingRequests();
 			pendingRequests.value = convos;
 			// Ingest all participant data into the cache
-			convos.forEach((c) => userCache.upsertMany(c.participants as any));
+			convos.forEach((c) => userCache.upsertMany(c.participants));
 		} catch (e) {
 			console.error("Failed to fetch pending requests:", e);
 		} finally {
@@ -205,9 +210,9 @@ export const useFriendStore = defineStore("friend", () => {
 		loadingProfile.value = true;
 		try {
 			const res = await getFullProfile(userId);
-			targetProfile.value = res.profile as any;
-			targetPosts.value = res.posts as any;
-			userCache.upsert(res.profile as any);
+			targetProfile.value = res.profile;
+			targetPosts.value = res.posts;
+			userCache.upsert(res.profile);
 		} catch (e) {
 			console.error("Error fetching target profile:", e);
 		} finally {
@@ -345,7 +350,7 @@ export const useFriendStore = defineStore("friend", () => {
 			authStore.user.stats.mates--;
 	}
 
-	function addFriendLocally(mate: any) {
+	function addFriendLocally(mate: PublicUser) {
 		userCache.upsert(mate);
 		const exists = networkLists.value.mates.some((m) => m._id === mate._id);
 		if (!exists) {

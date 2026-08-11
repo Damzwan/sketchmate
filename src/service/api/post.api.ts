@@ -1,5 +1,10 @@
 import type { PresignedUploadBundle } from "@/draw/sharing/shareDrawings";
-import type { FeedPost, QuotaState } from "@/types/server.types";
+import type {
+	BasePostComment,
+	FeedPost,
+	HydratedPostComment,
+	QuotaState,
+} from "@/types/server.types";
 import { request } from "./http";
 
 export interface PublishPostParams {
@@ -49,10 +54,13 @@ export async function toggleReaction(
 }
 
 export async function postComment(postId: string, message: string) {
-	return await request<{ comment: any }>(`/post/${postId}/comment`, {
-		method: "POST",
-		body: JSON.stringify({ message }),
-	});
+	return await request<{ comment: BasePostComment }>(
+		`/post/${postId}/comment`,
+		{
+			method: "POST",
+			body: JSON.stringify({ message }),
+		},
+	);
 }
 
 export async function fetchPostComments(
@@ -66,7 +74,7 @@ export async function fetchPostComments(
 		query.append("beforeDate", beforeDate);
 	}
 
-	return await request<{ comments: any[]; hasMore: boolean }>(
+	return await request<{ comments: HydratedPostComment[]; hasMore: boolean }>(
 		`/post/${postId}/comments?${query.toString()}`,
 		{
 			method: "GET",

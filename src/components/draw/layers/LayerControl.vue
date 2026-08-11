@@ -191,8 +191,6 @@ import {
 	mdiEyeOutline,
 	mdiImageSyncOutline,
 	mdiLayersTripleOutline,
-	mdiLockOpenVariantOutline,
-	mdiLockOutline,
 	mdiPencilOutline,
 	mdiPlus,
 	mdiStar,
@@ -202,6 +200,7 @@ import { storeToRefs } from "pinia";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { useConfirm } from "@/composables/useConfirm";
 import { BASE_LAYER_ID, MAX_SOLO_LAYERS } from "@/draw/layers/layer.types";
 import { useLayersStore } from "@/draw/layers/layers.store";
 import { useSelect } from "@/draw/tools/select.store";
@@ -209,6 +208,7 @@ import { svg } from "@/helper/general.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
 
 const layers = useLayersStore();
+const { confirm } = useConfirm();
 const {
 	layers: layerList,
 	activeId,
@@ -329,20 +329,15 @@ function add() {
 
 async function remove() {
 	const count = counts.value[activeId.value] ?? 0;
-	const alert = await alertController.create({
+	const shouldDelete = await confirm({
 		header: "Delete layer",
-		cssClass: "liquid-alert",
 		message: count
 			? `${activeLayerName.value} and its ${count} object${count === 1 ? "" : "s"} will be removed. You can undo this.`
 			: `${activeLayerName.value} will be removed. You can undo this.`,
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{ text: "Delete", role: "destructive" },
-		],
+		confirmText: "Delete",
+		destructive: true,
 	});
-	await alert.present();
-	const { role } = await alert.onDidDismiss();
-	if (role !== "destructive") return;
+	if (!shouldDelete) return;
 	// Clear first: the selection can hold objects this delete is about to remove,
 	// and a selection of detached objects renders controls for things that are no
 	// longer in the scene.
@@ -362,18 +357,12 @@ async function flatten(id: string) {
 	const layer = layerList.value.find((l) => l.id === id);
 	if (!layer || flattening.value) return;
 	const count = counts.value[id] ?? 0;
-	const alert = await alertController.create({
+	const shouldFlatten = await confirm({
 		header: "Flatten layer",
-		cssClass: "liquid-alert",
 		message: `${layer.name}'s ${count} object${count === 1 ? "" : "s"} become one image. Faster to draw on, but you can no longer edit the individual strokes.${shared.value ? " This changes the layer for everyone in the room." : ""} You can undo this.`,
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{ text: "Flatten", role: "confirm" },
-		],
+		confirmText: "Flatten",
 	});
-	await alert.present();
-	const { role } = await alert.onDidDismiss();
-	if (role !== "confirm") return;
+	if (!shouldFlatten) return;
 
 	// The selection can hold objects the flatten is about to remove.
 	useSelect().unSelect();

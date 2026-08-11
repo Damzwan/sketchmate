@@ -188,7 +188,7 @@ export class PixelBrush extends BaseBrush {
 }
 
 export class PixelStroke extends FabricObject {
-	static type = "PixelStroke";
+	static override type = "PixelStroke";
 
 	// The tile worker CANNOT render this stroke: `_render` blits `stampCanvas`,
 	// and the worker rebuilds it via `fromObject` → `fabric.util.loadImage(
@@ -201,7 +201,7 @@ export class PixelStroke extends FabricObject {
 	// vector, so only this one needs it.
 	static bakesOnMainThread = true;
 
-	static cacheProperties = [
+	static override cacheProperties = [
 		...FabricObject.cacheProperties,
 		"points",
 		"pixelSize",
@@ -266,7 +266,7 @@ export class PixelStroke extends FabricObject {
 		this.top = minY - this.stampSize / 2 + this.height / 2;
 	}
 
-	_render(ctx: CanvasRenderingContext2D) {
+	override _render(ctx: CanvasRenderingContext2D) {
 		if (!this.stampCanvas) return;
 		ctx.save();
 		ctx.imageSmoothingEnabled = false;
@@ -293,7 +293,7 @@ export class PixelStroke extends FabricObject {
 		ctx.restore();
 	}
 
-	toObject(additionalProperties: string[] = []) {
+	override toObject(additionalProperties: string[] = []) {
 		return super.toObject([
 			"left",
 			"top",
@@ -307,7 +307,7 @@ export class PixelStroke extends FabricObject {
 		]);
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// enlivenStrokeProps returns a COPY, so the stamp canvas is attached to
 		// that — never to `object`. Writing an HTMLCanvasElement into the source
 		// blob made it un-structured-cloneable, and at load that blob is stashed

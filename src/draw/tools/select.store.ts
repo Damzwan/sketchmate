@@ -36,7 +36,6 @@ export const useSelect = defineStore("select", (): Select => {
 	let clicksAfterSelectionActive = 0;
 
 	const isEditingText = ref(false);
-	const _isBottomHalf = ref(false);
 
 	let wasDragging = false;
 	let pointerDownPos: Point | null = null;

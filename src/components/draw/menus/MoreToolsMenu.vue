@@ -97,11 +97,8 @@ import {
 	mdiImage,
 	mdiImagePlusOutline,
 	mdiPaletteOutline,
-	mdiPanoramaVariantOutline,
 	mdiSelectionDrag,
 	mdiSelectionRemove,
-	mdiShapeOutline,
-	mdiStickerCircleOutline,
 	mdiStickerEmoji,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
@@ -113,7 +110,6 @@ import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { createSketchFromDataURL } from "@/draw/document/export";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { svg } from "@/helper/general.helper";
 import { compressImg } from "@/helper/image.helper";
 import { useAuthStore } from "@/store/auth.store";
@@ -156,22 +152,6 @@ watch(shapesMenuOpen, () => {
 		t.value.$el.dismiss();
 	}
 });
-
-function openStickerMenu() {
-	openMenu(Menu.StickerEmblemSaved);
-	stickersEmblemsSavedSelectedTab.value = "sticker";
-	closePopover();
-}
-
-function openEmblemMenu() {
-	openMenu(Menu.StickerEmblemSaved);
-	stickersEmblemsSavedSelectedTab.value = "emblem";
-	closePopover();
-}
-
-function openShapesMenu(e: any) {
-	openMenu(Menu.Shapes, e);
-}
 
 function openSavedMenu() {
 	openMenu(Menu.StickerEmblemSaved);

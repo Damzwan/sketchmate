@@ -1,4 +1,8 @@
-import type { ChatStatus, NetworkUser } from "@/types/server.types";
+import type {
+	ChatStatus,
+	NetworkUser,
+	PopulatedConversation,
+} from "@/types/server.types";
 import { request } from "./http";
 
 // --- FOLLOW & NETWORK ---
@@ -123,14 +127,23 @@ export async function fetchUserStats(userId: string) {
 	}>(`/relationship/${userId}/stats`);
 }
 
+export interface RespondToRelationshipRes {
+	success: boolean;
+	/** Present on `accept` — the freshly populated conversation. */
+	conversation?: PopulatedConversation;
+}
+
 export async function respondToRelationship(
 	relationshipId: string,
 	action: "accept" | "decline",
-) {
-	return await request(`/relationship/${relationshipId}/respond`, {
-		method: "POST",
-		body: JSON.stringify({ action: action }),
-	});
+): Promise<RespondToRelationshipRes> {
+	return await request<RespondToRelationshipRes>(
+		`/relationship/${relationshipId}/respond`,
+		{
+			method: "POST",
+			body: JSON.stringify({ action: action }),
+		},
+	);
 }
 
 export async function cancelMateRequest(conversationId: string) {

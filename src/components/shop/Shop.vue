@@ -1,6 +1,6 @@
 <template>
   <ion-modal :is-open="isShopOpen" @didDismiss="closeShop" class="full-screen-modal">
-    <ion-content class="--bg-canvas relative cabin-sketch-regular" ref="contentEl">
+    <ion-content class="--bg-canvas relative cabin-sketch-regular">
 
       <!-- ─── Header with left back button ─── -->
       <div
@@ -242,7 +242,6 @@ import { Purchases } from "@revenuecat/purchases-capacitor";
 import { chevronBackOutline } from "ionicons/icons";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, provide, ref, watch } from "vue";
-import bigbossImage from "@/assets/bigboss.jpg";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import {
 	CATALOG,
@@ -301,7 +300,6 @@ const ready = computed(
 const skusWithPrices = ref<
 	Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
 >({});
-const contentEl = ref<any>(null);
 const highlightedId = ref<string | null>(null);
 const collectionOpen = ref(false);
 

@@ -333,7 +333,6 @@ import { useMenuStore } from "@/store/menu.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
 
 // TODO: point these at the live pages before release.
-const TERMS_URL = "https://sketchmate.app/terms";
 const PRIVACY_URL = "https://sketchmate.ninja/legal";
 
 const menuStore = useMenuStore();

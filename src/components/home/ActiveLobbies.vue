@@ -1,32 +1,32 @@
 <template>
-  <section class="min-h-[160px] overflow-visible">
-    <div class="flex items-center justify-between px-1 mb-2.5">
+  <section class="min-h-[122px] overflow-visible">
+    <div class="flex items-center justify-between px-1 mb-2">
       <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80">
         Public Lobbies
       </h2>
       <transition name="fade">
         <div v-if="!loading" class="flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-          <span class="text-sm font-black text-black/80 uppercase tracking-widest">Live Now</span>
+          <span class="text-[10px] font-black text-black/80 uppercase tracking-widest">Live Now</span>
         </div>
       </transition>
     </div>
 
     <transition name="fade-slow" mode="out-in">
-      <div v-if="loading" key="loading" class="flex overflow-x-auto gap-3.5 pb-2 hide-scrollbar">
+      <div v-if="loading" key="loading" class="flex overflow-x-auto gap-2.5 pb-1 hide-scrollbar">
         <div
           v-for="i in 10"
           :key="i"
-          class="min-w-[145px] max-w-[145px] h-32 bg-tertiary rounded-[2rem] border border-black/5 animate-pulse"
+          class="min-w-[120px] max-w-[120px] h-24 bg-tertiary rounded-[1.75rem] border border-black/5 animate-pulse"
         ></div>
       </div>
 
       <div v-else key="data"
-           class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible">
+           class="flex overflow-x-auto gap-2.5 pb-2 snap-x snap-mandatory hide-scrollbar overflow-visible">
         <div
           v-for="lobby in sortedLobbies"
           :key="lobby.id"
-          class="min-w-[145px] max-w-[145px] bg-tertiary rounded-[2rem] overflow-hidden snap-start flex-shrink-0 border transition-all duration-300 relative shadow-sm"
+          class="min-w-[120px] max-w-[120px] bg-tertiary rounded-[1.75rem] overflow-hidden snap-start flex-shrink-0 border transition-all duration-300 relative shadow-sm"
           :class="[
             lobby.users >= (lobby.maxUsers + lobby.premiumSlots)
               ? 'opacity-50 cursor-not-allowed border-black/5'
@@ -34,7 +34,7 @@
           ]"
           @click="handleLobbyClick(lobby)"
         >
-          <div class="h-24 w-full relative overflow-hidden group bg-[#FAF8F5]">
+          <div class="h-[72px] w-full relative overflow-hidden group bg-[#FAF8F5]">
 
             <div
               v-if="!lobby.thumbnailUrl || !imageLoaded[lobby.id]"
@@ -81,8 +81,8 @@
             </div>
           </div>
 
-          <div class="p-2.5 bg-white/50 flex flex-col min-w-0">
-            <h3 class="text-xs font-black text-black truncate tracking-tight">
+          <div class="px-2 py-1.5 bg-white/50 flex flex-col min-w-0">
+            <h3 class="text-[11px] font-black text-black truncate tracking-tight leading-tight">
               {{ lobby.name }}
             </h3>
           </div>

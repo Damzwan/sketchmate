@@ -25,63 +25,65 @@
          text swap instead of a block turning into a card. -->
     <div
       v-else-if="!store.cardReady"
-      class="rounded-3xl p-4 border shadow-sm relative overflow-hidden"
+      class="rounded-3xl p-3.5 border shadow-sm relative overflow-hidden"
       :style="cardStyle"
       aria-busy="true"
     >
       <div class="absolute -top-10 -right-8 w-32 h-32 rounded-full bg-white/25 blur-3xl pointer-events-none" />
-      <div class="relative flex items-start gap-3">
-        <div class="flex-1 min-w-0">
-          <div class="h-2.5 w-24 rounded-full bg-white/45 shimmer" />
-          <div class="h-5 w-4/5 rounded-lg bg-white/50 mt-2.5 shimmer" />
-          <div class="h-3.5 w-1/2 rounded-md bg-white/35 mt-2.5 shimmer" />
-          <div class="h-7 w-28 rounded-full bg-white/40 mt-3 shimmer" />
-        </div>
-        <div class="w-12 h-14 flex items-center justify-center shrink-0 opacity-35">
-          <ion-icon :icon="svg(mdiTrophyOutline)" class="text-4xl" />
-        </div>
+      <ion-icon
+        :icon="svg(mdiTrophyOutline)"
+        class="absolute top-3 right-3.5 text-3xl opacity-30 pointer-events-none"
+      />
+      <div class="relative pr-10">
+        <div class="h-2.5 w-24 rounded-full bg-white/45 shimmer" />
+        <div class="h-5 w-4/5 rounded-lg bg-white/50 mt-2 shimmer" />
+        <div class="h-3.5 w-1/2 rounded-md bg-white/35 mt-2 shimmer" />
+        <div class="h-6 w-28 rounded-full bg-white/40 mt-2 shimmer" />
       </div>
     </div>
 
     <button
       v-else
       type="button"
-      class="w-full text-left rounded-3xl p-4 border shadow-sm cursor-pointer transition-all active:scale-[0.98] md:hover:scale-[1.015] md:hover:shadow-md relative overflow-hidden"
+      class="w-full text-left rounded-3xl p-3.5 border shadow-sm cursor-pointer transition-all active:scale-[0.98] md:hover:scale-[1.015] md:hover:shadow-md relative overflow-hidden"
       :style="cardStyle"
       @click="open"
     >
       <!-- Soft corner glow, same trick as WhatsNewModal -->
       <div class="absolute -top-10 -right-8 w-32 h-32 rounded-full bg-white/25 blur-3xl pointer-events-none" />
 
-      <div class="relative flex items-start gap-3">
-        <div class="flex-1 min-w-0">
-          <p class="text-[11px] font-black uppercase tracking-widest">
-            {{ eyebrow }}
-          </p>
+      <!-- The trophy was a 48px-wide COLUMN, which squeezed the theme into a
+           narrow measure and made it wrap to two lines more often than not.
+           Pinned to the corner instead, it costs no width and the headline
+           usually fits on one — the single biggest saving on this card. -->
+      <ion-icon
+        :icon="svg(mdiTrophyOutline)"
+        class="absolute top-3 right-3.5 text-3xl opacity-70 pointer-events-none"
+      />
 
-          <h2 class="text-xl font-black leading-tight mt-1 line-clamp-2">
-            {{ headline }}
-          </h2>
+      <div class="relative pr-10">
+        <p class="text-[11px] font-black uppercase tracking-widest">
+          {{ eyebrow }}
+        </p>
 
-          <!-- No opacity on ink over the accent gradient: fading it blends the
-               ink toward the background and costs ~0.5 of contrast ratio, which
-               put every accent under AA on the gradient's darker corner. -->
-          <p class="text-sm font-bold mt-1.5 leading-snug">
-            {{ subline }}
-          </p>
+        <h2 class="text-lg font-black leading-tight mt-0.5 line-clamp-2">
+          {{ headline }}
+        </h2>
 
-          <div class="flex items-center gap-2 mt-3">
-            <span class="px-2.5 py-1 rounded-full bg-white/40 text-xs font-black">
-              {{ cta }}
-            </span>
-            <span v-if="rewardsAvailable" class="text-xs font-black">
-              Win rewards
-            </span>
-          </div>
-        </div>
+        <!-- No opacity on ink over the accent gradient: fading it blends the
+             ink toward the background and costs ~0.5 of contrast ratio, which
+             put every accent under AA on the gradient's darker corner. -->
+        <p class="text-[13px] font-bold mt-1 leading-snug">
+          {{ subline }}
+        </p>
 
-        <div class="w-12 h-14 flex items-center justify-center shrink-0 opacity-80">
-          <ion-icon :icon="svg(mdiTrophyOutline)" class="text-4xl" />
+        <div class="flex items-center gap-2 mt-2">
+          <span class="px-2.5 py-0.5 rounded-full bg-white/40 text-[11px] font-black">
+            {{ cta }}
+          </span>
+          <span v-if="rewardsAvailable" class="text-[11px] font-black">
+            Win rewards
+          </span>
         </div>
       </div>
     </button>

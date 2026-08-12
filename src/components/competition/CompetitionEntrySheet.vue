@@ -1,8 +1,8 @@
 <template>
   <ion-modal
     :is-open="open"
-    :initial-breakpoint="0.68"
-    :breakpoints="[0, 0.5, 0.68, 0.86]"
+    :initial-breakpoint="sheetHeight"
+    :breakpoints="[0, sheetHeight, 0.95]"
     handle-behavior="cycle"
     class="competition-entry-sheet"
     @did-dismiss="$emit('close')"
@@ -14,7 +14,7 @@
             {{ revealed ? 'Final votes' : (isOwnEntry ? 'Your current entry' : 'Vote for this drawing') }}
           </p>
           <h2 class="text-lg font-black text-black truncate">
-            {{ entry.author?.name ?? 'Artist' }}
+            {{ revealed ? `${entry.total_votes ?? 0} total votes` : 'Choose one category' }}
           </h2>
         </div>
         <ion-button fill="clear" color="dark" class="m-0" @click="$emit('close')">
@@ -22,80 +22,80 @@
         </ion-button>
       </div>
 
-      <div class="px-4 py-4">
-        <div class="entry-showcase grid grid-cols-[minmax(0,1.1fr)_minmax(8.5rem,0.9fr)] items-center gap-0 mb-3 rounded-[1.75rem] border border-primary/35 bg-tertiary p-3 overflow-hidden">
-<img
+      <div class="px-4 py-3">
+        <!-- Compact identity strip. The full PreviewProfileCard used to live here
+             and pushed every category below the fold, so the sheet only worked
+             after the user dragged it up — in a sheet whose entire job is one
+             tap. The artist's real card is still one tap away (and the winners
+             moment renders it in full). -->
+        <button
+          type="button"
+          class="w-full flex items-center gap-3 rounded-2xl border border-primary/35 bg-tertiary p-2.5 text-left cursor-pointer transition-all active:scale-[0.99] md:hover:scale-[1.01]"
+          aria-label="Open artist profile"
+          @click="openProfile"
+        >
+          <img
             width="1"
             height="1"
             loading="lazy"
             decoding="async"
             :src="entry.thumbnail_url || entry.image_url"
             :alt="`${entry.author?.name ?? 'Artist'} competition entry`"
-            class="relative z-10 w-full h-40 rounded-2xl object-cover border-2 border-white/80 shadow-lg rotate-[-1.5deg]"
+            class="w-16 h-16 shrink-0 rounded-xl object-cover border-2 border-white/80 shadow-sm rotate-[-1.5deg]"
           />
-          <button
-            v-if="entry.author"
-            type="button"
-            class="relative z-0 min-w-0 -ml-3 cursor-pointer rounded-2xl transition-all md:hover:scale-[1.025]"
-            aria-label="Open artist profile"
-            @click="openProfile"
-          >
-            <PreviewProfileCard
+          <span class="flex items-center gap-2 min-w-0 flex-1">
+            <UserAvatar
+              v-if="entry.author"
               :user="entry.author"
-              :customization="entry.author.customization ?? {}"
-              :zoom="0.52"
-              :max-width="360"
+              :customization="entry.author.customization as any"
+              size="xs"
+              static
+              class="shrink-0 aspect-square"
             />
+            <span class="min-w-0">
+              <span class="block text-sm font-black text-black truncate">
+                {{ entry.author?.name ?? 'Artist' }}
+              </span>
+              <span v-if="caption" class="block text-[11px] text-black/80 truncate">{{ caption }}</span>
+              <span v-else class="block text-[11px] text-black/60">View profile</span>
+            </span>
+          </span>
+        </button>
+
+        <div class="grid gap-2 mt-3">
+          <button
+            v-for="category in categories"
+            :key="category.id"
+            type="button"
+            class="w-full rounded-xl border px-3 py-2.5 flex items-center gap-3 text-left cursor-pointer transition-all active:scale-[0.98] md:hover:scale-[1.015] md:hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
+            :class="hasVoted(category.id) ? 'bg-secondary text-white border-secondary' : 'bg-tertiary text-black border-primary/35'"
+            :disabled="!revealed && !votingAllowed(category.id)"
+            @click="selectCategory(category.id)"
+          >
+            <span
+              v-if="!revealed"
+              class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0"
+              :class="hasVoted(category.id) ? 'bg-white border-white text-secondary' : 'border-black/25 text-transparent'"
+            >
+              <ion-icon :icon="svg(mdiCheck)" class="text-sm" />
+            </span>
+            <ion-icon v-else :icon="svg(mdiVoteOutline)" class="text-lg text-secondary shrink-0" />
+            <span class="flex-1 min-w-0">
+              <span class="block text-sm font-black">{{ category.emoji }} {{ category.label }}</span>
+              <span class="block text-[11px] opacity-80 mt-0.5">
+                <template v-if="revealed">{{ entry.vote_counts?.[category.id] ?? 0 }} total votes</template>
+                <template v-else-if="isOwnEntry">Your own entry cannot receive your vote</template>
+                <template v-else>{{ votesLeft[category.id] ?? 0 }} votes left in this category</template>
+              </span>
+            </span>
+            <span v-if="hasVoted(category.id)" class="text-[10px] font-black">Your vote</span>
           </button>
         </div>
 
-        <div class="rounded-2xl border border-primary/35 bg-tertiary p-3">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-sm font-black text-black">
-                {{ revealed ? `${entry.total_votes ?? 0} total votes` : 'Choose one category' }}
-              </p>
-              <p class="text-[11px] text-black/80 mt-0.5">
-                {{ revealed ? 'Final category breakdown.' : 'Tap your selected category again to undo.' }}
-              </p>
-            </div>
-            <span v-if="!revealed && entry.my_votes.length" class="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black text-white">
-              Selected
-            </span>
-          </div>
-
-          <div class="grid gap-2 mt-3">
-            <button
-              v-for="category in categories"
-              :key="category.id"
-              type="button"
-              class="w-full rounded-xl border px-3 py-2.5 flex items-center gap-3 text-left cursor-pointer transition-all active:scale-[0.98] md:hover:scale-[1.015] md:hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
-              :class="hasVoted(category.id) ? 'bg-secondary text-white border-secondary' : 'bg-background text-black border-primary/35'"
-              :disabled="!revealed && !votingAllowed(category.id)"
-              @click="selectCategory(category.id)"
-            >
-              <span
-                v-if="!revealed"
-                class="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0"
-                :class="hasVoted(category.id) ? 'bg-white border-white text-secondary' : 'border-black/25 text-transparent'"
-              >
-                <ion-icon :icon="svg(mdiCheck)" class="text-sm" />
-              </span>
-              <ion-icon v-else :icon="svg(mdiVoteOutline)" class="text-lg text-secondary shrink-0" />
-              <span class="flex-1 min-w-0">
-                <span class="block text-sm font-black">{{ category.label }}</span>
-                <span class="block text-[11px] opacity-80 mt-0.5">
-                  <template v-if="revealed">{{ entry.vote_counts?.[category.id] ?? 0 }} total votes</template>
-                  <template v-else-if="isOwnEntry">Your own entry cannot receive your vote</template>
-                  <template v-else>{{ votesLeft[category.id] ?? 0 }} votes left in this category</template>
-                </span>
-              </span>
-              <span v-if="hasVoted(category.id)" class="text-[10px] font-black">Your vote</span>
-            </button>
-          </div>
-        </div>
-
-        <p v-if="!canVote && !revealed" class="mt-3 text-center text-xs text-black/80">
+        <p v-if="!revealed && !isOwnEntry" class="mt-2.5 text-center text-[11px] text-black/70">
+          Tap your selected category again to undo.
+        </p>
+        <p v-if="!canVote && !revealed" class="mt-2 text-center text-xs text-black/80">
           Voting is closed for this week.
         </p>
       </div>
@@ -106,7 +106,8 @@
 <script setup lang="ts">
 import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import { mdiCheck, mdiClose, mdiVoteOutline } from "@mdi/js";
-import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
+import { computed } from "vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import type { CompetitionCategory } from "@/config/competition.config";
 import { svg } from "@/helper/general.helper";
@@ -130,6 +131,24 @@ const emit = defineEmits<{
 }>();
 
 const { openUserActions } = useUserContextSheet();
+
+/**
+ * Size the sheet to its content instead of parking it at a fixed fraction.
+ *
+ * Every category has to be reachable without dragging: this sheet exists to
+ * take one tap, and a vote option hidden below the fold is a vote that does not
+ * happen. The base covers the header, the identity strip and the footer note;
+ * the rest scales with however many categories the week actually has.
+ */
+const sheetHeight = computed(() =>
+	Math.min(0.9, 0.4 + props.categories.length * 0.08),
+);
+
+const caption = computed(() =>
+	props.profanityFilter && props.entry?.caption_filtered
+		? props.entry.caption_filtered
+		: (props.entry?.caption ?? ""),
+);
 
 function openProfile() {
 	if (!props.entry?.author) return;

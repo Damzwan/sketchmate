@@ -52,6 +52,25 @@ export const useBrushTrial = defineStore("brushTrial", () => {
 	/** Reactive so the pen menu's "N left today" updates as strokes are spent. */
 	const record = ref<TrialRecord>(read());
 
+	/**
+	 * The item whose trial ran out on the last stroke, until the pen menu shows
+	 * its unlock CTA.
+	 *
+	 * Without it the brush simply stopped working: the pencil came back, a toast
+	 * explained why, and the only route to buying was to reopen the menu and tap
+	 * a tile that now did nothing visible. The hand-off carries the intent from
+	 * where the trial ended to where the purchase lives.
+	 */
+	const lockedOut = ref<string | null>(null);
+
+	function noteLockedOut(itemId: string): void {
+		lockedOut.value = itemId;
+	}
+
+	function clearLockedOut(): void {
+		lockedOut.value = null;
+	}
+
 	function rollover(): void {
 		if (record.value.day !== today()) record.value = { day: today(), used: {} };
 	}
@@ -94,5 +113,12 @@ export const useBrushTrial = defineStore("brushTrial", () => {
 		return Math.max(0, TRIAL_STROKES_PER_DAY - used);
 	}
 
-	return { remaining, canTry, consume };
+	return {
+		remaining,
+		canTry,
+		consume,
+		lockedOut,
+		noteLockedOut,
+		clearLockedOut,
+	};
 });

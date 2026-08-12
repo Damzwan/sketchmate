@@ -40,6 +40,9 @@
           <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
         </button>
 
+        <!-- Locked: either never tried, or the day's trial is spent. The second
+             case says so, because "Unlock Calligraphy" on a brush that worked a
+             minute ago reads as a bug rather than as a limit. -->
         <button
           v-else-if="previewedLockedBrush"
           type="button"
@@ -50,7 +53,9 @@
           <div class="flex items-center gap-2 min-w-0">
             <ion-icon :icon="svg(mdiLock)" class="text-base shrink-0" />
             <span class="text-xs font-black tracking-tight truncate">
-              {{ purchasing ? 'Unlocking…' : `Unlock ${brushDisplayName(previewedLockedBrush)}` }}
+              {{ purchasing
+                ? 'Unlocking…'
+                : `${trialSpent(previewedLockedBrush) ? 'Trial used up · ' : ''}Unlock ${brushDisplayName(previewedLockedBrush)}` }}
             </span>
           </div>
           <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
@@ -148,7 +153,6 @@ import { usePen } from "@/draw/tools/pen.store";
 import { BrushType, DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { svg } from "@/helper/general.helper";
-import { isNative } from "@/helper/platform.helper";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
 import BrushTile from "./BrushTile.vue";
@@ -213,6 +217,12 @@ const isBrushTryable = (type: BrushType): boolean => {
 	return !!id && !inventoryStore.isOwned(id) && brushTrial.canTry(id);
 };
 
+/** Locked AND already tried today — worth saying out loud on the CTA. */
+const trialSpent = (type: BrushType): boolean => {
+	const id = brushItemId(type);
+	return !!id && !inventoryStore.isOwned(id) && !brushTrial.canTry(id);
+};
+
 const previewedLockedBrush = ref<BrushType | null>(null);
 
 /**
@@ -267,34 +277,48 @@ function isBrushTypeSelected(type: BrushType) {
 }
 
 async function onBrushTap(type: BrushType) {
-	const owned = isBrushOwned(type);
-
-	if (owned || !isNative()) {
+	// Owned, or the day's trial strokes are not spent: hand the brush over.
+	if (isBrushOwned(type) || isBrushTryable(type)) {
 		previewedLockedBrush.value = null;
+		brushTrial.clearLockedOut();
 		selectBrushType(type);
 		return;
 	}
 
-	// Locked, but the day's trial strokes are not spent: hand the brush over for
-	// real. The banner switches to the remaining count and the upgrade offer.
-	if (brushTrial.canTry(brushItemId(type) ?? "")) {
-		previewedLockedBrush.value = null;
-		selectBrushType(type);
-		return;
-	}
+	// Trial spent — look, don't touch.
+	//
+	// There used to be a `!isNative()` escape here that selected any locked brush
+	// on the web build, on the reasoning that web cannot run a purchase. What it
+	// actually did was delete the gate: select the brush, draw one stroke, eat the
+	// "trial used up" toast, select it again, forever. The gate is the product
+	// rule, so it holds everywhere — and `purchaseSku` already answers web
+	// honestly ("Purchases are only available on the mobile app"), which is a
+	// better answer than a paywall that silently does not apply.
+	showUnlockFor(type);
+}
 
-	// Trial spent — back to look-don't-touch. Render the swatch WITHOUT leaving
-	// the brush selected.
+/**
+ * Put the menu into its locked state for one brush: the swatch renders so the
+ * stroke is visible, the unlock CTA appears, and the brush is NOT selected.
+ */
+function showUnlockFor(type: BrushType) {
 	const prevType = brushType.value;
 	previewedLockedBrush.value = type;
-
+	// The preview reads the store's brush type, so it is borrowed and handed
+	// straight back — the active brush must never end up being the locked one.
 	brushType.value = type;
 	renderPreview();
 	brushType.value = prevType;
 }
 
+// Drop the banner once the brush IT is about has been bought — not whenever the
+// active brush happens to be an owned one. `showUnlockFor` borrows `brushType`
+// and hands it straight back, and watchers flush after both assignments, so the
+// old condition saw the restored (owned) brush and wiped the banner it had just
+// been asked to show. The CTA never appeared.
 watch(brushType, () => {
-	if (isBrushOwned(brushType.value)) {
+	const previewed = previewedLockedBrush.value;
+	if (previewed !== null && isBrushOwned(previewed)) {
 		previewedLockedBrush.value = null;
 	}
 });
@@ -308,10 +332,24 @@ watch(penMenuOpen, async (open) => {
 		previewedLockedBrush.value = null;
 		return;
 	}
+
+	// A trial that ran out mid-drawing left the user holding a pencil they did
+	// not pick. Opening the menu after that lands directly on the unlock CTA for
+	// the brush they lost, which is the only screen where buying it is possible.
+	const lockedOut = brushTrial.lockedOut;
+	const lostBrush = lockedOut
+		? BRUSHES.find((b) => brushItemId(b.type) === lockedOut)?.type
+		: undefined;
+	if (lostBrush !== undefined && !isBrushOwned(lostBrush)) {
+		previewedLockedBrush.value = lostBrush;
+	}
+	brushTrial.clearLockedOut();
+
 	// Re-render once the popover is actually laid out — only then does the fluid
 	// stage report a real width, so the first paint isn't stuck at the fallback.
 	await nextTick();
-	renderPreview();
+	if (previewedLockedBrush.value) showUnlockFor(previewedLockedBrush.value);
+	else renderPreview();
 });
 </script>
 

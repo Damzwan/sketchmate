@@ -19,7 +19,20 @@ Known gaps, all called out again in [§12](#12-task-breakdown):
   are reportable and wired through quarantine; `competition_theme` is not.
 - **Task 8.3 is not started.** Removing a winning entry after the announcement
   does not promote the runner-up.
-- **Task 10.3** (load check against a synthetic week) is not started.
+- **Task 10.3** (load check against a synthetic week) is not started. Two known
+  costs to measure when it happens: `GET /:id/entries` loads the whole week's
+  entries on every page request because the exposure-balanced shuffle is done in
+  memory (deliberate, see §5), and `runCompetitionNotifications` reads the full
+  opted-in user set two or three times per hourly tick and then runs `isEngaged`
+  as two sequential queries per matching candidate.
+- **Deleting a winning entry is unguarded.** `DELETE /:id/entry` has no phase
+  check, so an owner can withdraw an entry that `results[]` still points at; the
+  podium row then renders without artwork and a closed week's `entry_count`
+  drops. Allowing deletion after the fact is intentional (the artist owns their
+  drawing) — leaving the stale result behind is Task 8.3.
+- **`voter_count` only ever climbs.** It is `$inc`ed on a voter's first vote but
+  never decremented when they remove their last one, so re-voting counts them
+  twice. Nothing reads it yet.
 - **Task 10.4 is half-done.** `MIN_ENTRIES_TO_ANNOUNCE` already skips the
   podium and records `skipped_reason`, but nothing renders that state and the
   theme is not carried to the following week.
@@ -190,7 +203,18 @@ the thing being measured.
 
 **1. Score on vote rate, not vote count.** Every entry counts *impressions*
 (same rule as the feed: on screen for more than 1.5 seconds), so the ratio
-`votes / impressions` is available. A raw ratio is far too noisy at small
+`votes / impressions` is available.
+
+An impression is counted **once per (entry, viewer), ever** — enforced by the
+`competition_impressions` ledger ([§4.6](#46-competition_impressions)), not by
+the client's per-session set alone. The numerator is one vote per voter per
+entry, so the denominator has to count people rather than page loads. Counting
+renders instead would mean an entry seen five times by one engaged user scores
+`1/5` against `1/1` for an entry seen once, i.e. the entries the most active
+users look at rank as though nobody liked them — and it would let anyone push a
+rival down simply by reloading the grid.
+
+A raw ratio is far too noisy at small
 samples — a 1-vote, 1-impression entry would beat 40 votes from 200 views — so
 the ranking uses the **Wilson score lower bound** at 95% confidence:
 
@@ -227,8 +251,14 @@ Consequences to keep in mind:
   verified exposure is implausibly low; it never falls back to raw votes.
 - Exact score ties use a deterministic week/category lottery. Submission time
   is never a tie-breaker, so entering earlier carries no scoring advantage.
-- Withdrawing and re-entering resets nothing: impressions live on the entry
-  document, and re-submitting replaces the artwork on the same entry.
+- Re-submitting replaces the artwork on the same entry document and therefore
+  **does** reset its exposure: `impressions` goes back to zero and the entry's
+  ledger rows are deleted along with its votes and comments. The counter has to
+  describe the drawing that is actually on screen, and leaving the claims behind
+  would make it impossible for the new artwork to be counted at all by anyone
+  who had already seen the old one. Submissions close on Friday, so the reset is
+  bounded to the half of the week where catch-up ordering still has time to
+  work.
 
 ---
 
@@ -452,6 +482,24 @@ disputed result and the input for a recount if a winner is removed.
 Plus `competition_theme_votes { theme_id, user_id }` unique — same pattern,
 same reason.
 
+### 4.6 `competition_impressions`
+
+```ts
+{ competition_id: ObjectId, entry_id: ObjectId, viewer_id: ObjectId, createdAt: Date }
+```
+
+```
+{ entry_id: 1, viewer_id: 1 }   unique   // the claim
+{ createdAt: 1 }                TTL 30d  // nothing here outlives the scoring
+```
+
+The gate on `entry.impressions`. `POST /:id/impressions` upserts one row per
+(entry, viewer) and `$inc`s the counter **only for the rows it actually
+inserted**, so the denominator of the fairness score counts distinct viewers
+(§2.7) rather than page loads. The client's per-session dedupe is a bandwidth
+optimisation; this is the correctness boundary, and it is what makes the
+counter survive reloads, second devices and reinstalls.
+
 ### 4.5 User document additions
 
 `sketchmate_server/src/models/user.model.ts`:
@@ -485,7 +533,7 @@ matching `post.router.ts` exactly.
 | GET | `/:id/entries?cursor=&limit=` | auth | Paged entries, `status: active` only, exposure-balanced seeded shuffle (see below). |
 | GET | `/:id` | auth | One current or archived competition for detail views. |
 | GET | `/entry/:entry_id` | auth | One entry standalone. Exists so a notification deep link can open a drawing the grid has never loaded. |
-| POST | `/:id/impressions` | auth | `{ entry_ids }` seen for >1.5s. Batched, same contract as `POST /post/views`. Feeds §2.7 scoring. |
+| POST | `/:id/impressions` | auth | `{ entry_ids }` seen for >1.5s. Batched, same contract as `POST /post/views`. Claims one impression per (entry, viewer) through `competition_impressions`; only first-time claims `$inc` the counter. Feeds §2.7 scoring. |
 | POST | `/upload-urls` | auth, `CREATE_POST`, adult | Presigned S3 URLs. Same shape as the post route. |
 | POST | `/:id/enter` | auth, `CREATE_POST`, adult | Create/replace a competition-only entry. Legacy `share_to_feed` input is ignored by current clients. |
 | DELETE | `/:id/entry` | auth | Delete an owned current or historical entry; votes and comments are removed with it. |
@@ -578,6 +626,14 @@ Sections:
 4. **Compact entry grid** — two-column cards using feed-grade avatar,
    customization, lazy image and memory behavior. Tapping a card opens a bottom
    sheet for category voting and comments; public totals remain hidden.
+   The sheet sizes its breakpoint to the number of categories
+   (`0.4 + 0.08 × categories`, capped at 0.9) so **every** vote option is on
+   screen the moment it opens. It shows a compact identity strip — thumbnail,
+   avatar, name, caption — not the full `PreviewProfileCard`: that card is
+   ~200px tall and pushed the options below the fold, which turned a one-tap
+   sheet into a drag-then-tap sheet. The artist's real card stays one tap away,
+   and the winners moment (§6.5) still renders it in full, which is where the
+   customization flex belongs.
 5. **Archive detail** — every past week opens to its winners and all entries,
    with comments still available.
 6. **Themes sheet** — suggest and upvote without pushing the gallery below a

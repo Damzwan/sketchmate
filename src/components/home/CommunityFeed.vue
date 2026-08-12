@@ -10,9 +10,13 @@
       </h2>
     </div>
 
-    <ArtistHighlights />
+    <!-- Feed tabs. Each is its own capped fetch — no infinite scroll anywhere.
 
-    <!-- Feed tabs. Each is its own capped fetch — no infinite scroll anywhere. -->
+         ArtistHighlights used to sit HERE, between this header and the tabs. It
+         is ~560px tall, which put the first feed post about two screens down and
+         defeated the point of having a feed on the home screen at all. It now
+         rides in the stream as the second card (below), so opening the app shows
+         the tabs and a real post. -->
     <div v-if="!feedOff" class="flex gap-1.5 mb-4 px-0.5">
       <button
         v-for="tab in TABS"
@@ -49,32 +53,39 @@
       </div>
 
       <!-- Nothing in this tab yet (usually Mates before you've added any) -->
-      <div
-        v-else-if="posts.length === 0"
-        key="empty"
-        class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
-      >
-        <p class="cabin-sketch-regular text-xl font-black text-black mb-1.5">
-          {{ emptyState.title }}
-        </p>
-        <p class="text-base text-black/80 leading-snug">{{ emptyState.body }}</p>
+      <div v-else-if="posts.length === 0" key="empty" class="space-y-6">
+        <div
+          class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
+        >
+          <p class="cabin-sketch-regular text-xl font-black text-black mb-1.5">
+            {{ emptyState.title }}
+          </p>
+          <p class="text-base text-black/80 leading-snug">{{ emptyState.body }}</p>
+        </div>
+        <!-- An empty tab is exactly when there IS something worth showing. -->
+        <ArtistHighlights />
       </div>
 
       <!-- Main Activity Stream List -->
       <div v-else :key="`data-${activeTab}`" class="space-y-6 overflow-visible">
-        <FeedPostCard
-          v-for="(post, postIndex) in posts"
-          :key="post._id"
-          :ref="(el: any) => registerPostRef(el, post._id)"
-          :post="post"
-          :is-mine="post.author_id === user?._id"
-          :priority="postIndex === 0"
-          @open-comments="openComments"
-          @open-reaction-popover="handleOpenReactionPopover"
-          @open-reaction-breakdown="openReactionBreakdown"
-          @open-fullscreen="handleOpenFullscreen"
-          @delete-post="handleDelete"
-        />
+        <template v-for="(post, postIndex) in posts" :key="post._id">
+          <FeedPostCard
+            :ref="(el: any) => registerPostRef(el, post._id)"
+            :post="post"
+            :is-mine="post.author_id === user?._id"
+            :priority="postIndex === 0"
+            @open-comments="openComments"
+            @open-reaction-popover="handleOpenReactionPopover"
+            @open-reaction-breakdown="openReactionBreakdown"
+            @open-fullscreen="handleOpenFullscreen"
+            @delete-post="handleDelete"
+          />
+
+          <!-- Second card in the stream: one real post first, then the
+               highlights. Far enough down that the feed reads as a feed,
+               early enough that nobody has to hunt for it. -->
+          <ArtistHighlights v-if="postIndex === 0" />
+        </template>
 
         <!-- End of Feed Tactile Caught-Up Graphics Block.
              There is deliberately no load-more trigger here: the feed is one

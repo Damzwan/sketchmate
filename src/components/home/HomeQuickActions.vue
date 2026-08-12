@@ -78,8 +78,11 @@ const getCardLayoutClasses = (id: string) => {
 	const isBig = ["draw_alone", "draw_together"].includes(id);
 	return {
 		"col-span-3 border border-primary/40 bg-tertiary hover:border-secondary/40": true,
-		"h-28": isBig,
-		"h-20": !isBig,
+		// One notch shorter than before (h-28/h-20). These are still the biggest
+		// tap targets on the screen by a wide margin, and the two rows together
+		// were the second-largest block between the app opening and the feed.
+		"h-24": isBig,
+		"h-16": !isBig,
 	};
 };
 

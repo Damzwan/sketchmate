@@ -34,6 +34,22 @@ type Presentation = {
 	fontClass: string;
 };
 
+/**
+ * The FETCHED highlight set, hoisted to module scope.
+ *
+ * The component now lives inside the feed's tab-keyed stream, so switching tabs
+ * unmounts and remounts it. With this state per-instance, `loaded` reset on
+ * every remount and `onMounted` fired a fresh HTTP request each time — one
+ * network round-trip per tab tap, for a payload that does not change.
+ *
+ * Only the data is shared. Everything below (slide index, swiper handle, strip
+ * refs, expanded questions) is genuine per-instance view state and stays inside
+ * the composable.
+ */
+const config = ref<ArtistHighlightConfig | null>(null);
+const loading = ref(false);
+const loaded = ref(false);
+
 export function useArtistHighlights() {
 	const auth = useAuthStore();
 	const { user, isLoggedIn } = storeToRefs(auth);
@@ -43,9 +59,6 @@ export function useArtistHighlights() {
 	const { toast } = useToast();
 	const { captureOverlayScroll, guardScroll, endOverlay, presentActionSheet } =
 		useOverlayScrollGuardContext();
-	const config = ref<ArtistHighlightConfig | null>(null);
-	const loading = ref(false);
-	const loaded = ref(false);
 	const activeArtistSlide = ref(0);
 	const artistSwiper = ref<any>(null);
 	const artworkStrips = new Map<string, HTMLElement>();

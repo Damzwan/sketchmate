@@ -1,7 +1,7 @@
 <template>
-  <section class="min-h-[160px] overflow-visible">
+  <section class="min-h-[122px] overflow-visible">
     <!-- Section Header Subhead -->
-    <div class="flex items-center justify-between px-1 mb-2.5 gap-2">
+    <div class="flex items-center justify-between px-1 mb-2 gap-2">
       <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80 shrink-0">
         My Drafts
       </h2>
@@ -72,11 +72,11 @@
 
     <transition name="fade-slow" mode="out-in">
       <!-- Compact Loading Skeleton Stack -->
-      <div v-if="loading" key="loading" class="flex overflow-x-auto gap-3.5 pb-2 hide-scrollbar">
+      <div v-if="loading" key="loading" class="flex overflow-x-auto gap-2.5 pb-1 hide-scrollbar">
         <div
           v-for="i in 3"
           :key="i"
-          class="min-w-[145px] max-w-[145px] h-32 bg-tertiary rounded-[2rem] border border-black/5 animate-pulse"
+          class="min-w-[120px] max-w-[120px] h-24 bg-tertiary rounded-[1.75rem] border border-black/5 animate-pulse"
         ></div>
       </div>
 
@@ -94,22 +94,23 @@
         </p>
       </div>
 
-      <!-- Live Draft Cards Row -->
-      <!-- Phone: one swipeable row. Desktop: wrap instead, because a mouse wheel
-           cannot scroll a horizontal strip and a hidden scrollbar gives no hint
-           that there is more to the right. -->
-      <div v-else key="data" class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible md:flex-wrap md:overflow-x-visible">
+      <!-- Live Draft Cards Row — ONE row, on every screen size.
+           It briefly wrapped on desktop so a mouse wheel could reach every card,
+           but drafts are a "pick up where you left off" rail, not an archive:
+           wrapping let a big library eat the whole screen and push the feed off
+           it. The archive lives in the drafts sheet. -->
+      <div v-else key="data" class="flex overflow-x-auto gap-2.5 pb-2 snap-x snap-mandatory hide-scrollbar overflow-visible">
         <div
           v-for="draft in sortedDrafts"
           :key="draft.id"
-          class="min-w-[145px] max-w-[145px] rounded-[2rem] overflow-hidden snap-start flex-shrink-0 border transition-all duration-300 group relative shadow-sm"
+          class="min-w-[120px] max-w-[120px] rounded-[1.75rem] overflow-hidden snap-start flex-shrink-0 border transition-all duration-300 group relative shadow-sm"
           :class="isPending(draft.id)
             ? 'bg-primary/20 border-primary/30 cursor-default'
             : 'bg-tertiary border-primary/40 cursor-pointer active:scale-95 hover:border-secondary/40 hover:shadow-md'"
           @click="handleCardClick(draft.id)"
         >
           <!-- Drawing Board Preview Area Frame (Using full edge-to-edge object-cover layout) -->
-          <div class="h-24 w-full relative border-b border-primary/10 overflow-hidden bg-[#FAF8F5] flex items-center justify-center">
+          <div class="h-[72px] w-full relative border-b border-primary/10 overflow-hidden bg-[#FAF8F5] flex items-center justify-center">
 <img
               width="1"
               height="1"
@@ -170,9 +171,9 @@
           </div>
 
           <!-- Bottom Tray Metadata Area -->
-          <div class="p-2.5 bg-white/50 flex items-center justify-between min-w-0 h-10">
+          <div class="px-2 py-1.5 bg-white/50 flex items-center justify-between min-w-0">
             <div class="truncate pr-1 flex flex-col justify-center">
-              <h3 class="text-xs font-black text-black truncate tracking-tight leading-none">
+              <h3 class="text-[11px] font-black text-black truncate tracking-tight leading-none">
                 {{ isPending(draft.id) ? 'Sketching...' : formatDate(draft.updatedAt) }}
               </h3>
               <!--

@@ -1,7 +1,7 @@
 <template>
   <section
     v-if="visible"
-    class="artist-highlights mb-6"
+    class="artist-highlights"
     aria-labelledby="artist-highlights-title"
   >
     <div class="flex items-center justify-between gap-3 px-1 mb-2.5">

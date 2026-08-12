@@ -3,7 +3,9 @@
     <TopBar title="Home" />
 
     <ion-content class="--background-custom">
-      <div class="px-4 pt-4 space-y-6 json-layout-wrapper pb-10">
+      <!-- space-y-5, not 6: with six stacked sections the gaps alone were 120px
+           of the scroll between opening the app and reaching the feed. -->
+      <div class="px-4 pt-4 space-y-5 json-layout-wrapper pb-10">
 
         <GuestWarningBanner />
 

@@ -60,6 +60,20 @@ describe("brush trial allowance", () => {
 		expect(useBrushTrial().remaining(NEON)).toBe(TRIAL_STROKES_PER_DAY);
 	});
 
+	it("remembers which brush ran out, until the menu has shown its CTA", () => {
+		const trial = useBrushTrial();
+		expect(trial.lockedOut).toBeNull();
+
+		for (let i = 0; i < TRIAL_STROKES_PER_DAY; i++) trial.consume(NEON);
+		trial.noteLockedOut(NEON);
+		// This is what carries the user from "my brush stopped working" to the one
+		// surface that can sell it to them.
+		expect(trial.lockedOut).toBe(NEON);
+
+		trial.clearLockedOut();
+		expect(trial.lockedOut).toBeNull();
+	});
+
 	it("still gates the session when storage refuses writes", () => {
 		vi.stubGlobal("localStorage", {
 			getItem: () => null,

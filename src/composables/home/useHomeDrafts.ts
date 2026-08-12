@@ -1,6 +1,7 @@
 import { onIonViewDidEnter, useIonRouter } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
+import { useConfirm } from "@/composables/useConfirm";
 import {
 	type DrawingDraftMetadata,
 	useDocumentStore,
@@ -8,6 +9,7 @@ import {
 import { masterAnimation } from "@/helper/animation.helper";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 import { useDraftSyncStore } from "@/store/draftSync.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -28,6 +30,21 @@ export function useHomeDrafts() {
 		remoteDraftMetadata,
 		inFlightIds,
 	} = storeToRefs(draftSync);
+	const { isLoggedIn, isAuthLoading, isGuestAccount } = storeToRefs(
+		useAuthStore(),
+	);
+	/**
+	 * Whether the backup pill belongs on screen at all.
+	 *
+	 * Cloud backup is an ACCOUNT feature: there is nothing for a signed-out or
+	 * guest session to back up to, so the pill was pure noise there — and because
+	 * auth resolves asynchronously it appeared, re-labelled and disappeared during
+	 * the first seconds of every cold start. Waiting for auth to settle keeps it
+	 * out of that window entirely.
+	 */
+	const syncVisible = computed(
+		() => !isAuthLoading.value && isLoggedIn.value && !isGuestAccount.value,
+	);
 	const savedDrafts = ref<DrawingDraftMetadata[]>([]);
 	const isLoadingDrafts = ref(true);
 	/** Cloud-only drafts currently downloading because the user tapped them. */
@@ -83,6 +100,18 @@ export function useHomeDrafts() {
 		}
 	}
 	async function deleteDraft(id: string) {
+		// Deleting a draft removes the local document AND tombstones its cloud copy
+		// on every device. There is no undo for it, and the control lives one tap
+		// away in an action sheet, so it asks first.
+		const confirmed = await useConfirm().confirm({
+			header: "Discard this draft?",
+			message:
+				"The drawing is deleted from this device and from any backup. This can't be undone.",
+			confirmText: "Discard",
+			cancelText: "Keep",
+			destructive: true,
+		});
+		if (!confirmed) return;
 		try {
 			await documents.removeDraft(id);
 			savedDrafts.value = savedDrafts.value.filter((draft) => draft.id !== id);
@@ -235,6 +264,7 @@ export function useHomeDrafts() {
 		isLoadingDrafts,
 		draftSyncStates,
 		syncEnabled,
+		syncVisible,
 		syncStatus,
 		syncUsed,
 		syncLimit,

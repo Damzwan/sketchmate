@@ -78,7 +78,9 @@ export abstract class RenderFrames<
 				this.gesturing ? 1 : 0,
 			);
 			const vw = this.committed.viewWorld(vpt, size, dpr);
-			this.live.composite(ctx, vpt, dpr, this.liveRender, vw);
+			this.live.composite(ctx, vpt, dpr, this.liveRender, vw, (r) =>
+				this.committed.isRegionTileBacked(r, vpt[0]),
+			);
 			this.afterComposite?.();
 		});
 	}
@@ -116,8 +118,25 @@ export abstract class RenderFrames<
 		const size = this.surface.getSize();
 		const dpr = this.surface.getDpr();
 
-		const expired = this.live.gcExpired();
-		for (const r of expired) this.patchOverview(r);
+		/**
+		 * Dropping a live overlay is only safe when the overview patch that
+		 * replaces it can be applied in the SAME frame. A live-covered stroke is
+		 * deliberately absent from the overview (see onObjectAdded), and mid-gesture
+		 * `patchOverview` DEFERS — so retiring the overlay there deletes the only
+		 * copy of the stroke and it stays invisible until the gesture ends. That is
+		 * the "draw, immediately pinch-zoom, the stroke isn't there" report: both
+		 * the TTL expiry below and the demote further down took that route.
+		 *
+		 * Neither is urgent. `pendingDemote` stays set and the TTL only grows, so
+		 * both run on the first idle frame — which `setGesturing(false)` requests.
+		 */
+		const canRetireOverlays =
+			!this.gesturing && !this.erasing && !this.mutating;
+
+		if (canRetireOverlays) {
+			const expired = this.live.gcExpired();
+			for (const r of expired) this.patchOverview(r);
+		}
 		const { needsBake } = this.committed.composite(
 			ctx,
 			vpt,
@@ -127,14 +146,18 @@ export abstract class RenderFrames<
 			this.gesturing ? 1 : 0,
 		);
 		const vw = this.committed.viewWorld(vpt, size, dpr);
-		this.live.composite(ctx, vpt, dpr, this.liveRender, vw);
+		// Items whose tile already carries them are skipped rather than drawn on
+		// top: at alpha < 1 the overlap reads as a one-frame darkening every time
+		// a bake lands mid-stroke (the low-opacity brush flicker).
+		this.live.composite(ctx, vpt, dpr, this.liveRender, vw, (r) =>
+			this.committed.isRegionTileBacked(r, vpt[0]),
+		);
 
-		if (this.pendingDemote && !needsBake) {
+		if (this.pendingDemote && !needsBake && canRetireOverlays) {
 			this.pendingDemote = false;
-			// live was already composited ABOVE the now-baked tiles this frame, so a
-			// semi-transparent stroke shows doubled until we repaint without it.
-			// demoteSettled removes the settled overlays → request one more frame so
-			// the next composite shows the tile alone (single intensity).
+			// Retire the settled overlays and fold them into the overview. The frame
+			// just painted is already correct (they were skipped above), so this is
+			// bookkeeping — the extra frame keeps the overview-tier fallback honest.
 			if (this.demoteSettled() > 0) this.requestFrame();
 		}
 

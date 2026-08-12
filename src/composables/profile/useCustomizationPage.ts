@@ -1,6 +1,6 @@
 import { onIonViewDidEnter } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, toRaw, watch } from "vue";
 import {
 	type Customization,
 	FONT_EFFECTS,
@@ -58,6 +58,13 @@ export function useCustomizationPage() {
 		if (anyModalOpen.value) ambient.release();
 	});
 	onIonViewDidEnter(() => trackEvent(mixpanelEvents.customizationOpen));
+
+	/**
+	 * `draft`/`saved` are refs over plain objects, so reading `.value` hands back
+	 * a reactive Proxy. `structuredClone` throws `DataCloneError` on a Proxy, which
+	 * killed every save mid-flight. Unwrap before cloning.
+	 */
+	const clonePlain = <T>(value: T): T => structuredClone(toRaw(value));
 
 	const initial = () => hydrateCustomization(user.value?.customization);
 	const saved = ref<Customization>(initial());
@@ -162,8 +169,8 @@ export function useCustomizationPage() {
 	}
 
 	function revert() {
-		draft.value = structuredClone(saved.value);
-		profileDraft.value = structuredClone(savedProfileDraft.value);
+		draft.value = clonePlain(saved.value);
+		profileDraft.value = clonePlain(savedProfileDraft.value);
 		pendingImg.value = null;
 		if (user.value) {
 			user.value.name = savedProfileDraft.value.name;
@@ -191,7 +198,7 @@ export function useCustomizationPage() {
 			const [, uploadedImage] = await Promise.all([profileUpdate, imageUpdate]);
 
 			if (user.value) {
-				user.value.customization = structuredClone(draft.value);
+				user.value.customization = clonePlain(draft.value);
 				const previousName = savedProfileDraft.value.name;
 				const nameChanged = profileDraft.value.name.trim() !== previousName;
 				if (nameChanged && !subStore.isPro && previousName !== "Anonymous") {
@@ -201,8 +208,8 @@ export function useCustomizationPage() {
 				user.value.description = profileDraft.value.description.trim();
 				if (uploadedImage?.url) user.value.img = uploadedImage.url;
 			}
-			saved.value = structuredClone(draft.value);
-			savedProfileDraft.value = structuredClone(profileDraft.value);
+			saved.value = clonePlain(draft.value);
+			savedProfileDraft.value = clonePlain(profileDraft.value);
 			pendingImg.value = null;
 			toast("Look and details saved! ✨", { color: "success" });
 		} catch (error: any) {

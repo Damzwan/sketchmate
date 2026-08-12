@@ -250,15 +250,20 @@ configured `overviewPx²` remains a hard pixel budget (768² on low-end mobile,
 2. The **base layer** under every not-yet-baked tile, so the viewport is never
    blank and never flashes white.
 
-It is kept *correct* (not merely approximate) by **localized patching**:
-`patchRect(rect)` clears that sub-region and redraws exactly the objects there
-from the index — so add / remove / move / erase / undo all stay consistent with
-zero drift. A full `rebuildIfNeeded()` (O(all objects), low-res, yielded) only
-runs when coverage grows or the bitmap is globally dirty. Dense patches are
-subdivided and drained in 3–4 ms slices on low-end devices; gestures abort or
-defer overview work so it does not compete with input.
-`patchRect` refuses regions beyond the profile's `overviewPatchMax` and sends
-them through that incremental subdivision path instead of janking one frame.
+It is kept *correct* (not merely approximate) by **localized patching**. Empty
+old footprints clear synchronously. Any patch containing objects is rendered
+into one reusable, budget-capped scratch canvas, yields between Fabric objects
+(and between children of large plain groups), then commits with one clear and
+one `drawImage`. The live overview therefore never exposes a half-rendered
+patch, and `overviewPatch` is job wall time rather than one main-thread block.
+Dense or oversized patches are subdivided and drained asynchronously; gestures
+abort or defer the work so it does not compete with input. On low-end Android
+the scratch surface is capped at 192² RGBA pixels (~144 KB).
+
+A full `rebuildIfNeeded()` (O(all objects), low-res) follows the same yielded
+object/group loop and only runs when coverage grows or the bitmap is globally
+dirty. Synchronous eraser stamps are cost-gated; expensive ones mark the
+overview dirty and take this yielded rebuild path.
 
 ### LiveLayer — in-flight objects
 

@@ -3,10 +3,14 @@ import { defineStore } from "pinia";
 import { type Ref, ref, watch } from "vue";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { BASE_BRUSH_SIZE, BLACK } from "@/draw/config/canvas.config";
+import { brushDisplayName, brushItemId } from "@/draw/config/paidBrushes";
 import { penBrushMapping } from "@/draw/config/tools.config";
+import { useBrushTrial } from "@/draw/tools/brushTrial.store";
 import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
 import { BrushType, type ToolService } from "@/draw/tools/tool.types";
 import { hexWithOpacity, percentToAlphaHex } from "@/draw/utils/color.utils";
+import { useToast } from "@/service/toast.service";
+import { useInventoryStore } from "@/store/inventory.store";
 
 interface Pen extends ToolService {
 	brushSize: Ref<number>;
@@ -31,10 +35,38 @@ export const usePen = defineStore("pen", (): Pen => {
 	const density = ref(20);
 	const dotWidth = ref(1);
 
+	/**
+	 * Spend one trial stroke of a locked brush, and hand the brush back once the
+	 * day's allowance is gone.
+	 *
+	 * Counted on `path:created` — the moment a stroke actually exists — rather
+	 * than on pointer-down, so an accidental tap that produces nothing is free
+	 * and a cancelled stroke never costs anything.
+	 */
+	function chargeTrialStroke() {
+		const itemId = brushItemId(brushType.value);
+		if (!itemId || useInventoryStore().isOwned(itemId)) return;
+
+		const left = useBrushTrial().consume(itemId);
+		if (left > 0) return;
+
+		// Let them KEEP the stroke they just drew — removing it would read as a
+		// bug — then hand back the pencil so the next one is not a surprise.
+		const name = brushDisplayName(brushType.value);
+		brushType.value = BrushType.Pencil;
+		useToast().toast(`${name} trial used up for today`, {
+			color: "warning",
+		});
+	}
+
 	const events: FabricEvent[] = [
 		{
 			on: "mouse:down",
 			handler: updatePenCursor,
+		},
+		{
+			on: "path:created",
+			handler: chargeTrialStroke,
 		},
 		{
 			on: "zoomChanged",

@@ -8,24 +8,22 @@
 
       <transition name="fade">
         <!--
-          Sync status and the explicit cloud recheck sit in the slot the "N Saved"
-          counter already used, so the section stays compact. The status chip
-          still opens the explainer; the refresh icon only looks for newer remote
-          revisions.
+          ONE control, not two floating pills: status and the cloud recheck are
+          segments of a single tertiary/primary capsule, the same shape language
+          as the draft cards and the feed tabs. Two separate chips in two
+          different greys is what made this read as bolted on.
 
-          For a free account it also has to be noticeable enough to invite that
-          tap, hence the Pro dot and the slow shimmer.
+          The status half opens the explainer; the refresh half only looks for
+          newer remote revisions.
         -->
         <div
-          v-if="!loading && (drafts.length || syncEnabled)"
-          class="flex items-center gap-1.5 shrink-0"
+          v-if="syncVisible && !loading && (drafts.length || syncEnabled)"
+          class="flex items-stretch rounded-full border border-primary/40 bg-tertiary shadow-sm overflow-hidden shrink-0"
         >
           <button
             type="button"
-            class="relative flex items-center gap-1.5 rounded-full pl-2 pr-2.5 py-1 border shrink-0 overflow-hidden active:scale-95 transition-transform duration-200"
-            :class="syncEnabled
-              ? 'border-black/5 bg-black/[0.03]'
-              : 'border-secondary/30 bg-tertiary'"
+            class="relative flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 cursor-pointer transition-colors duration-200 hover:bg-secondary/10 active:scale-95 focus-visible:outline-2 focus-visible:outline-secondary"
+            :title="syncEnabled ? 'How draft backup works' : 'Back up your drafts with Pro'"
             @click="emit('explain')"
           >
             <span v-if="!syncEnabled" class="sync-shimmer absolute inset-0 pointer-events-none" />
@@ -40,33 +38,31 @@
               :class="syncEnabled ? 'text-secondary' : 'text-black/40'"
               :icon="svg(syncEnabled ? mdiCloudCheckOutline : mdiCloudOffOutline)"
             />
-            <span class="text-[9px] font-black uppercase tracking-widest text-black/70 whitespace-nowrap relative">
+            <span class="text-[10px] font-black uppercase tracking-widest text-black/70 whitespace-nowrap relative">
               {{ syncLabel }}
             </span>
             <span
               v-if="!syncEnabled"
-              class="relative text-[8px] font-black uppercase tracking-widest text-white bg-secondary rounded-full px-1.5 py-[1px]"
+              class="relative text-[9px] font-black uppercase tracking-widest text-white bg-secondary rounded-full px-1.5 py-[1px]"
             >
               Pro
             </span>
-            <ion-icon
-              v-else
-              :icon="svg(mdiInformationOutline)"
-              class="text-[11px] text-black/30 relative"
-            />
           </button>
+
+          <span v-if="syncEnabled" class="w-px bg-primary/40 my-1" />
 
           <button
             v-if="syncEnabled"
             type="button"
-            class="w-8 h-8 rounded-full border border-black/5 bg-black/[0.03] flex items-center justify-center text-secondary active:scale-90 transition-all duration-200 disabled:opacity-35 disabled:active:scale-100"
+            class="px-2.5 flex items-center justify-center text-secondary cursor-pointer transition-colors duration-200 hover:bg-secondary/10 active:scale-95 disabled:opacity-35 disabled:cursor-default disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-secondary"
             :disabled="checkingForUpdates || syncStatus === 'offline'"
+            :title="checkingForUpdates ? 'Checking for newer drafts…' : 'Check for newer drafts'"
             :aria-label="checkingForUpdates ? 'Checking for newer drafts' : 'Check for newer drafts'"
             @click="emit('check-updates')"
           >
             <ion-icon
               :icon="svg(mdiRefresh)"
-              class="text-lg"
+              class="text-base"
               :class="{ 'animate-spin': checkingForUpdates }"
             />
           </button>
@@ -99,14 +95,17 @@
       </div>
 
       <!-- Live Draft Cards Row -->
-      <div v-else key="data" class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible">
+      <!-- Phone: one swipeable row. Desktop: wrap instead, because a mouse wheel
+           cannot scroll a horizontal strip and a hidden scrollbar gives no hint
+           that there is more to the right. -->
+      <div v-else key="data" class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible md:flex-wrap md:overflow-x-visible">
         <div
           v-for="draft in sortedDrafts"
           :key="draft.id"
           class="min-w-[145px] max-w-[145px] rounded-[2rem] overflow-hidden snap-start flex-shrink-0 border transition-all duration-300 group relative shadow-sm"
           :class="isPending(draft.id)
             ? 'bg-primary/20 border-primary/30 cursor-default'
-            : 'bg-tertiary border-primary/40 cursor-pointer active:scale-95 hover:border-secondary/30'"
+            : 'bg-tertiary border-primary/40 cursor-pointer active:scale-95 hover:border-secondary/40 hover:shadow-md'"
           @click="handleCardClick(draft.id)"
         >
           <!-- Drawing Board Preview Area Frame (Using full edge-to-edge object-cover layout) -->
@@ -134,7 +133,7 @@
             <button
               v-if="syncEnabled && !isPending(draft.id) && cloudIcon(draft.id)"
               type="button"
-              class="absolute top-0.5 right-0.5 z-20 p-1.5 active:scale-90 transition-transform"
+              class="absolute top-0.5 right-0.5 z-20 p-1.5 cursor-pointer active:scale-90 transition-transform"
               aria-label="What does this icon mean?"
               @click.stop="emit('explain')"
             >
@@ -177,11 +176,13 @@
                 {{ isPending(draft.id) ? 'Sketching...' : formatDate(draft.updatedAt) }}
               </h3>
               <!--
-                The badge alone can't carry the meaning at 11px. The word does,
-                and this line was already reserved and empty.
+                Only rendered when there is something to say (see CARD_LABELS);
+                a backed-up card says nothing, which is what makes the two that
+                do speak worth reading.
               -->
-              <span class="text-[8px] uppercase tracking-wider mt-1 leading-none truncate block"
-                :class="syncState(draft.id) === 'synced' ? 'text-secondary/80' : 'text-black/60'"
+              <span
+                v-if="isPending(draft.id) || cardSyncLabel(draft.id)"
+                class="text-[9px] uppercase tracking-wider mt-1 leading-none truncate block text-black/60"
               >
                 {{ isPending(draft.id) ? 'Saving...' : cardSyncLabel(draft.id) }}
               </span>
@@ -222,7 +223,6 @@ import {
 	mdiCloudUploadOutline,
 	mdiDeleteOutline,
 	mdiDotsVertical,
-	mdiInformationOutline,
 	mdiPencilOutline,
 	mdiRefresh,
 	mdiShareOutline,
@@ -240,12 +240,15 @@ const props = withDefaults(
 		loading: boolean;
 		pendingIds: Set<string>;
 		syncEnabled?: boolean;
+		/** Signed-in, non-guest session — the only one the pill means anything in. */
+		syncVisible?: boolean;
 		syncStatus?: DraftSyncStatus;
 		syncStates?: Record<string, string>;
 		checkingForUpdates?: boolean;
 	}>(),
 	{
 		syncEnabled: false,
+		syncVisible: false,
 		syncStatus: "off",
 		syncStates: () => ({}),
 		checkingForUpdates: false,
@@ -273,15 +276,21 @@ const isPending = (id: string) => props.pendingIds.has(id);
 
 const syncState = (id: string) => props.syncStates[id];
 
+/**
+ * Only states that are NOT the steady state get a badge and a caption.
+ *
+ * `synced` is deliberately absent from both. It is true of nearly every card,
+ * nearly all of the time, and the header chip already says so once — repeating
+ * "Backed up" on twelve cards is noise that buries the two cards that actually
+ * want something from the user.
+ */
 const CLOUD_ICONS: Record<string, string> = {
-	synced: mdiCloudCheckOutline,
 	uploading: mdiCloudUploadOutline,
 	cloud: mdiCloudDownloadOutline,
 	downloading: mdiCloudDownloadOutline,
 };
 
 const CARD_LABELS: Record<string, string> = {
-	synced: "Backed up",
 	uploading: "Backing up…",
 	cloud: "Tap to download",
 	downloading: "Downloading…",

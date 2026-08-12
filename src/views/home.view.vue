@@ -31,6 +31,7 @@
           :loading="isLoadingDrafts"
           :pending-ids="pendingDraftIds"
           :sync-enabled="syncEnabled"
+          :sync-visible="syncVisible"
           :sync-status="syncStatus"
           :sync-states="draftSyncStates"
           :checking-for-updates="isCheckingForUpdates"
@@ -99,6 +100,7 @@ const {
 	isLoadingDrafts,
 	draftSyncStates,
 	syncEnabled,
+	syncVisible,
 	syncStatus,
 	syncUsed,
 	syncLimit,

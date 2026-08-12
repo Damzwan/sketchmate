@@ -7,6 +7,7 @@ import {
 } from "@/draw/actions/drawAction.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { stackPositions } from "@/draw/canvas/objectStack";
 import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
 import {
 	enlivenAllBatched,
@@ -71,9 +72,9 @@ export async function removeObjects(objects: FabricObject[]) {
 	// history JSON via customProperties, and undoObjectsDeleted re-inserts at
 	// it). Captured against the same full stack → ascending re-insert on undo
 	// reproduces the layering exactly.
-	const stack = c.getObjects();
+	const positions = stackPositions(c);
 	for (const obj of objects) {
-		(obj as any).insertedIndex = stack.indexOf(obj);
+		(obj as any).insertedIndex = positions.get(obj) ?? -1;
 	}
 
 	// Multi-delete: coalesce the N object:removed invalidations into one
@@ -129,8 +130,9 @@ function sortObjectsByLayer(
 	c: Canvas,
 	reverse = false,
 ) {
-	// getObjects() copies the whole stack — never call it inside a comparator.
-	const order = new Map(c.getObjects().map((o, i) => [o, i]));
+	// Positions resolved ONCE, never inside the comparator — and off the internal
+	// stack, so building them does not also copy the scene.
+	const order = stackPositions(c);
 	const sorted = objects.sort(
 		(a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0),
 	);

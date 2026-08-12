@@ -72,6 +72,7 @@ export function leaveRoom(skipEmit = false) {
 		invitedFriends,
 		isPublicLobby,
 		isLoadingCanvas,
+		isTryingToJoin,
 		lobbyChatMessages,
 		lastProcessedSequenceId,
 		publicLobbies,
@@ -88,6 +89,10 @@ export function leaveRoom(skipEmit = false) {
 	removeRoomIdFromUrl();
 	isPublicLobby.value = false;
 	isLoadingCanvas.value = false;
+	// Leaving DURING a join is the case this exists for: `room-joined` /
+	// `join-error` are the only other places that clear it, and neither arrives
+	// once we have walked away.
+	isTryingToJoin.value = false;
 	lobbyChatMessages.value = [];
 	useChatStore().clearLobbyNotifications(); // <-- Kill lingering lobby toasts immediately
 	lastProcessedSequenceId.value = undefined; // <-- Reset time on leave

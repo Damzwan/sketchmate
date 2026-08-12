@@ -7,15 +7,16 @@
 //
 // It is a deliberately LOW-STAKES approximation, but it is kept CORRECT (not
 // just "close") by localized patching:
-//   - patchRect(rect): clear that region & redraw it from the index — O(local)
+//   - patchRect(): synchronous clear only when the region is empty
+//   - patchRectYielded(): render locally into scratch, then commit atomically
 //   - rebuildIfNeeded(): full low-res re-render, only on growth/init — O(N), rare
-// Because patchRect redraws from the index, it handles add / remove / move /
-// erase / undo uniformly with no drift, so the overview is always safe to use
-// as the base layer under not-yet-baked tiles.
+// Because object-bearing patches redraw from the index, add / remove / move /
+// erase / undo all remain drift-free without a synchronous object loop.
 
 import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import {
 	recordPhase,
+	recordRenderObject,
 	recordSyncRepairDeclined,
 } from "@/draw/rendering/renderMetrics";
 import type { Yielder } from "@/draw/scheduling/yielder";
@@ -23,10 +24,21 @@ import type {
 	Bounded,
 	RemoteOverview,
 	SpatialIndex,
+	SplitTileRenderer,
 	TileRenderer,
 	WorldRect,
 } from "./committedLayer";
 import { chooseOverviewDimensions } from "./overviewSizing";
+
+/**
+ * How much of the requested preview edge the overview must actually hold in
+ * source pixels before a bitmap copy is allowed to stand in for a real render.
+ *
+ * 0.75 lets the ordinary drawing (which covers enough world to be sampled well
+ * above the preview size) keep the cheap path, while a small sketch — where the
+ * copy would be a visible upscale — is handed back to the caller.
+ */
+const MIN_THUMBNAIL_SOURCE_RATIO = 0.75;
 
 interface OverviewOptions {
 	px?: number;
@@ -39,8 +51,20 @@ interface OverviewOptions {
 	 */
 	renderChunk?: number;
 	remoteOverview?: RemoteOverview<any>;
-	/** Cost ceiling for one synchronous `patchRect`. See renderCost.ts. */
+	splitRenderer?: SplitTileRenderer<any>;
+	/** Cost ceiling for a synchronous overview eraser stamp. See renderCost.ts. */
 	syncCostBudget?: number;
+}
+
+interface PreparedOverviewPatch<T> {
+	target: OffscreenCanvas;
+	targetCtx: OffscreenCanvasRenderingContext2D;
+	px0: number;
+	py0: number;
+	width: number;
+	height: number;
+	r: WorldRect;
+	objects: T[];
 }
 
 export class WorldOverview<T extends Bounded> {
@@ -50,6 +74,8 @@ export class WorldOverview<T extends Bounded> {
 	private readonly index: SpatialIndex<T>;
 	private readonly renderer: TileRenderer<T>;
 	private readonly remoteOverview?: RemoteOverview<T>;
+	private readonly splitRenderer?: SplitTileRenderer<T>;
+	private readonly PATCH_PIXEL_BUDGET: number;
 
 	private canvas: OffscreenCanvas | null = null;
 	private ctx: OffscreenCanvasRenderingContext2D | null = null;
@@ -59,6 +85,9 @@ export class WorldOverview<T extends Bounded> {
 	private dirty = true;
 	private dirtyRevision = 1;
 	private rebuildInFlight: Promise<void> | null = null;
+	/** One bounded reusable localized-repair surface. On low-end Android this is
+	 * capped to 192² (~144 KB), avoiding per-edit canvas allocation churn. */
+	private patchCanvas: OffscreenCanvas | null = null;
 
 	constructor(
 		index: SpatialIndex<T>,
@@ -71,6 +100,13 @@ export class WorldOverview<T extends Bounded> {
 		this.TARGET_DENSITY = opts.targetDensity ?? 0.5;
 		this.SYNC_COST_BUDGET = opts.syncCostBudget ?? Infinity;
 		this.remoteOverview = opts.remoteOverview;
+		this.splitRenderer = opts.splitRenderer;
+		this.PATCH_PIXEL_BUDGET =
+			this.PIXEL_BUDGET_EDGE <= 768
+				? 192 * 192
+				: this.PIXEL_BUDGET_EDGE <= 1024
+					? 256 * 256
+					: 512 * 512;
 	}
 
 	markDirty(): void {
@@ -133,11 +169,25 @@ export class WorldOverview<T extends Bounded> {
 	 * Punch one eraser stroke into the overview. The stroke's own
 	 * globalCompositeOperation (destination-out) applies during render, so this
 	 * is exact at overview resolution — the overview stays NOT dirty.
-	 * Returns false if no bitmap exists yet (caller falls back to markDirty).
+	 * Returns false if no bitmap exists yet or the stroke exceeds the synchronous
+	 * device budget (caller marks dirty and schedules the yielded rebuild).
 	 */
 	eraseObject(obj: T): boolean {
 		if (!this.canvas || !this.ctx || !this.bounds) return false;
+		if (this.SYNC_COST_BUDGET !== Infinity) {
+			const cost = estimateRenderCost([obj], this.SYNC_COST_BUDGET);
+			if (cost > this.SYNC_COST_BUDGET) {
+				recordSyncRepairDeclined(cost);
+				return false;
+			}
+		}
+		const startedAt = performance.now();
 		this.paintOne(this.ctx, obj);
+		recordRenderObject(
+			"overviewEraseObject",
+			performance.now() - startedAt,
+			obj,
+		);
 		return true;
 	}
 
@@ -162,100 +212,137 @@ export class WorldOverview<T extends Bounded> {
 	 * current content (handles add / remove / move / erase / undo uniformly)
 	 * WITHOUT an O(N) full redraw — cost is O(objects intersecting rect).
 	 *
-	 * Returns false if the overview isn't built yet, `rect` isn't fully inside
-	 * coverage (content grew), or more than `maxObjects` intersect the region —
-	 * a dense patch is a synchronous N-object render, and the async yielded
-	 * full rebuild is cheaper than janking the frame. Caller rebuilds on false.
+	 * This synchronous entry point is deliberately CLEAR-ONLY. If any visible
+	 * object intersects the rect it returns false so the coordinator routes the
+	 * work through `patchRectYielded`; no Fabric object is ever rasterized here.
+	 * That makes transform/drop seams cheap while removing overviewPatch as an
+	 * ANR-shaped, uninterruptible object loop.
 	 */
 	patchRect(rect: WorldRect, maxObjects = Infinity): boolean {
-		if (!this.canvas || !this.ctx || !this.bounds) return false;
-		if (!this.contains(this.bounds, rect)) return false;
-		// Timed: this is a SYNCHRONOUS re-render of every object in the rect, and its
-		// cost tracks brush weight (`objectCaching` is off during a bake render, so a
-		// watercolor path is stroked in full every time).
 		const __t0 = performance.now();
-		const ctx = this.ctx;
-
-		// Pad by ~2 overview-px (in world units) so stroke width / AA at the
-		// region edges is fully cleared and redrawn — no half-erased seams.
-		const mx = 2 / this.sx,
-			my = 2 / this.sy;
-		const desired: WorldRect = {
-			x: rect.x - mx,
-			y: rect.y - my,
-			w: rect.w + 2 * mx,
-			h: rect.h + 2 * my,
-		};
-		// Snap the clear + clip to WHOLE OVERVIEW PIXELS. At fractional boundaries
-		// Canvas antialiases the clip against transparency; the untouched pixels on
-		// the other side do not add back to full coverage, leaving a pale line that
-		// becomes a conspicuous white seam when the overview is upscaled on mobile.
-		const px0 = Math.max(0, Math.floor((desired.x - this.bounds.x) * this.sx));
-		const py0 = Math.max(0, Math.floor((desired.y - this.bounds.y) * this.sy));
-		const px1 = Math.min(
-			this.canvas.width,
-			Math.ceil((desired.x + desired.w - this.bounds.x) * this.sx),
-		);
-		const py1 = Math.min(
-			this.canvas.height,
-			Math.ceil((desired.y + desired.h - this.bounds.y) * this.sy),
-		);
-		if (px1 <= px0 || py1 <= py0) return true;
-		const r: WorldRect = {
-			x: this.bounds.x + px0 / this.sx,
-			y: this.bounds.y + py0 / this.sy,
-			w: (px1 - px0) / this.sx,
-			h: (py1 - py0) / this.sy,
-		};
-
-		// Query BEFORE clearing — bail out density check must not leave a hole.
-		// Gate on VISIBLE objects only: the transform controller hides a dragged
-		// selection via opacity=0 while it's still indexed at the old position, so
-		// counting hidden objects made every big-selection drag defer this patch
-		// to the async rebuild — leaving a ghost at the vacated spot. Invisible
-		// objects cost nothing to "render" (fabric skips them), so they must not
-		// trip the cost gate; dropping them from the loop too skips the no-ops.
-		const objects = this.index
-			.query(r)
-			.filter((o: any) => o.visible !== false && o.opacity !== 0);
-		if (objects.length > maxObjects) {
+		const prepared = this.preparePatch(rect, maxObjects);
+		if (!prepared) return false;
+		if (prepared.objects.length > 0) {
 			recordPhase("overviewPatch", performance.now() - __t0);
 			return false;
 		}
-		// A COUNT cap does not bound cost: `maxObjects` pencil lines and the same
-		// number of watercolour strokes differ by orders of magnitude, and one
-		// heavily erased object can exceed both on its own. This loop cannot yield,
-		// so the honest gate is estimated work. Declining is already the supported
-		// outcome — the caller falls back to the yielded async rebuild.
-		if (this.SYNC_COST_BUDGET !== Infinity) {
-			const cost = estimateRenderCost(objects, this.SYNC_COST_BUDGET);
-			if (cost > this.SYNC_COST_BUDGET) {
-				recordSyncRepairDeclined(cost);
-				recordPhase("overviewPatch", performance.now() - __t0);
+		const commitStartedAt = performance.now();
+		prepared.targetCtx.setTransform(1, 0, 0, 1, 0, 0);
+		prepared.targetCtx.clearRect(
+			prepared.px0,
+			prepared.py0,
+			prepared.width,
+			prepared.height,
+		);
+		recordPhase("overviewPatchCommit", performance.now() - commitStartedAt);
+		recordPhase("overviewPatch", performance.now() - __t0);
+		return true;
+	}
+
+	/**
+	 * Localized overview repair built off-screen and committed atomically.
+	 * Rendering yields between objects and, for large plain groups, between
+	 * children. Oversized pixel regions return false so the coordinator splits
+	 * them; the reusable scratch surface therefore stays tiny on low-end phones.
+	 */
+	async patchRectYielded(
+		rect: WorldRect,
+		maxObjects: number,
+		yielder: Yielder,
+		signal: AbortSignal,
+	): Promise<boolean> {
+		if (signal.aborted) return false;
+		const __t0 = performance.now();
+		const prepared = this.preparePatch(rect, maxObjects);
+		if (!prepared) return false;
+		if (prepared.objects.length === 0) return this.patchRect(rect, maxObjects);
+		if (prepared.width * prepared.height > this.PATCH_PIXEL_BUDGET)
+			return false;
+		const scratch = this.acquirePatchCanvas(prepared.width, prepared.height);
+		const ctx = scratch.getContext("2d");
+		if (!ctx) return false;
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.clearRect(0, 0, prepared.width, prepared.height);
+		ctx.save();
+		ctx.setTransform(
+			this.sx,
+			0,
+			0,
+			this.sy,
+			-prepared.r.x * this.sx,
+			-prepared.r.y * this.sy,
+		);
+		ctx.beginPath();
+		ctx.rect(prepared.r.x, prepared.r.y, prepared.r.w, prepared.r.h);
+		ctx.clip();
+
+		yielder.reset();
+		for (let i = 0; i < prepared.objects.length; i++) {
+			const object = prepared.objects[i];
+			try {
+				if (this.splitRenderer?.canSplit(object)) {
+					await this.splitRenderer.render(
+						ctx,
+						object,
+						Math.max(this.sx, this.sy),
+						prepared.r,
+						yielder,
+						() => signal.aborted,
+						(ms, child) => recordRenderObject("overviewPatchObject", ms, child),
+					);
+				} else {
+					const objectStartedAt = performance.now();
+					this.renderer(
+						ctx as any,
+						object,
+						Math.max(this.sx, this.sy),
+						prepared.r,
+					);
+					recordRenderObject(
+						"overviewPatchObject",
+						performance.now() - objectStartedAt,
+						object,
+					);
+				}
+			} catch {
+				/* overview is a fallback approximation; keep repairing */
+			}
+			await yielder.maybeYield();
+			if (signal.aborted) {
+				ctx.restore();
 				return false;
 			}
 		}
-
-		// Clear the sub-rect (identity space).
-		ctx.save();
-		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.clearRect(px0, py0, px1 - px0, py1 - py0);
 		ctx.restore();
 
-		// Redraw objects intersecting r, clipped to r (z-ordered by the index).
-		ctx.save();
-		this.applyWorldTransform(ctx);
-		ctx.beginPath();
-		ctx.rect(r.x, r.y, r.w, r.h);
-		ctx.clip();
-		for (let i = 0; i < objects.length; i++) {
-			try {
-				this.renderer(ctx as any, objects[i], Math.max(this.sx, this.sy));
-			} catch {
-				/* ignore */
-			}
-		}
-		ctx.restore();
+		// A reset/rebuild may have replaced the target while this yielded. Never
+		// stamp old pixels into a new overview mapping.
+		if (
+			signal.aborted ||
+			this.canvas !== prepared.target ||
+			this.ctx !== prepared.targetCtx
+		)
+			return false;
+		const commitStartedAt = performance.now();
+		prepared.targetCtx.setTransform(1, 0, 0, 1, 0, 0);
+		prepared.targetCtx.clearRect(
+			prepared.px0,
+			prepared.py0,
+			prepared.width,
+			prepared.height,
+		);
+		prepared.targetCtx.drawImage(
+			scratch,
+			0,
+			0,
+			prepared.width,
+			prepared.height,
+			prepared.px0,
+			prepared.py0,
+			prepared.width,
+			prepared.height,
+		);
+		recordPhase("overviewPatchCommit", performance.now() - commitStartedAt);
 		recordPhase("overviewPatch", performance.now() - __t0);
 		return true;
 	}
@@ -431,16 +518,34 @@ export class WorldOverview<T extends Bounded> {
 						tctx.save();
 						tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 						for (let i = 0; i < remote.skipped.length; i++) {
-							const overlayStartedAt = performance.now();
 							try {
-								this.renderer(tctx as any, remote.skipped[i], Math.max(sx, sy));
+								if (this.splitRenderer?.canSplit(remote.skipped[i])) {
+									await this.splitRenderer.render(
+										tctx,
+										remote.skipped[i],
+										Math.max(sx, sy),
+										bounds,
+										yielder,
+										() => signal.aborted,
+										(ms, child) =>
+											recordRenderObject("overviewOverlayObject", ms, child),
+									);
+								} else {
+									const overlayStartedAt = performance.now();
+									this.renderer(
+										tctx as any,
+										remote.skipped[i],
+										Math.max(sx, sy),
+									);
+									recordRenderObject(
+										"overviewOverlayObject",
+										performance.now() - overlayStartedAt,
+										remote.skipped[i],
+									);
+								}
 							} catch {
 								/* ignore */
 							}
-							recordPhase(
-								"overviewOverlayObject",
-								performance.now() - overlayStartedAt,
-							);
 							await yielder.maybeYield();
 							if (signal.aborted) {
 								tctx.restore();
@@ -476,7 +581,25 @@ export class WorldOverview<T extends Bounded> {
 		yielder.reset();
 		for (let i = 0; i < visible.length; i++) {
 			try {
-				this.renderer(tctx as any, visible[i], Math.max(sx, sy));
+				if (this.splitRenderer?.canSplit(visible[i])) {
+					await this.splitRenderer.render(
+						tctx,
+						visible[i],
+						Math.max(sx, sy),
+						bounds,
+						yielder,
+						() => signal.aborted,
+						(ms, child) => recordRenderObject("overviewBuildObject", ms, child),
+					);
+				} else {
+					const objectStartedAt = performance.now();
+					this.renderer(tctx as any, visible[i], Math.max(sx, sy), bounds);
+					recordRenderObject(
+						"overviewBuildObject",
+						performance.now() - objectStartedAt,
+						visible[i],
+					);
+				}
 			} catch {
 				/* ignore */
 			}
@@ -544,6 +667,22 @@ export class WorldOverview<T extends Bounded> {
 			this.bounds,
 		);
 		if (!framed) return Promise.resolve(null);
+
+		/**
+		 * The overview is a fixed-DENSITY bitmap (px per world unit), so the pixels
+		 * behind a drawing are proportional to how much WORLD it covers — not to
+		 * how big the requested preview is. A few dots occupy a few world units and
+		 * therefore a few dozen overview pixels; blowing those up to 640 is the
+		 * blurry-preview-of-a-small-sketch report.
+		 *
+		 * Refuse instead of upscaling. The caller renders that case from the
+		 * document itself, where vectors rasterize at whatever size is asked for.
+		 * Anything that genuinely has the pixels keeps the cheap bitmap copy.
+		 */
+		const sourceEdge = Math.max(framed.w * this.sx, framed.h * this.sy);
+		if (sourceEdge < maxSize * MIN_THUMBNAIL_SOURCE_RATIO) {
+			return Promise.resolve(null);
+		}
 
 		const aspect = framed.w / framed.h;
 		const width = Math.max(
@@ -698,10 +837,96 @@ export class WorldOverview<T extends Bounded> {
 		this.canvas = null;
 		this.ctx = null;
 		this.bounds = null;
+		if (this.patchCanvas) {
+			this.patchCanvas.width = 0;
+			this.patchCanvas.height = 0;
+		}
+		this.patchCanvas = null;
 		this.markDirty();
 	}
 
 	// ── helpers ──────────────────────────────────────────────────────────────
+	private preparePatch(
+		rect: WorldRect,
+		maxObjects: number,
+	): PreparedOverviewPatch<T> | null {
+		if (!this.canvas || !this.ctx || !this.bounds) return null;
+		if (!this.contains(this.bounds, rect)) return null;
+
+		// Pad by ~2 overview pixels and snap outward so a localized clear never
+		// leaves a half-antialiased seam against untouched pixels.
+		const mx = 2 / this.sx;
+		const my = 2 / this.sy;
+		const desired: WorldRect = {
+			x: rect.x - mx,
+			y: rect.y - my,
+			w: rect.w + 2 * mx,
+			h: rect.h + 2 * my,
+		};
+		const px0 = Math.max(0, Math.floor((desired.x - this.bounds.x) * this.sx));
+		const py0 = Math.max(0, Math.floor((desired.y - this.bounds.y) * this.sy));
+		const px1 = Math.min(
+			this.canvas.width,
+			Math.ceil((desired.x + desired.w - this.bounds.x) * this.sx),
+		);
+		const py1 = Math.min(
+			this.canvas.height,
+			Math.ceil((desired.y + desired.h - this.bounds.y) * this.sy),
+		);
+		if (px1 <= px0 || py1 <= py0) {
+			return {
+				target: this.canvas,
+				targetCtx: this.ctx,
+				px0,
+				py0,
+				width: 0,
+				height: 0,
+				r: rect,
+				objects: [],
+			};
+		}
+		const r: WorldRect = {
+			x: this.bounds.x + px0 / this.sx,
+			y: this.bounds.y + py0 / this.sy,
+			w: (px1 - px0) / this.sx,
+			h: (py1 - py0) / this.sy,
+		};
+		const objects = this.index
+			.query(r)
+			.filter((o: any) => o.visible !== false && o.opacity !== 0);
+		if (objects.length > maxObjects) return null;
+		return {
+			target: this.canvas,
+			targetCtx: this.ctx,
+			px0,
+			py0,
+			width: px1 - px0,
+			height: py1 - py0,
+			r,
+			objects,
+		};
+	}
+
+	private acquirePatchCanvas(width: number, height: number): OffscreenCanvas {
+		if (!this.patchCanvas) {
+			this.patchCanvas = new OffscreenCanvas(width, height);
+			return this.patchCanvas;
+		}
+		// Grow when the retained shape stays inside the budget. Alternating a wide,
+		// short patch with a narrow, tall one would otherwise accumulate both maxima
+		// and silently exceed the cap; resize to the exact requested shape instead.
+		const retainedWidth = Math.max(this.patchCanvas.width, width);
+		const retainedHeight = Math.max(this.patchCanvas.height, height);
+		if (retainedWidth * retainedHeight > this.PATCH_PIXEL_BUDGET) {
+			this.patchCanvas.width = width;
+			this.patchCanvas.height = height;
+		} else {
+			if (this.patchCanvas.width < width) this.patchCanvas.width = width;
+			if (this.patchCanvas.height < height) this.patchCanvas.height = height;
+		}
+		return this.patchCanvas;
+	}
+
 	private applyWorldTransform(ctx: OffscreenCanvasRenderingContext2D) {
 		if (!this.bounds) return;
 		ctx.setTransform(

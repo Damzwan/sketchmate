@@ -28,7 +28,9 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
 		c.skipTargetFind = false;
 	}
 
-	const lastObject = c.getObjects().at(-1)!;
+	// `getObjects()` copies the whole scene; this only wants its last element.
+	const stack = (c as any)._objects as any[];
+	const lastObject = stack[stack.length - 1];
 
 	if (isNewShape && lastObject) {
 		c.fire("object:added", { target: lastObject });
@@ -58,7 +60,8 @@ export function exitDragShapeCreationMode() {
 		selectTool(DrawTool.Select);
 	}
 
-	c.setActiveObject(c.getObjects().at(-1)!);
+	const objects = (c as any)._objects as any[];
+	c.setActiveObject(objects[objects.length - 1]);
 }
 
 export function findNearestPoint(

@@ -94,13 +94,23 @@ export class LiveLayer<T extends Bounded> {
 		return this.items.get(id)?.rect;
 	}
 
-	/** Render all live items in world space, viewport-culled. */
+	/**
+	 * Render all live items in world space, viewport-culled.
+	 *
+	 * `alreadyPainted` hides an item whose pixels the caller has ALREADY drawn
+	 * this frame (its tile baked and was composited underneath). Drawing it again
+	 * on top is invisible at full alpha but doubles a semi-transparent stroke
+	 * (0.45 + 0.45 ≈ 0.70) for every frame between the bake landing and the item
+	 * being demoted — the low-opacity brush flicker. Demotion still does the
+	 * bookkeeping; this just stops the overlap being visible in the meantime.
+	 */
 	composite(
 		ctx: CanvasRenderingContext2D,
 		vpt: number[],
 		dpr: number,
 		render: LiveRenderer<T>,
 		viewWorld?: WorldRect,
+		alreadyPainted?: (rect: WorldRect) => boolean,
 	): void {
 		if (this.items.size === 0) return;
 		ctx.save();
@@ -108,6 +118,7 @@ export class LiveLayer<T extends Bounded> {
 		ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
 		for (const it of this.items.values()) {
 			if (viewWorld && !this.intersects(it.rect, viewWorld)) continue;
+			if (alreadyPainted?.(it.rect)) continue;
 			ctx.save();
 			if (it.mode === "erase") ctx.globalCompositeOperation = "destination-out";
 			try {

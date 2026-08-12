@@ -35,8 +35,18 @@ export class ExplicitZIndex {
 
 	assignOnAdd(object: FabricObject): number {
 		const objects = this.getCanvasObjects();
+		// TOP FIRST. A new object is appended to the canvas stack in every case
+		// that matters — a finished stroke, a paste, a sync replay — and
+		// `indexOf` is a linear scan of the whole scene. On a 7,000-object board
+		// that is 7,000 reference compares per added object, i.e. O(N²) for a
+		// batch, to answer a question the last slot already answers.
+		const last = objects.length - 1;
+		if (last < 0 || objects[last] === object) {
+			return this.setObjectZ(object, ++this.top);
+		}
+
 		const index = objects.indexOf(object);
-		if (index === -1 || index === objects.length - 1) {
+		if (index === -1) {
 			return this.setObjectZ(object, ++this.top);
 		}
 

@@ -416,7 +416,7 @@ the field data decides whether they are still the right ones.
 | Area | Landed as |
 | --- | --- |
 | M8 | [`drawDiagnostics.ts`](../src/draw/diagnostics/drawDiagnostics.ts); `enableNdkScopeSync` / `attachThreads` / `maxBreadcrumbs` in [`sentry.ts`](../src/observability/sentry.ts); `io.sentry.**` keeps in `proguard-rules.pro`; ANR v1/v2 + NDK meta-data in `AndroidManifest.xml`; `lastDrawPhase()` + `setLongTaskSink` in `renderMetrics.ts` |
-| M1 | [`renderCost.ts`](../src/draw/rendering/renderCost.ts); `affordsSyncRender` gates in `tileBaker.ts`; cost gate in `WorldOverview.patchRect`; `syncRenderCostBudget` per device class; `rebuildTileSync` returns `repaired \| rebuilt \| declined` |
+| M1 | [`renderCost.ts`](../src/draw/rendering/renderCost.ts); `affordsSyncRender` gates in `tileBaker.ts`; localized overview object repairs now use a yielded scratch build + atomic commit; synchronous overview eraser stamps retain the per-device cost gate; `rebuildTileSync` returns `repaired \| rebuilt \| declined` |
 | M7 | [`drawMemoryPressure.ts`](../src/draw/diagnostics/drawMemoryPressure.ts); `releaseGraphicsMemory()` / `restoreFromRelease()` on the engine |
 | M2 | `TileSurface` union + `isCanvasSurface` / `releaseTileSurface` in `tileStore.ts`; `stampInPlace` / `hotSurfaceFor` / `demoteHotTiles` in `tileStamps.ts`; `hotTileMax` per device class |
 | M3 | Class-ordered eviction in `TileStore.reserve` + `setActiveTier`; weak `touch` for fallback sampling |

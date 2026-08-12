@@ -58,6 +58,28 @@ export type TileRenderer<T extends Bounded> = (
 	clipRect?: WorldRect,
 ) => void;
 
+/**
+ * Optional interruptible companion to `TileRenderer`, for objects whose render
+ * is one indivisible block big enough to blow a frame — in practice a merged
+ * Group holding a whole drawing. `canSplit` decides; `render` yields internally
+ * through the pass's own yielder. Omit both and every object renders in one go,
+ * which is the previous behaviour.
+ */
+export interface SplitTileRenderer<T extends Bounded> {
+	canSplit(obj: T): boolean;
+	render(
+		ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+		obj: T,
+		tierScale: number,
+		clipRect: WorldRect | undefined,
+		yielder: Yieldable,
+		isAborted: () => boolean,
+		/** Per-child synchronous render timing. Split jobs yield internally, so
+		 * timing the whole Promise would mistake wall-clock latency for a block. */
+		onObjectRendered?: (ms: number, obj: T) => void,
+	): Promise<void>;
+}
+
 export interface Yieldable {
 	reset(): void;
 
@@ -155,6 +177,8 @@ export interface CommittedOptions {
 	 */
 	hotTileMax?: number;
 	debug?: boolean;
+	/** Optional interruptible renderer for oversized objects (merged groups). */
+	splitRenderer?: SplitTileRenderer<any>;
 	/** Optional worker-side tile renderer; async bakes try it first. */
 	remoteBaker?: RemoteBaker<any>;
 	/** Optional worker-side overview renderer; full rebuilds try it first. */
@@ -267,6 +291,7 @@ export class TileLayerBase<T extends Bounded> {
 
 	protected readonly index: SpatialIndex<T>;
 	protected readonly renderer: TileRenderer<T>;
+	protected readonly splitRenderer?: SplitTileRenderer<T>;
 	protected readonly remoteBaker?: RemoteBaker<T>;
 	public readonly overview: WorldOverview<T>;
 
@@ -323,6 +348,7 @@ export class TileLayerBase<T extends Bounded> {
 		this.ZOOM_TIERS = opts.zoomTiers ?? [...DEFAULT_ZOOM_TIERS];
 
 		this.POOL_MAX = opts.poolMax ?? 16;
+		this.splitRenderer = opts.splitRenderer;
 		this.remoteBaker = opts.remoteBaker;
 		// Index into ZOOM_TIERS, so it moved with the ladder (was 2 against
 		// [0.0625 … 16]). 1 keeps the same zoom threshold, 0.25.
@@ -364,6 +390,7 @@ export class TileLayerBase<T extends Bounded> {
 				this.ZOOM_TIERS[this.OVERVIEW_TIER + 1] ??
 				this.ZOOM_TIERS[this.ZOOM_TIERS.length - 1],
 			remoteOverview: opts.remoteOverview,
+			splitRenderer: opts.splitRenderer,
 			syncCostBudget: this.SYNC_COST_BUDGET,
 		});
 	}

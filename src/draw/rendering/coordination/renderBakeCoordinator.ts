@@ -44,6 +44,8 @@ export abstract class RenderBakeCoordinator<
 		// canvas it was building is simply dropped).
 		this.overviewCtrl?.abort();
 		this.overviewCtrl = null;
+		this.overviewPatchCtrl?.abort();
+		this.overviewPatchCtrl = null;
 		this.cancelRemoteWork?.();
 		this.bakeAgain = false;
 		if (this.bakeTimer !== null) {

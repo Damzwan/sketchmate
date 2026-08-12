@@ -12,6 +12,7 @@ export type {
 	RemoteBaker,
 	RemoteOverview,
 	SpatialIndex,
+	SplitTileRenderer,
 	TileRenderer,
 	WorldRect,
 	Yieldable,

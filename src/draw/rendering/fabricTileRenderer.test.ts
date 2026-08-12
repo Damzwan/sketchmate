@@ -1,6 +1,10 @@
 import { Group, Rect } from "fabric";
 import { describe, expect, it, vi } from "vitest";
-import { isolatedTileRenderer } from "./fabricTileRenderer";
+import {
+	isolatedTileRenderer,
+	isSplittableForBake,
+	renderSplitForBake,
+} from "./fabricTileRenderer";
 
 /** Enough of a 2D context for fabric's Rect/Group render path. */
 function stubContext(): CanvasRenderingContext2D {
@@ -54,5 +58,37 @@ describe("isolatedTileRenderer group culling", () => {
 
 		expect(child.visible).toBe(visibleBefore);
 		expect(group.visible).toBe(true);
+	});
+});
+
+describe("yielded merged-group rendering", () => {
+	it("opens a large group and yields between child batches", async () => {
+		const children = Array.from(
+			{ length: 48 },
+			(_, i) => new Rect({ left: i * 2, top: 0, width: 1, height: 1 }),
+		);
+		const group = new Group(children);
+		const renders = children.map((child) => vi.spyOn(child as any, "_render"));
+		const yielder = {
+			shouldYield: vi.fn(() => false),
+			yield: vi.fn(async () => {}),
+		};
+		const timings: number[] = [];
+
+		expect(isSplittableForBake(group)).toBe(true);
+		await renderSplitForBake(
+			stubContext(),
+			group,
+			1,
+			undefined,
+			yielder,
+			() => false,
+			(ms) => timings.push(ms),
+		);
+
+		expect(renders.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+		expect(yielder.yield).toHaveBeenCalledTimes(3);
+		expect(timings).toHaveLength(48);
+		expect(group._transformDone).toBeUndefined();
 	});
 });

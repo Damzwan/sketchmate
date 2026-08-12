@@ -1,14 +1,19 @@
 import { Point } from "fabric";
 import { describe, expect, it } from "vitest";
 import {
-	SIMPLIFY_CHUNK,
 	WaterColorBrush,
 	WaterColorStroke,
 } from "@/draw/utils/brushes/WaterColorBrush";
+import { buildWatercolorPathData } from "@/draw/utils/brushes/watercolorGeometry";
+
+/** Travel along the synthetic stroke, so a second `draw()` continues the first
+ *  instead of restarting on top of it. */
+let phase = 0;
 
 /** A canvas stub that records nothing — the preview render still runs through
  *  it, so the real `_render` path is exercised rather than stepped around. */
 function brushFor(width: number) {
+	phase = 0;
 	const ctx = {
 		save: () => {},
 		restore: () => {},
@@ -30,16 +35,23 @@ function brushFor(width: number) {
 }
 
 describe("WaterColorBrush preview/commit agreement", () => {
-	/** Drive the brush the way a hand does: dense samples with sub-pixel tremor. */
+	/**
+	 * Drive the brush the way a hand does: dense samples with sub-pixel tremor,
+	 * through `onMouseMove` — the decimation that thins a stroke lives there, so
+	 * calling `_addPoint` directly would test a path no pointer ever takes.
+	 */
 	function draw(brush: any, count: number) {
 		let seed = 1;
 		const random = () => {
 			seed = Math.sin(seed * 12.9898) * 43758.5453;
 			return seed - Math.floor(seed);
 		};
-		for (let i = 0; i < count; i++) {
-			brush._addPoint(
-				new Point(i * 0.3, Math.sin(i / 40) * 25 + (random() - 0.5) * 0.35),
+		for (let i = 0; i < count; i++, phase++) {
+			brush.onMouseMove(
+				new Point(
+					phase * 0.3,
+					Math.sin(phase / 40) * 25 + (random() - 0.5) * 0.35,
+				),
 			);
 		}
 	}
@@ -53,28 +65,47 @@ describe("WaterColorBrush preview/commit agreement", () => {
 		const previewed = brush._strokePoints();
 		const committed = brush._strokePoints();
 		expect(committed).toEqual(previewed);
-		expect(previewed.length).toBeLessThan(100);
 	});
 
-	it("keeps the frozen prefix stable as the stroke grows", () => {
+	it("never re-shapes what it has already drawn", () => {
+		// THE invariant. Every sample is final, so the geometry drawn at any point
+		// during the stroke stays a strict PREFIX of the geometry drawn later —
+		// nothing behind the pointer moves. Douglas-Peucker mid-stroke broke this
+		// every time it froze a chunk: it measures deviation on the centerline,
+		// while what is drawn is the centerline plus a per-point wave and noise, so
+		// a sample it considered redundant was a visible wiggle on the ribbon.
 		const brush = brushFor(20);
-		draw(brush, 200);
-		const early = brush._strokePoints();
-		const frozenCount = brush._frozen.length;
-		draw(brush, 200);
-		const later = brush._strokePoints();
+		draw(brush, 150);
+		const early = buildWatercolorPathData(brush._strokePoints(), 20);
+		const earlyPoints = brush._strokePoints().length;
 
-		// Everything already frozen is final: the preview never re-flows behind
-		// the pointer, which is what makes incremental simplification safe.
-		expect(later.slice(0, frozenCount)).toEqual(early.slice(0, frozenCount));
-		expect(brush._frozen.length).toBeGreaterThan(frozenCount);
+		draw(brush, 350);
+		const later = buildWatercolorPathData(brush._strokePoints(), 20);
+
+		expect(brush._strokePoints().length).toBeGreaterThan(earlyPoints);
+		// One subpath per bristle, so compare the commands of the FIRST bristle:
+		// the later stroke must reproduce the earlier one command for command.
+		const firstBristle = (commands: unknown[][]) => {
+			const start = commands.findIndex((c) => c[0] === "M");
+			const end = commands.findIndex((c, i) => i > start && c[0] === "M");
+			return commands.slice(start, end === -1 ? commands.length : end);
+		};
+		const earlyRun = firstBristle(early);
+		const laterRun = firstBristle(later);
+		// The last command of a run is the closing "L"; everything before it is
+		// geometry that must be identical.
+		expect(laterRun.slice(0, earlyRun.length - 1)).toEqual(
+			earlyRun.slice(0, earlyRun.length - 1),
+		);
 	});
 
-	it("bounds the work per pointer move", () => {
+	it("thins at input instead of after the fact", () => {
 		const brush = brushFor(20);
 		draw(brush, 500);
-		// The tail is what gets re-simplified on every move; the prefix never is.
-		expect(brush._tail.length).toBeLessThanOrEqual(SIMPLIFY_CHUNK + 1);
+		// 500 raw samples 0.3px apart is ~150px of travel; at the width-20 spacing
+		// (2.4px) that is a few dozen accepted samples, not 500.
+		expect(brush._strokePoints().length).toBeLessThan(120);
+		expect(brush._strokePoints().length).toBeGreaterThan(5);
 	});
 });
 

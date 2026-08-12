@@ -4,14 +4,14 @@ import {
 	buildWatercolorPathData,
 	decodeWatercolorTrace,
 	encodeWatercolorTrace,
-	simplifyWatercolorPoints,
+	thinLegacyWatercolorTrace,
 	traceWatercolorPath,
 	watercolorComplexity,
-	watercolorSimplifyTolerance,
+	watercolorSampleSpacing,
 } from "./watercolorGeometry";
 
-describe("watercolor simplification", () => {
-	/** A hand stroke as the brush actually captures it: 0.3px spacing + tremor. */
+describe("watercolor thinning", () => {
+	/** A hand stroke as the OLD brush captured it: 0.3px spacing + tremor. */
 	function capturedStroke(lengthPx: number) {
 		const points: { x: number; y: number }[] = [];
 		let seed = 1;
@@ -28,28 +28,50 @@ describe("watercolor simplification", () => {
 		return points;
 	}
 
-	it("collapses sub-pixel sampling without moving the stroke", () => {
-		const points = capturedStroke(250);
-		const tolerance = watercolorSimplifyTolerance(20);
-		const simplified = simplifyWatercolorPoints(points, tolerance);
+	/** Uniformly spaced, the way the brush now samples. */
+	function sampledStroke(lengthPx: number, spacing: number) {
+		const points: { x: number; y: number }[] = [];
+		for (let d = 0; d < lengthPx; d += spacing) {
+			points.push({ x: d, y: Math.sin(d / 40) * 25 });
+		}
+		return points;
+	}
 
-		// The captured density is the problem: every point costs THREE path
-		// commands, one per bristle.
-		expect(points.length).toBeGreaterThan(800);
-		expect(simplified.length).toBeLessThan(points.length / 20);
-
-		// Endpoints are exact, so the stroke still starts and ends where drawn.
-		expect(simplified[0]).toEqual(points[0]);
-		expect(simplified.at(-1)).toEqual(points.at(-1));
-
-		// And nothing kept has moved — DP only ever drops points.
-		for (const point of simplified) expect(points).toContainEqual(point);
+	it("scales the sample spacing with brush width", () => {
+		// Thin strokes keep detail, wide washes stop paying for detail they
+		// cannot show, and both stay inside the clamp.
+		expect(watercolorSampleSpacing(4)).toBe(1.5);
+		expect(watercolorSampleSpacing(20)).toBeCloseTo(2.4);
+		expect(watercolorSampleSpacing(120)).toBe(6);
 	});
 
-	it("is idempotent, so re-loading a drawing cannot keep shrinking it", () => {
-		const tolerance = watercolorSimplifyTolerance(20);
-		const once = simplifyWatercolorPoints(capturedStroke(250), tolerance);
-		const twice = simplifyWatercolorPoints(once, tolerance);
+	it("thins a legacy sub-pixel trace", () => {
+		const points = capturedStroke(250);
+		const spacing = watercolorSampleSpacing(20);
+		const thinned = thinLegacyWatercolorTrace(points, spacing);
+
+		expect(points.length).toBeGreaterThan(800);
+		expect(thinned.length).toBeLessThan(points.length / 5);
+		// Endpoints exact, so the stroke still starts and ends where it was drawn.
+		expect(thinned[0]).toEqual(points[0]);
+		expect(thinned.at(-1)).toEqual(points.at(-1));
+		// Only ever DROPS points — nothing kept has moved.
+		for (const point of thinned) expect(points).toContainEqual(point);
+	});
+
+	it("leaves a trace the current brush produced untouched", () => {
+		// THE reason this replaced Douglas-Peucker on the load path: a stroke must
+		// rebuild exactly as it was drawn, and DP could not tell "already thinned"
+		// from "captured at 0.3px".
+		const spacing = watercolorSampleSpacing(20);
+		const points = sampledStroke(250, spacing);
+		expect(thinLegacyWatercolorTrace(points, spacing)).toEqual(points);
+	});
+
+	it("is idempotent, so re-loading cannot keep shrinking a drawing", () => {
+		const spacing = watercolorSampleSpacing(20);
+		const once = thinLegacyWatercolorTrace(capturedStroke(250), spacing);
+		const twice = thinLegacyWatercolorTrace(once, spacing);
 		expect(twice).toEqual(once);
 	});
 
@@ -58,13 +80,36 @@ describe("watercolor simplification", () => {
 			{ x: 1, y: 1 },
 			{ x: 2, y: 2 },
 		];
-		expect(simplifyWatercolorPoints(dab, 5)).toEqual(dab);
-		expect(simplifyWatercolorPoints([{ x: 1, y: 1 }], 5)).toHaveLength(1);
+		expect(thinLegacyWatercolorTrace(dab, 5)).toEqual(dab);
+		expect(thinLegacyWatercolorTrace([{ x: 1, y: 1 }], 5)).toHaveLength(1);
 	});
 
-	it("widens the tolerance for wide washes only", () => {
-		expect(watercolorSimplifyTolerance(10)).toBe(0.3);
-		expect(watercolorSimplifyTolerance(40)).toBeCloseTo(0.8);
+	it("puts bristles in the same place at any sampling density", () => {
+		// Every bristle term is a function of the point's own coordinates, so a
+		// point that survives thinning lands exactly where it did before. This is
+		// what makes thinning a stored trace safe at all.
+		const spacing = watercolorSampleSpacing(20);
+		const points = capturedStroke(250);
+		const thinned = thinLegacyWatercolorTrace(points, spacing);
+
+		const dense = buildWatercolorBristles(points, 20);
+		const sparse = buildWatercolorBristles(thinned, 20);
+
+		let denseIndex = 0;
+		for (let i = 0; i < thinned.length; i++) {
+			while (
+				points[denseIndex].x !== thinned[i].x ||
+				points[denseIndex].y !== thinned[i].y
+			) {
+				denseIndex++;
+			}
+			for (let bristle = 0; bristle < 3; bristle++) {
+				expect(sparse[bristle][i * 2]).toBe(dense[bristle][denseIndex * 2]);
+				expect(sparse[bristle][i * 2 + 1]).toBe(
+					dense[bristle][denseIndex * 2 + 1],
+				);
+			}
+		}
 	});
 });
 

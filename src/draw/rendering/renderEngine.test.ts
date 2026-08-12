@@ -46,11 +46,11 @@ describe("RenderEngine erase bursts", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("defers and merges overview repairs while erasing", () => {
+	it("defers and merges overview repairs while erasing", async () => {
 		const engine = makeEngine() as any;
 		const patch = vi
-			.spyOn(engine.committed.overview, "patchRect")
-			.mockReturnValue(true);
+			.spyOn(engine.committed.overview, "patchRectYielded")
+			.mockResolvedValue(true);
 		const rebuild = vi.spyOn(engine.committed, "rebuildRectSync");
 		const rects: WorldRect[] = [
 			{ x: 10, y: 10, w: 80, h: 80 },
@@ -70,10 +70,13 @@ describe("RenderEngine erase bursts", () => {
 
 		engine.setErasing(false);
 
+		await vi.waitFor(() => expect(patch).toHaveBeenCalledOnce());
 		expect(patch).toHaveBeenCalledOnce();
 		expect(patch).toHaveBeenCalledWith(
 			{ x: 10, y: 10, w: 120, h: 100 },
 			expect.any(Number),
+			expect.any(Object),
+			expect.any(AbortSignal),
 		);
 		engine.reset();
 	});

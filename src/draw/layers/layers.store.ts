@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { stackPositions } from "@/draw/canvas/objectStack";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
 import {
@@ -439,9 +440,9 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		// `insertedIndex` is a customProperty, so the deferred serialization below
 		// picks it up.
 		if (canvas) {
-			const stack = canvas.getObjects();
+			const positions = stackPositions(canvas);
 			for (const obj of objects)
-				(obj as any).insertedIndex = stack.indexOf(obj);
+				(obj as any).insertedIndex = positions.get(obj) ?? -1;
 		}
 
 		const history = useDrawHistoryManager();
@@ -677,10 +678,10 @@ export const useLayersStore = defineStore("drawLayers", () => {
 
 		// Same contract as delete: record each object's stack position so undo puts
 		// it back where it was rather than on top of everything.
-		const stack = canvas.getObjects();
-		let lowestIndex = stack.length;
+		const positions = stackPositions(canvas);
+		let lowestIndex = positions.size;
 		for (const obj of objects) {
-			const index = stack.indexOf(obj);
+			const index = positions.get(obj) ?? -1;
 			(obj as any).insertedIndex = index;
 			if (index >= 0) lowestIndex = Math.min(lowestIndex, index);
 		}

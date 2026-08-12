@@ -2335,6 +2335,46 @@ metrics transport and Android release/device validation below.
 
 ---
 
+## 2026-08-12 Sentry stall follow-up
+
+Three production messages prompted a re-audit: 3,522 ms near `overviewPatch`,
+3,223 ms near `localBake`, and 888,541 ms near `localBake`.
+
+The 888,541 ms report fired 132 ms after a screen-off/background interval ended;
+the 3,522 ms report fired 90 ms after a roughly 31-minute background interval.
+Both were suspended WebView timers waking after resume, not continuous
+main-thread blocks. The 3,223 ms sample had no adjacent lifecycle transition and
+remains a credible stall, but the old `localBake` marker measured the wall time
+of a job that intentionally yielded across frames, so it did not identify the
+blocking atom.
+
+The shipped follow-up changes the contract:
+
+- The stall timer tracks both document visibility and Capacitor app state,
+  resets its clock across suspension, and ignores the two-second resume seam.
+  A completed phase older than one timer tick is reported as `unknown` rather
+  than being presented as causal.
+- Yielded job phases (`localBake`, `overviewPatch`, `overviewBuild`) remain useful
+  latency totals but no longer overwrite the last synchronous phase marker.
+  Local object render, bitmap transfer, cache commit, overview object render,
+  and overview commit are timed independently.
+- A localized overview repair never loops over Fabric objects synchronously.
+  It builds in a reusable low-end 192² scratch budget, yields between objects,
+  and commits atomically. Large plain groups are rendered child-by-child with
+  device-aware split thresholds (16 children on low-end devices).
+- The same group split is used by local tile bakes and full overview builds.
+  Complex eraser overview stamps are cost-gated and fall back to the yielded
+  rebuild.
+- Sentry's persisted draw context includes the slowest indivisible render's
+  structural shape (object type, path commands, group children, clip children,
+  caching flags), without object ids or drawing content.
+
+This removes the known unbounded multi-object `overviewPatch` block and makes
+the remaining single Fabric render atom measurable. It does not prove a zero
+ANR rate: clipped/force-cached Fabric objects cannot safely be subdivided without
+changing their rendering semantics, and native GPU/WebView stalls remain a
+separate class that must be validated on physical low-end Android hardware.
+
 ## Instrumentation
 
 We currently cannot tell which of F1–F5 dominates on the devices that crash.
@@ -2391,3 +2431,77 @@ a remote flag and A/B-ing against the ANR rate rather than assuming.
 
 *Keep this in sync with the findings as they are fixed — strike through what
 lands, and move the confirmed-by-telemetry items out of "suspected".*
+
+---
+
+## Twenty-second review — the per-object constants on dense boards
+
+Not a new stall: a sweep for work that is **proportional to scene size but pays
+for nothing**, which is what turns "large + dense" from slow into unusable. The
+worst-nightmare shape (thousands of objects inside a few hundred world units)
+was measured with a headless index probe: one 512px tile query there returns
+**1,600–3,200 objects**, and a bake pass runs ~40 of them, so every constant in
+these loops is multiplied by ~64,000 per pass.
+
+Measured on desktop, dense 6k-object cluster, per bake pass:
+
+| Stage | Cost |
+| --- | --- |
+| raw quadtree queries (40 tiles) | 4.1 ms |
+| + resolving ids to objects | +1.5 ms |
+| + stamping the layer rank | +2.2 ms |
+| + z-sorting each tile's hits | +3.0 ms |
+
+~11 ms of pure bookkeeping before a pixel is drawn — call it 65 ms on a low-end
+phone, on every pass. Fixed:
+
+- **`getTotalObjectScaling` allocated a closure per node per tile.** Tens of
+  thousands of closures per bake pass — the same steady-state garbage the undo
+  journal was rewritten to avoid (M6). Now one shared function reading a module
+  tier, which is safe because the value is only read inside the synchronous
+  window between `prepareForBake` and its unwind.
+- **The layer rank was recomputed per object per query.** A `Map` lookup and a
+  megamorphic write to answer a constant. Single-layer documents (nearly all of
+  them) now write the constant directly; multi-layer keeps the paranoid path.
+- **The bounds cache signature built an ~90-character string per measurement.**
+  Number→string is one of the most expensive conversions in JS and the result
+  was compared once and dropped. A 32-bit hash is **3.4x faster** (327 ns →
+  96 ns) and allocates nothing. It is a change detector, so a collision costs a
+  stale bounds cache until the next edit, not correctness.
+- **`ExplicitZIndex.assignOnAdd` scanned the whole stack per add.** The object
+  is appended in every case that matters, so the tail is checked first.
+- **`Quadtree.remove` did `findIndex` by string id then `splice`.** Identity
+  compare and swap-pop instead: node order carries no meaning, and at `maxDepth`
+  a leaf's list is unbounded — which is exactly the dense case.
+
+### `getObjects()` is a full copy of the scene
+
+`canvas.getObjects()` returns `[...this._objects]`. Fine once; wrong per stroke.
+It was being called:
+
+- **once per committed stroke**, in `isRenderTopmost`, to read the last element
+  — a 7,000-slot array allocated and filled to compare one reference;
+- **per shape creation**, twice, for `.at(-1)`;
+- as the base of four `for (obj of selection) stack.indexOf(obj)` loops —
+  **O(selection x scene)** — in multi-delete, layer delete, layer flatten and the
+  fully-consumed-erase sweep. Deleting a 2,000-object layer from a 7,000-object
+  drawing was ~14 million reference compares in one synchronous block.
+
+`canvas/objectStack.ts` now exposes the read-only internal stack and a
+one-pass `stackPositions()` map; all of the above use it.
+
+### Still open (deliberately not changed)
+
+The dominant cost on a dense board is **rasterizing every object of a tile, for
+every tile it overlaps**, and that is inherent to tiling. Two structural options
+worth measuring before picking one:
+
+1. The coarsest TILED tier (0.5) has the same density as the overview bitmap
+   (`targetDensity` 0.5) and re-renders it per tile at full per-object cost,
+   while the overview builds once with a size filter. Raising `overviewTier` by
+   one would delete that whole band of work — but it widens the pure-overview
+   zoom zone, so it needs a real device A/B, not a guess.
+2. Per-tile query results are recomputed and re-sorted on every bake of that
+   tile even when nothing in it changed. A per-tile cache keyed on a scene
+   generation would remove the ~11 ms above entirely; the cost is invalidation
+   complexity, which is where this engine's bugs have historically come from.

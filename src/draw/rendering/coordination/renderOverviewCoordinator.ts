@@ -19,6 +19,9 @@ export abstract class RenderOverviewCoordinator<
 	 *  O(scene) rebuild. Never merged — see scheduleOverviewSplitDrain. */
 	protected overviewSplitQueue: WorldRect[] = [];
 	protected overviewSplitTimer: any = null;
+	protected overviewSplitRunning = false;
+	/** Invalidates an in-flight patch when reset/release crosses document state. */
+	private overviewPatchEpoch = 0;
 
 	// ── gesture / loading / erase seams ──────────────────────────────────────
 	setGesturing(on: boolean): void {
@@ -31,6 +34,7 @@ export abstract class RenderOverviewCoordinator<
 			this.abortBakes();
 		} else {
 			if (!this.erasing) this.flushPendingOverview();
+			if (this.overviewSplitQueue.length) this.scheduleOverviewSplitDrain();
 			this.requestFrame();
 			this.scheduleBake();
 			// abortBakes() may have killed a rebuild mid-flight. It left the overview
@@ -47,6 +51,8 @@ export abstract class RenderOverviewCoordinator<
 			this.committed.dropSharpTransitions();
 			this.abortBakes();
 			this.live.clear();
+		} else if (this.overviewSplitQueue.length) {
+			this.scheduleOverviewSplitDrain();
 		}
 	}
 
@@ -57,6 +63,7 @@ export abstract class RenderOverviewCoordinator<
 			this.abortBakes();
 		} else {
 			if (!this.gesturing) this.flushPendingOverview();
+			if (this.overviewSplitQueue.length) this.scheduleOverviewSplitDrain();
 			this.requestFrame();
 			this.scheduleBake();
 		}
@@ -88,6 +95,7 @@ export abstract class RenderOverviewCoordinator<
 			this.committed.overview.markDirty();
 			this.scheduleOverviewRebuild();
 		}
+		if (this.overviewSplitQueue.length) this.scheduleOverviewSplitDrain();
 		this.requestFrame();
 		this.scheduleBake();
 	}
@@ -220,15 +228,12 @@ export abstract class RenderOverviewCoordinator<
 			this.deferOverview(rect);
 			return;
 		}
-		// Cost is gated by OBJECT COUNT, not area: patchRect re-renders only the
-		// objects actually in the rect and bails (→ async rebuild) past
-		// overviewPatchMax. A drag's OLD footprint can be huge in area yet nearly
-		// empty (the objects moved away), so an area gate here wrongly deferred it
-		// to the ~250ms async rebuild — leaving the objects ghosted at the old
-		// spot during a fast drag. The count gate clears that footprint instantly
-		// when it's sparse, and still defers genuinely dense regions.
+		// Empty old footprints are safe to clear synchronously. Any patch that must
+		// rasterize Fabric objects is queued onto the yielded, scratch-canvas path;
+		// `patchRect` intentionally returns false for those.
 		if (this.committed.overview.patchRect(rect, this.overviewPatchMax)) return;
-		this.splitOverviewPatch(rect);
+		this.overviewSplitQueue.push({ ...rect });
+		this.scheduleOverviewSplitDrain();
 	}
 
 	/**
@@ -273,31 +278,68 @@ export abstract class RenderOverviewCoordinator<
 	}
 
 	/**
-	 * Drain split pieces on a time budget. Deliberately NOT the `pendingOverview`
-	 * queue: that one merges nearby rects at flush time, which would glue the
+	 * Drain split pieces one yielded, atomic patch at a time. Deliberately NOT
+	 * the `pendingOverview` queue: that one merges nearby rects at flush time,
+	 * which would glue the
 	 * quadrants straight back into the rect they came from — an endless
 	 * split/merge loop.
 	 */
 	protected scheduleOverviewSplitDrain(): void {
-		if (this.overviewSplitTimer !== null) return;
+		if (this.overviewSplitTimer !== null || this.overviewSplitRunning) return;
 		this.overviewSplitTimer = setTimeout(() => {
 			this.overviewSplitTimer = null;
 			if (this.gesturing || this.loading || this.erasing || this.mutating) {
-				this.scheduleOverviewSplitDrain();
 				return;
 			}
-			const budgetMs = this.overviewWorkBudgetMs;
-			const t0 = performance.now();
-			while (this.overviewSplitQueue.length) {
-				if (performance.now() - t0 >= budgetMs) break;
-				const piece = this.overviewSplitQueue.shift()!;
-				if (!this.committed.overview.patchRect(piece, this.overviewPatchMax)) {
-					this.splitOverviewPatch(piece);
-				}
-			}
-			if (this.overviewSplitQueue.length) this.scheduleOverviewSplitDrain();
-			else this.requestFrame();
+			void this.drainOneOverviewPatch();
 		}, 0);
+	}
+
+	private async drainOneOverviewPatch(): Promise<void> {
+		if (this.overviewSplitRunning || this.overviewSplitQueue.length === 0)
+			return;
+		this.overviewSplitRunning = true;
+		const epoch = this.overviewPatchEpoch;
+		const piece = this.overviewSplitQueue.shift()!;
+		const ctrl = new AbortController();
+		this.overviewPatchCtrl?.abort();
+		this.overviewPatchCtrl = ctrl;
+		try {
+			const patched = await this.committed.overview.patchRectYielded(
+				piece,
+				this.overviewPatchMax,
+				this.makeYielder("overview-patch") as any,
+				ctrl.signal,
+			);
+			if (ctrl.signal.aborted) {
+				// The private scratch bitmap was never committed. Put the region back;
+				// the gesture/erase settle seam restarts the drain.
+				if (epoch === this.overviewPatchEpoch)
+					this.overviewSplitQueue.unshift(piece);
+				return;
+			}
+			if (!patched) this.splitOverviewPatch(piece);
+			else this.requestFrame();
+		} catch {
+			if (ctrl.signal.aborted) {
+				if (epoch === this.overviewPatchEpoch)
+					this.overviewSplitQueue.unshift(piece);
+			} else {
+				this.committed.overview.markDirty();
+				this.scheduleOverviewRebuild();
+			}
+		} finally {
+			if (this.overviewPatchCtrl === ctrl) this.overviewPatchCtrl = null;
+			this.overviewSplitRunning = false;
+			if (
+				this.overviewSplitQueue.length &&
+				!this.gesturing &&
+				!this.loading &&
+				!this.erasing &&
+				!this.mutating
+			)
+				this.scheduleOverviewSplitDrain();
+		}
 	}
 
 	protected deferOverview(rect: WorldRect): void {
@@ -322,19 +364,19 @@ export abstract class RenderOverviewCoordinator<
 	/**
 	 * Apply the deferred overview patches.
 	 *
-	 * BUDGETED. Each `patchRect` is a synchronous clear + redraw of every object
-	 * in its rect, and this used to run the whole queue in one go — on the
+	 * Each patch used to synchronously clear + redraw every object in its rect,
+	 * and the whole queue ran in one go — on the
 	 * gesture-end frame (setGesturing(false)) and at the head of every bake pass.
 	 * With heavy brushes that is an unbounded main-thread block landing exactly
 	 * where the user is still moving: a pan is a sequence of gesture / 180ms
 	 * settle cycles, so this fired repeatedly through what feels like one gesture.
 	 *
 	 * Merge first (overlapping deferred rects re-render each other's objects),
-	 * then spend at most `budgetMs` and push the rest back for the next flush
-	 * point. Anything still queued is picked up by the bake that follows, and by
-	 * the next gesture end.
+	 * then enqueue the repairs. The drain builds each one on a bounded scratch
+	 * surface, yields between objects, and commits once, so no partial overview is
+	 * ever displayed and the settle frame stays cheap.
 	 */
-	protected flushPendingOverview(budgetMs = this.overviewWorkBudgetMs): void {
+	protected flushPendingOverview(_budgetMs = this.overviewWorkBudgetMs): void {
 		if (this.pendingOverview.length === 0) return;
 		if (this.committed.overview.usesRemoteRenderer()) {
 			this.pendingOverview = [];
@@ -344,18 +386,8 @@ export abstract class RenderOverviewCoordinator<
 		}
 		const rects = this.mergeRects(this.pendingOverview);
 		this.pendingOverview = [];
-		const t0 = performance.now();
-		for (let i = 0; i < rects.length; i++) {
-			if (i > 0 && performance.now() - t0 >= budgetMs) {
-				// Out of budget — requeue the remainder rather than blocking on.
-				for (let j = i; j < rects.length; j++)
-					this.pendingOverview.push(rects[j]);
-				break;
-			}
-			// Too dense → subdivide instead of escalating to a full rebuild.
-			if (!this.committed.overview.patchRect(rects[i], this.overviewPatchMax))
-				this.splitOverviewPatch(rects[i]);
-		}
+		for (const rect of rects) this.overviewSplitQueue.push(rect);
+		this.scheduleOverviewSplitDrain();
 	}
 
 	protected scheduleOverviewRebuild(): void {
@@ -385,6 +417,7 @@ export abstract class RenderOverviewCoordinator<
 
 	reset(): void {
 		this.abortBakes();
+		this.overviewPatchEpoch++;
 		if (this.overviewTimer !== null) {
 			clearTimeout(this.overviewTimer);
 			this.overviewTimer = null;
@@ -442,6 +475,7 @@ export abstract class RenderOverviewCoordinator<
 	 */
 	releaseGraphicsMemory(): void {
 		this.abortBakes();
+		this.overviewPatchEpoch++;
 		if (this.overviewTimer !== null) {
 			clearTimeout(this.overviewTimer);
 			this.overviewTimer = null;

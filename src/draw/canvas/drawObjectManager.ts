@@ -47,7 +47,11 @@ import {
 import type { WorldRect } from "@/draw/rendering/committedLayer";
 import { createEngineOptions } from "@/draw/rendering/engineOptions";
 import { rerenderActiveObjectControls } from "@/draw/rendering/fabricRenderState";
-import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
+import {
+	isolatedTileRenderer,
+	isSplittableForBake,
+	renderSplitForBake,
+} from "@/draw/rendering/fabricTileRenderer";
 import { createLiveObjectRenderer } from "@/draw/rendering/liveObjectRenderer";
 import { RenderEngine, type Surface } from "@/draw/rendering/renderEngine";
 import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
@@ -304,8 +308,13 @@ export function createDrawObjectManager() {
 	 * object's own footprint.
 	 */
 	function isRenderTopmost(obj: FabricObject): boolean {
-		const arr = c!.getObjects();
-		if (arr.length === 0 || arr[arr.length - 1] !== obj) return false;
+		// The INTERNAL stack, for the same reason ExplicitZIndex gets it:
+		// `getObjects()` returns `[...this._objects]`, so asking "is this object
+		// last?" allocated and filled a copy of the ENTIRE scene. This runs on
+		// every committed stroke, so on a 7,000-object board every stroke threw
+		// away a 7,000-slot array to read one reference. Read-only here.
+		const arr = (c as any)?._objects as FabricObject[] | undefined;
+		if (!arr || arr.length === 0 || arr[arr.length - 1] !== obj) return false;
 		if (layerCount() < 2 || isOnTopLayer((obj as any).layerId)) return true;
 		const rank = layerOrderOf((obj as any).layerId);
 		for (const other of queryObjects(objectBounds(obj))) {
@@ -514,6 +523,13 @@ export function createDrawObjectManager() {
 					if (c) rerenderActiveObjectControls(c);
 				},
 				canPunchRegion: isRegionSingleLayer,
+				// Merged art is a SINGLE Group, so the bake loop's per-object yield
+				// gives it nothing: the whole drawing renders in one block. This lets
+				// that one object be broken up on the same budget.
+				splitRenderer: {
+					canSplit: isSplittableForBake,
+					render: renderSplitForBake,
+				},
 				remoteBaker: renderBackend === "worker" ? bakeryBakeTile : undefined,
 				remoteOverview:
 					renderBackend === "worker" ? bakeryRenderOverview : undefined,
@@ -608,6 +624,12 @@ export function createDrawObjectManager() {
 		batchRetainedRemovalRects = [];
 		batchAdds = [];
 		retainedRemovalDepth = 0;
+		// This manager is a module singleton and outlives the canvas. A load that
+		// never reached its `endLoading` — left a lobby mid-join, a socket handler
+		// that threw — used to leave the counter positive FOREVER, and `isLoading()`
+		// gates `onObjectAdded`: the next session indexed and rendered nothing the
+		// user drew. Session-scoped state dies with the session.
+		loadingDepth = 0;
 		shutdownTileBakerySession();
 		uninstallDrawMemoryPressure();
 		uninstallDrawDiagnostics();

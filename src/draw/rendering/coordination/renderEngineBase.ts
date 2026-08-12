@@ -97,6 +97,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected overviewTimer: any = null;
 	protected bakeCtrl: AbortController | null = null;
 	protected overviewCtrl: AbortController | null = null;
+	protected overviewPatchCtrl: AbortController | null = null;
 	protected gesturing = false;
 	protected loading = false;
 	protected erasing = false;

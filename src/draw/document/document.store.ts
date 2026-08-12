@@ -12,6 +12,7 @@ import {
 	notifyDraftSaved,
 	notifyDrawSession,
 } from "@/draw/document/draftEvents";
+import { renderDraftThumbnailInWorker } from "@/draw/document/draftThumbnailWorker";
 import {
 	listNativeDraftMetadata,
 	nativeDraftMirrorAvailable,
@@ -620,6 +621,36 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			.then((blob) => blob ?? "");
 	}
 
+	/**
+	 * Preview of last resort, rendered from the DOCUMENT rather than copied out of
+	 * the overview bitmap.
+	 *
+	 * The overview declines (returns nothing) whenever it does not physically hold
+	 * enough pixels for the requested size — a small sketch covers little world,
+	 * and the overview is a fixed px-per-world-unit bitmap. Re-rendering the
+	 * vectors in the preview worker gives a genuinely sharp preview at any content
+	 * size, off the main thread, and it needs no live canvas: the exit path calls
+	 * it after the engine is already gone.
+	 */
+	async function renderThumbnailFromDocument(
+		json: any,
+		signal?: AbortSignal,
+	): Promise<DraftThumbnail> {
+		if (!json) return "";
+		try {
+			const blob = await renderDraftThumbnailInWorker(json, {
+				maxSize: DRAFT_THUMBNAIL_MAX_SIZE,
+				quality: DRAFT_THUMBNAIL_QUALITY,
+				signal,
+			});
+			return blob ?? "";
+		} catch (error) {
+			if (!(error instanceof DOMException && error.name === "AbortError"))
+				console.warn("Draft thumbnail re-render failed:", error);
+			return "";
+		}
+	}
+
 	async function snapshotCanvas(
 		draftId: string,
 		signal?: AbortSignal,
@@ -637,11 +668,14 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const detached = await detachCanvasSnapshot(draftId, signal);
 		if (!detached || !activeCanvas) return null;
 
-		const [thumbnail, jsonBlob] = await Promise.all([
+		const [overview, jsonBlob] = await Promise.all([
 			thumbnailPromise,
 			documentJsonToBlob(detached.json, signal),
 		]);
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+		const thumbnail =
+			overview || (await renderThumbnailFromDocument(detached.json, signal));
 
 		return {
 			draftId,
@@ -739,6 +773,15 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		return typeof thumbnail === "string" ? thumbnail : "";
 	}
 
+	/**
+	 * True from the first byte of `loadCanvas` until the first paint is ready
+	 * (overview built, visible tiles baked). A save started inside that window
+	 * serializes every object of a document that is still being enlivened and
+	 * baked — the two most expensive things in the app, competing for the same
+	 * main thread — and it snapshots a scene that is not fully assembled yet.
+	 */
+	const isLoadingDocument = () => useDrawSyncer().isLoadingCanvas;
+
 	async function performLiveSave() {
 		if (
 			!activeCanvas ||
@@ -746,6 +789,17 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			!isDirty.value ||
 			!hasContent()
 		) {
+			return;
+		}
+		if (isLoadingDocument()) {
+			// Re-arm rather than drop it: the draft stays dirty and this is the only
+			// thing keeping the quiet-timer chain alive between the 20s intervals.
+			if (!autosaveQuietTimer) {
+				autosaveQuietTimer = setTimeout(() => {
+					autosaveQuietTimer = undefined;
+					saveWhenQuiet();
+				}, AUTOSAVE_QUIET_MS);
+			}
 			return;
 		}
 		if (liveAbortController) liveAbortController.abort();
@@ -782,7 +836,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	 * no-ops when already saving or when there's nothing new to persist.
 	 */
 	async function saveNow(): Promise<"saved" | "clean" | "busy" | "cooldown"> {
-		if (isSaving.value) return "busy";
+		if (isSaving.value || isLoadingDocument()) return "busy";
 		if (!isDirty.value) return "clean";
 		const now = Date.now();
 		if (now - lastManualSaveAt < MANUAL_SAVE_COOLDOWN_MS) return "cooldown";
@@ -869,8 +923,13 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			: await snapshotCanvas(draftId, ctrl.signal);
 		if (!snapshot) return null;
 
-		const thumbnailPromise =
-			exitThumbnailPromise ?? Promise.resolve(snapshot.thumbnail);
+		const thumbnailPromise = exitThumbnailPromise
+			? exitThumbnailPromise.then(
+					(thumbnail) =>
+						thumbnail ||
+						renderThumbnailFromDocument(snapshot.json, ctrl.signal),
+				)
+			: Promise.resolve(snapshot.thumbnail);
 
 		// On exit, build the Blob in the yielded background chain before touching
 		// IndexedDB. Passing the raw document object to put() would synchronously

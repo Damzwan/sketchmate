@@ -23,8 +23,11 @@
         :icon="svg(iconPath)"
       />
 
-      <div v-if="!owned" class="brush_lock">
-        <ion-icon :icon="svg(mdiLock)" />
+      <!-- A padlock on a brush the user can still draw with today would be a
+           lie. While trial strokes remain the badge is a spark, and the lock
+           only appears once they are spent. -->
+      <div v-if="!owned" class="brush_lock" :class="{ 'brush_lock--trial': tryable }">
+        <ion-icon :icon="svg(tryable ? mdiCreation : mdiLock)" />
       </div>
     </div>
 
@@ -33,19 +36,24 @@
 
 <script lang="ts" setup>
 import { IonIcon } from "@ionic/vue";
-import { mdiLock } from "@mdi/js";
+import { mdiCreation, mdiLock } from "@mdi/js";
 import { BrushType } from "@/draw/tools/tool.types";
 import { svg } from "@/helper/general.helper";
 
-defineProps<{
-	type: BrushType;
-	accent: string;
-	selected: boolean;
-	owned: boolean;
-	previewed: boolean;
-	label: string;
-	iconPath: string;
-}>();
+withDefaults(
+	defineProps<{
+		type: BrushType;
+		accent: string;
+		selected: boolean;
+		owned: boolean;
+		previewed: boolean;
+		label: string;
+		iconPath: string;
+		/** Locked, but the day's free strokes have not run out yet. */
+		tryable?: boolean;
+	}>(),
+	{ tryable: false },
+);
 
 defineEmits<(e: "tap", type: BrushType) => void>();
 </script>
@@ -79,6 +87,10 @@ defineEmits<(e: "tap", type: BrushType) => void>();
 .brush_lock {
   @apply absolute -top-1 -right-1 w-4 h-4 bg-black rounded-full
   flex items-center justify-center shadow-md;
+}
+
+.brush_lock--trial {
+  @apply bg-secondary;
 }
 
 .brush_lock ion-icon {

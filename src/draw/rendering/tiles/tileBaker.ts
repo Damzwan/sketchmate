@@ -2,6 +2,7 @@ import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import {
 	recordLocalFallback,
 	recordPhase,
+	recordRenderObject,
 	recordSyncRepairDeclined,
 	recordWorkerDeferral,
 } from "@/draw/rendering/renderMetrics";
@@ -342,7 +343,33 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 					}
 				}
 				try {
-					this.renderer(c2d as any, objects[i], scale, q);
+					// A merged Group is ONE object whose render can be longer than the
+					// whole rest of the tile put together; the split renderer breaks it
+					// on the same yielder the object loop uses.
+					if (this.splitRenderer?.canSplit(objects[i])) {
+						await this.splitRenderer.render(
+							c2d as any,
+							objects[i],
+							scale,
+							q,
+							yielder,
+							() => signal.aborted,
+							(ms, object) => recordRenderObject("localBakeObject", ms, object),
+						);
+						if (signal.aborted) {
+							c2d.restore();
+							this.release(off);
+							return;
+						}
+					} else {
+						const objectStartedAt = performance.now();
+						this.renderer(c2d as any, objects[i], scale, q);
+						recordRenderObject(
+							"localBakeObject",
+							performance.now() - objectStartedAt,
+							objects[i],
+						);
+					}
 				} catch (err) {
 					if (this.debug) console.warn("[Committed] render threw", err);
 				}
@@ -360,7 +387,9 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			// Zero-copy transfer
 			let bmp: ImageBitmap;
 			try {
+				const transferStartedAt = performance.now();
 				bmp = off.transferToImageBitmap();
+				recordPhase("localBakeTransfer", performance.now() - transferStartedAt);
 			} catch {
 				this.release(off);
 				return;
@@ -377,12 +406,15 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 				return;
 			}
 
+			const commitStartedAt = performance.now();
 			const bytes = this.BMP * this.BMP * 4;
 			if (!this.ensureMemory(bytes)) {
 				bmp.close();
+				recordPhase("localBakeCommit", performance.now() - commitStartedAt);
 				return;
 			}
 			this.store(key, tier, tx, ty, bmp, bytes, builtGen);
+			recordPhase("localBakeCommit", performance.now() - commitStartedAt);
 			recordPhase("localBake", performance.now() - __tLocal);
 		} finally {
 			this.tileStore.finishFlight(key);
@@ -827,7 +859,29 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 
 		for (let i = 0; i < objects.length; i++) {
 			try {
-				this.renderer(c2d as any, objects[i], scale, sub);
+				// Same split as the full-tile loop: one merged Group can outweigh every
+				// other object in the repair put together.
+				if (this.splitRenderer?.canSplit(objects[i])) {
+					await this.splitRenderer.render(
+						c2d as any,
+						objects[i],
+						scale,
+						sub,
+						yielder,
+						() => signal.aborted,
+						(ms, object) => recordRenderObject("localBakeObject", ms, object),
+					);
+					if (signal.aborted)
+						return this.finishTileRegionRepair(prepared, false);
+				} else {
+					const objectStartedAt = performance.now();
+					this.renderer(c2d as any, objects[i], scale, sub);
+					recordRenderObject(
+						"localBakeObject",
+						performance.now() - objectStartedAt,
+						objects[i],
+					);
+				}
 			} catch (err) {
 				if (this.debug) console.warn("[Committed] region repair threw", err);
 			}
@@ -984,6 +1038,22 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 				if (!t || !this.isFresh(key, t)) return false;
 			}
 		return true;
+	}
+
+	/**
+	 * True when the rect's pixels are ALREADY in present, fresh tiles at the tier
+	 * being composited — i.e. a live overlay for that rect would paint the same
+	 * ink a second time.
+	 *
+	 * Deliberately false at overview tier, where `isRegionReady` is not: a
+	 * live-covered stroke's overview patch is DEFERRED until demote, so the
+	 * overview does not contain it yet and hiding the overlay would make the
+	 * stroke disappear instead of merely doubling.
+	 */
+	isRegionTileBacked(rect: WorldRect, zoom: number): boolean {
+		const tier = this.pickActiveTier(zoom);
+		if (tier <= this.OVERVIEW_TIER) return false;
+		return this.canStampAll(rect, tier);
 	}
 
 	/** True only if EVERY active-tier tile the rect covers is present, has a

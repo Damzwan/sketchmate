@@ -17,13 +17,35 @@
         </div>
 
         <!-- Unlock CTA sits BELOW the preview so the brush stroke stays fully
-             visible — the user can see what they're buying. -->
+             visible — the user can see what they're buying.
+
+             While a trial still has strokes left the brush is SELECTED, not
+             previewed, so this banner reports what is left and offers the
+             upgrade instead of blocking. -->
         <button
-          v-if="previewedLockedBrush"
+          v-if="trialBrush"
           type="button"
           class="unlock-banner cabin-sketch-regular"
           :disabled="purchasing"
-          @click="buyPreviewedBrush"
+          @click="buyBrush(trialBrush)"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <ion-icon :icon="svg(mdiCreation)" class="text-base shrink-0" />
+            <span class="text-xs font-black tracking-tight truncate">
+              {{ purchasing
+                ? 'Unlocking…'
+                : `Trying ${brushDisplayName(trialBrush)} · ${trialStrokesLeft} left today` }}
+            </span>
+          </div>
+          <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
+        </button>
+
+        <button
+          v-else-if="previewedLockedBrush"
+          type="button"
+          class="unlock-banner cabin-sketch-regular"
+          :disabled="purchasing"
+          @click="buyBrush(previewedLockedBrush)"
         >
           <div class="flex items-center gap-2 min-w-0">
             <ion-icon :icon="svg(mdiLock)" class="text-base shrink-0" />
@@ -97,6 +119,7 @@
               :accent="b.accent"
               :selected="isBrushTypeSelected(b.type)"
               :owned="isBrushOwned(b.type)"
+              :tryable="isBrushTryable(b.type)"
               :previewed="previewedLockedBrush === b.type"
               :label="brushTileName(b.type)"
               :icon-path="penIconMapping[b.type]"
@@ -113,13 +136,14 @@
 
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
-import { mdiArrowRight, mdiLock } from "@mdi/js";
+import { mdiArrowRight, mdiCreation, mdiLock } from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import { buildItemId } from "@/config/catalog.config";
+import { brushDisplayName, brushItemId } from "@/draw/config/paidBrushes";
 import { PENMENUTOOLS, penIconMapping } from "@/draw/config/tools.config";
+import { useBrushTrial } from "@/draw/tools/brushTrial.store";
 import { usePen } from "@/draw/tools/pen.store";
 import { BrushType, DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
@@ -143,6 +167,7 @@ const {
 } = storeToRefs(usePen());
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 const inventoryStore = useInventoryStore();
+const brushTrial = useBrushTrial();
 const { purchasing, unlockItem } = useUnlockItem();
 
 const {
@@ -177,39 +202,46 @@ const BRUSH_NAMES: Partial<Record<BrushType, string>> = {
 
 const brushTileName = (type: BrushType): string => BRUSH_NAMES[type] ?? "Brush";
 
-const PAID_BRUSH_ITEM_IDS: Partial<Record<BrushType, string>> = {
-	[BrushType.Neon]: buildItemId("brush", "neon"),
-	[BrushType.CalliGraphy]: buildItemId("brush", "calligraphy"),
-};
-
-const brushItemId = (type: BrushType): string | null =>
-	PAID_BRUSH_ITEM_IDS[type] ?? null;
-
 const isBrushOwned = (type: BrushType): boolean => {
 	const id = brushItemId(type);
 	if (!id) return true;
 	return inventoryStore.isOwned(id);
 };
 
-const brushDisplayName = (type: BrushType): string => {
-	switch (type) {
-		case BrushType.Neon:
-			return "Neon Pen";
-		case BrushType.CalliGraphy:
-			return "Calligraphy";
-		default:
-			return "Brush";
-	}
+const isBrushTryable = (type: BrushType): boolean => {
+	const id = brushItemId(type);
+	return !!id && !inventoryStore.isOwned(id) && brushTrial.canTry(id);
 };
 
 const previewedLockedBrush = ref<BrushType | null>(null);
 
-// Buy the previewed locked brush in place (same flow as FontModal / EffectModal
-// via useUnlockItem) instead of bouncing the user out to the shop. On success
-// the brush is owned, so select it immediately.
-const buyPreviewedBrush = async () => {
-	const type = previewedLockedBrush.value;
-	if (type == null) return;
+/**
+ * The locked brush currently being TRIED — selected and drawable, on the day's
+ * free stroke allowance.
+ *
+ * A locked brush that is merely previewed teaches nothing: Neon and Calligraphy
+ * look like any other line in a canned swatch, and nobody buys a tool they have
+ * never held. `brushTrial` hands out a handful of real strokes a day instead;
+ * `pen.store` counts them and returns the pencil when they run out.
+ */
+const trialBrush = computed(() =>
+	!isBrushOwned(brushType.value) &&
+	selectedTool.value === DrawTool.Pen &&
+	brushTrial.remaining(brushItemId(brushType.value) ?? "") > 0
+		? brushType.value
+		: null,
+);
+
+const trialStrokesLeft = computed(() =>
+	trialBrush.value
+		? brushTrial.remaining(brushItemId(trialBrush.value) ?? "")
+		: 0,
+);
+
+// Buy the locked brush in place (same flow as FontModal / EffectModal via
+// useUnlockItem) instead of bouncing the user out to the shop. On success the
+// brush is owned, so select it immediately.
+const buyBrush = async (type: BrushType) => {
 	const id = brushItemId(type);
 	if (!id) return;
 	const ok = await unlockItem(id);
@@ -237,17 +269,22 @@ function isBrushTypeSelected(type: BrushType) {
 async function onBrushTap(type: BrushType) {
 	const owned = isBrushOwned(type);
 
-	if (owned) {
+	if (owned || !isNative()) {
 		previewedLockedBrush.value = null;
 		selectBrushType(type);
 		return;
 	}
 
-	if (!isNative()) {
+	// Locked, but the day's trial strokes are not spent: hand the brush over for
+	// real. The banner switches to the remaining count and the upgrade offer.
+	if (brushTrial.canTry(brushItemId(type) ?? "")) {
+		previewedLockedBrush.value = null;
 		selectBrushType(type);
 		return;
 	}
 
+	// Trial spent — back to look-don't-touch. Render the swatch WITHOUT leaving
+	// the brush selected.
 	const prevType = brushType.value;
 	previewedLockedBrush.value = type;
 

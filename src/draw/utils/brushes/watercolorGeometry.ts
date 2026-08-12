@@ -135,6 +135,35 @@ export function normalizeWatercolorPoints(points: unknown): WatercolorPoint[] {
 	return out;
 }
 
+/**
+ * Bristle offsets for one stroke — DENSITY-INVARIANT by construction.
+ *
+ * This used to derive both the wave phase and its amplitude from the point
+ * SPACING: phase from the running polyline length, amplitude from the length of
+ * the previous segment (a stand-in for speed). Both change when points are
+ * added or dropped, so every re-fit of the stroke slid the whole downstream
+ * wave and pulsed its amplitude — half of the "it keeps moving, I have no
+ * control" feeling. (The other half was the re-fitting itself; see
+ * `watercolorSampleSpacing`.)
+ *
+ * Everything here now depends only on WHERE a point is, never on how many
+ * neighbours it has. Wave and spread are plane waves in world space — the brush
+ * samples a fixed ripple field rather than carrying a phase along the stroke.
+ * Arc length was tried first and is nearly invariant, but not exactly: dropping
+ * the sub-pixel tremor shortens the polyline, so the phase drifted a little
+ * further with every dropped point (~0.6px by the end of a 250px stroke, and it
+ * grows with length). A spatial field has no accumulator to drift.
+ *
+ * A point that survives thinning therefore lands EXACTLY where it did before,
+ * which is what makes thinning a stored legacy trace safe. It also gives washes
+ * laid side by side a shared grain, which reads as paper.
+ */
+/** ~150px ripple period across the diagonal — a brush-width-agnostic grain. */
+const WAVE_FX = 0.035;
+const WAVE_FY = 0.021;
+/** Much slower field for the loaded/dry breathing, so the two never beat. */
+const SPREAD_FX = 0.009;
+const SPREAD_FY = 0.006;
 export function buildWatercolorBristles(
 	basePoints: readonly WatercolorPoint[],
 	width: number,
@@ -145,123 +174,92 @@ export function buildWatercolorBristles(
 		new Float32Array(basePoints.length * 2),
 		new Float32Array(basePoints.length * 2),
 	];
-	let totalDistance = 0;
-
 	for (let i = 0; i < basePoints.length; i++) {
 		const point = basePoints[i];
-		let distance = 0;
-		if (i > 0) {
-			const previous = basePoints[i - 1];
-			distance = Math.hypot(point.x - previous.x, point.y - previous.y);
-			totalDistance += distance;
-		}
-		const speedFactor = Math.min(1, distance / 20);
-		const spreadMultiplier = 1.2 - speedFactor * 0.7;
+		// 0.85–1.15: the loaded/dry breathing of a real brush.
+		const spreadMultiplier =
+			1 + Math.sin(point.x * SPREAD_FX + point.y * SPREAD_FY) * 0.15;
+		const waveAmplitude = safeWidth * 0.15 * spreadMultiplier;
+		const scatter = safeWidth * 0.2 * spreadMultiplier;
+		const phase = point.x * WAVE_FX + point.y * WAVE_FY;
 
 		for (let bristle = 0; bristle < 3; bristle++) {
-			const wave =
-				Math.sin(totalDistance * 0.05 + bristle) *
-				(safeWidth * 0.15 * spreadMultiplier);
+			const wave = Math.sin(phase + bristle) * waveAmplitude;
 			const { nx, ny } = deterministicWatercolorNoise(
 				point.x,
 				point.y,
 				bristle,
 			);
-			bristles[bristle][i * 2] =
-				point.x + wave + nx * (safeWidth * 0.2 * spreadMultiplier);
-			bristles[bristle][i * 2 + 1] =
-				point.y + wave + ny * (safeWidth * 0.2 * spreadMultiplier);
+			bristles[bristle][i * 2] = point.x + wave + nx * scatter;
+			bristles[bristle][i * 2 + 1] = point.y + wave + ny * scatter;
 		}
 	}
 	return bristles;
 }
 
 /**
- * Douglas-Peucker tolerance for the base points, in world units.
+ * How far the pointer must travel before the brush takes another sample.
  *
- * The brush captures at `decimate = 0.3`, so a stroke is sampled several times
- * per pixel — a 250px stroke is ~830 points, and each one becomes THREE path
- * commands (one per bristle). Simplifying to 0.3 leaves ~28 points; the wobble
- * that makes the brush look like watercolour comes from the deterministic noise
- * applied per point, not from the sampling density, so the character survives.
+ * This is the ONLY thinning a watercolour stroke gets, and it happens at INPUT
+ * time — before any geometry exists — which is what makes the drawn ribbon
+ * append-only and therefore stable.
  *
- * 0.3 is exactly what CustomPencilBrush already ships. Scaling gently with
- * width lets a wide wash drop more, since a 40px stroke cannot show a
- * third-of-a-pixel deviation.
+ * Douglas-Peucker used to do this job and cannot, at any tolerance. DP measures
+ * deviation on the CENTERLINE, but what is drawn is the centerline plus a
+ * per-point wave and a per-point positional noise: two neighbouring samples can
+ * sit 0.4px apart on the centerline and several pixels apart on the ribbon.
+ * Dropping the sample between them therefore deletes a wiggle DP believes is
+ * invisible — which is why the stroke kept re-shaping behind the finger every
+ * time a chunk was frozen mid-stroke.
+ *
+ * Scaled by width because the wiggle is too: a 40px wash cannot show detail a
+ * 4px line can. The floor keeps thin strokes honest, the ceiling stops a very
+ * wide wash from turning into a polygon.
  */
-export function watercolorSimplifyTolerance(width: number): number {
+export function watercolorSampleSpacing(width: number): number {
 	const safeWidth = Number.isFinite(width) && width > 0 ? width : 10;
-	return Math.max(0.3, safeWidth * 0.02);
+	return Math.min(6, Math.max(1.5, safeWidth * 0.12));
 }
 
 /**
- * Drop points that contribute no visible shape. Pure geometry, no allocation
- * beyond the result, and identical in spirit to the pencil's commit-time pass.
+ * Thin a stored trace that was captured at the OLD sub-pixel sampling rate.
+ *
+ * Drawings made before input decimation carry a sample every 0.3px — a 250px
+ * stroke is ~830 points at three path commands each. They still have to load
+ * without turning into 2,500 commands, and re-shaping a stroke nobody is
+ * currently drawing is harmless. Traces already at (or near) the target spacing
+ * are returned UNTOUCHED, so anything drawn by the current brush rebuilds
+ * exactly as it was drawn — the distinction DP could not make.
  */
-export function simplifyWatercolorPoints(
+export function thinLegacyWatercolorTrace(
 	points: readonly WatercolorPoint[],
-	tolerance: number,
+	spacing: number,
 ): WatercolorPoint[] {
-	const count = points.length;
-	if (count <= 2 || !(tolerance > 0)) return points.slice();
+	if (points.length < 3 || !(spacing > 0)) return points.slice();
 
-	const squareTolerance = tolerance * tolerance;
-	const keep = new Uint8Array(count);
-	keep[0] = 1;
-	keep[count - 1] = 1;
-
-	// Iterative, not recursive: a dense stroke is thousands of points and a
-	// recursive split would risk the stack on the very inputs this exists for.
-	const stack: number[] = [0, count - 1];
-	while (stack.length) {
-		const end = stack.pop() as number;
-		const start = stack.pop() as number;
-		let furthest = -1;
-		let furthestDistance = 0;
-		for (let i = start + 1; i < end; i++) {
-			const distance = squareSegmentDistance(
-				points[i],
-				points[start],
-				points[end],
-			);
-			if (distance > furthestDistance) {
-				furthestDistance = distance;
-				furthest = i;
-			}
-		}
-		if (furthestDistance > squareTolerance && furthest > 0) {
-			keep[furthest] = 1;
-			stack.push(start, furthest, furthest, end);
-		}
+	let travelled = 0;
+	for (let i = 1; i < points.length; i++) {
+		travelled += Math.hypot(
+			points[i].x - points[i - 1].x,
+			points[i].y - points[i - 1].y,
+		);
 	}
+	// Already sampled at least this coarsely → not a legacy trace, leave it be.
+	if (travelled / (points.length - 1) >= spacing * 0.6) return points.slice();
 
-	const out: WatercolorPoint[] = [];
-	for (let i = 0; i < count; i++) if (keep[i]) out.push(points[i]);
+	const out: WatercolorPoint[] = [points[0]];
+	let sinceKept = 0;
+	for (let i = 1; i < points.length - 1; i++) {
+		sinceKept += Math.hypot(
+			points[i].x - points[i - 1].x,
+			points[i].y - points[i - 1].y,
+		);
+		if (sinceKept < spacing) continue;
+		out.push(points[i]);
+		sinceKept = 0;
+	}
+	out.push(points[points.length - 1]);
 	return out;
-}
-
-function squareSegmentDistance(
-	point: WatercolorPoint,
-	start: WatercolorPoint,
-	end: WatercolorPoint,
-): number {
-	let x = start.x;
-	let y = start.y;
-	let dx = end.x - x;
-	let dy = end.y - y;
-	if (dx !== 0 || dy !== 0) {
-		const t = ((point.x - x) * dx + (point.y - y) * dy) / (dx * dx + dy * dy);
-		if (t > 1) {
-			x = end.x;
-			y = end.y;
-		} else if (t > 0) {
-			x += dx * t;
-			y += dy * t;
-		}
-	}
-	dx = point.x - x;
-	dy = point.y - y;
-	return dx * dx + dy * dy;
 }
 
 export function buildWatercolorPathData(

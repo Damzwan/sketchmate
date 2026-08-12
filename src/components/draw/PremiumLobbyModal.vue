@@ -20,7 +20,7 @@
           </div>
         </div>
 
-        <h2 class="text-2xl font-black text-center leading-none">
+        <h2 class="text-2xl font-black text-center leading-none cabin-sketch-regular">
           Lobby Full
         </h2>
 

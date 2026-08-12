@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { type Ref, ref, watch } from "vue";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import { stackPositions } from "@/draw/canvas/objectStack";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { objectMutationRevision } from "@/draw/objects/objectSerialization";
@@ -295,9 +296,13 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		// restore each object at its original z instead of dropping it on top.
 		// All indexes are captured against the same full stack, so ascending
 		// re-insertion reproduces them exactly.
-		const stack = c.getObjects();
+		// ONE pass over the stack, not one scan per removed object. This sweep
+		// routinely removes hundreds of objects at once, so `indexOf` per record
+		// was O(removed x scene) — quadratic exactly when the scene is big enough
+		// for it to hurt.
+		const positions = stackPositions(c);
 		for (const record of removable) {
-			const index = stack.indexOf(record.object);
+			const index = positions.get(record.object) ?? -1;
 			(record.object as any).insertedIndex = index;
 			record.json.insertedIndex = index;
 		}

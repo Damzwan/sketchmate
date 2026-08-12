@@ -9,7 +9,7 @@
   >
     <template v-if="isScanning" #header>
       <div class="flex items-center justify-center pt-0 mb-2 mt-4 relative">
-        <h2 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
+        <h2 class="text-3xl text-secondary font-black tracking-tighter italic leading-none cabin-sketch-regular">
           Camera
         </h2>
       </div>

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	initDrawMetrics,
+	lastDrawPhase,
 	recordComposite,
 	recordLocalFallback,
 	recordPhase,
+	recordRenderObject,
 	recordSceneCommit,
 	recordWorkerCancelRequests,
 	recordWorkerCancelResult,
@@ -92,6 +94,45 @@ describe("draw worker cancellation metrics", () => {
 		resetDrawMetrics();
 
 		expect(snapshotDrawMetrics().workerProtocolVersion).toBe(2);
+	});
+
+	it("does not attribute a stall to a yielded job's wall-clock duration", () => {
+		recordPhase("localBakeObject", 75);
+		recordPhase("localBake", 3_200);
+		recordPhase("overviewPatch", 900);
+
+		expect(lastDrawPhase()).toMatchObject({
+			phase: "localBakeObject",
+			ms: 75,
+		});
+		expect(snapshotDrawMetrics().phaseMsMax).toMatchObject({
+			localBake: 3_200,
+			overviewPatch: 900,
+		});
+	});
+
+	it("keeps structural attribution for the slowest indivisible render", () => {
+		recordRenderObject("localBakeObject", 41.234, {
+			type: "path",
+			path: [["M"], ["L"], ["L"]],
+			clipPath: { _objects: [{}, {}] },
+			objectCaching: false,
+		});
+		recordRenderObject("overviewPatchObject", 12, {
+			type: "group",
+			_objects: new Array(50),
+		});
+
+		expect(snapshotDrawMetrics().slowestRenderObject).toEqual({
+			phase: "localBakeObject",
+			ms: 41.23,
+			type: "path",
+			pathCommands: 3,
+			groupChildren: 0,
+			clipChildren: 2,
+			hasClipPath: true,
+			objectCaching: false,
+		});
 	});
 
 	it("attributes long animation frames to script and browser rendering", () => {

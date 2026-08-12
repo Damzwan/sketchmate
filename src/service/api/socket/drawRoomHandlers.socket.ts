@@ -265,55 +265,71 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 				useDrawSyncer(),
 			);
 			const mgr = useDrawObjectManager();
+			const { roomId } = storeToRefs(useDrawSyncer());
+			// The room this payload belongs to. Every await below is a window in
+			// which the user can leave (or join somewhere else), and applying a dead
+			// room's snapshot over the canvas they are now looking at is worse than
+			// dropping it.
+			const joinedRoom = roomId.value;
+			const stillInRoom = () => roomId.value === joinedRoom;
+
 			mgr.beginLoading();
-
-			if (sequenceId !== undefined) {
-				lastProcessedSequenceId.value = sequenceId;
-			}
-
-			let decompressedString: string;
+			// EVERYTHING after beginLoading lives in the try. `endLoading` is what
+			// lifts the render engine's loading gate and decrements a counter that
+			// outlives the session; missing it once left the canvas permanently
+			// unable to draw — the "left a lobby mid-join and now nothing works".
 			try {
-				let gzipBytes: ArrayBuffer | Uint8Array;
-				if (canvasStateUrl) {
-					const res = await fetch(canvasStateUrl);
-					gzipBytes = await res.arrayBuffer();
-				} else {
-					gzipBytes = canvasState;
+				if (sequenceId !== undefined) {
+					lastProcessedSequenceId.value = sequenceId;
 				}
-				const blobBytes =
-					gzipBytes instanceof Uint8Array
-						? new Uint8Array(gzipBytes).buffer
-						: gzipBytes;
-				const stream = new Blob([blobBytes])
-					.stream()
-					.pipeThrough(new DecompressionStream("gzip"));
-				decompressedString = await new Response(stream).text();
+
+				let decompressedString: string;
+				try {
+					let gzipBytes: ArrayBuffer | Uint8Array;
+					if (canvasStateUrl) {
+						const res = await fetch(canvasStateUrl);
+						gzipBytes = await res.arrayBuffer();
+					} else {
+						gzipBytes = canvasState;
+					}
+					const blobBytes =
+						gzipBytes instanceof Uint8Array
+							? new Uint8Array(gzipBytes).buffer
+							: gzipBytes;
+					const stream = new Blob([blobBytes])
+						.stream()
+						.pipeThrough(new DecompressionStream("gzip"));
+					decompressedString = await new Response(stream).text();
+				} catch (e) {
+					console.error("Failed to load canvas snapshot:", e);
+					return;
+				}
+
+				if (!stillInRoom()) return;
+
+				const json = JSON.parse(decompressedString);
+				await engine.loadRoomCanvas(json, isInitialSync);
+
+				if (missedActions && missedActions.length > 0) {
+					for (const item of missedActions) {
+						if (!stillInRoom()) return;
+						if (isBlocked(item.userId)) continue;
+						lastProcessedSequenceId.value = item.sequenceId;
+						await engine.executeDrawSyncingAction(item);
+					}
+				}
+
+				if (!stillInRoom()) return;
+
+				const { getCanvas } = useDrawStore();
+				await fitToDensestRegion(getCanvas());
 			} catch (e) {
-				console.error("Failed to load canvas snapshot:", e);
-				await mgr.endLoading();
+				console.error("Room canvas load failed:", e);
+			} finally {
+				await mgr.endLoading().catch(() => undefined);
+				mgr.renderViewport();
 				isLoadingCanvas.value = false;
-				return;
 			}
-
-			const json = JSON.parse(decompressedString);
-			await engine.loadRoomCanvas(json, isInitialSync);
-
-			if (missedActions && missedActions.length > 0) {
-				for (const item of missedActions) {
-					if (isBlocked(item.userId)) continue;
-					lastProcessedSequenceId.value = item.sequenceId;
-					await engine.executeDrawSyncingAction(item);
-				}
-			}
-
-			const { getCanvas } = useDrawStore();
-			const canvas = getCanvas();
-
-			await fitToDensestRegion(canvas);
-			await mgr.endLoading();
-
-			mgr.renderViewport();
-			isLoadingCanvas.value = false;
 		},
 	);
 
@@ -323,30 +339,38 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			useDrawSyncer(),
 		);
 		const mgr = useDrawObjectManager();
+		const { roomId } = storeToRefs(useDrawSyncer());
+		const joinedRoom = roomId.value;
+		const stillInRoom = () => roomId.value === joinedRoom;
+
 		mgr.beginLoading();
+		// Same contract as `initial-canvas-state`: whatever happens in here, the
+		// loading gate must come back down exactly once.
+		try {
+			if (isInitialSync) {
+				const { reset } = useDrawStore();
+				reset();
+			}
 
-		if (isInitialSync) {
-			const { reset } = useDrawStore();
-			reset();
+			for (const item of actions) {
+				if (!stillInRoom()) return;
+				if (isBlocked(item.userId)) continue;
+				lastProcessedSequenceId.value = item.sequenceId;
+				await engine.executeDrawSyncingAction(item);
+			}
+
+			if (isInitialSync && stillInRoom()) {
+				const { getCanvas } = useDrawStore();
+				await fitToDensestRegion(getCanvas());
+			}
+		} catch (e) {
+			console.error("Missed-action replay failed:", e);
+		} finally {
+			// endLoading owns the single index/reset/overview finalization pass.
+			await mgr.endLoading().catch(() => undefined);
+			mgr.renderViewport();
+			isLoadingCanvas.value = false;
 		}
-
-		for (const item of actions) {
-			if (isBlocked(item.userId)) continue;
-			lastProcessedSequenceId.value = item.sequenceId;
-			await engine.executeDrawSyncingAction(item);
-		}
-
-		const { getCanvas } = useDrawStore();
-		const canvas = getCanvas();
-
-		if (isInitialSync) {
-			await fitToDensestRegion(canvas);
-		}
-
-		// endLoading owns the single index/reset/overview finalization pass.
-		await mgr.endLoading();
-		mgr.renderViewport();
-		isLoadingCanvas.value = false;
 	});
 
 	socket.on("draw-event", async (data) => {

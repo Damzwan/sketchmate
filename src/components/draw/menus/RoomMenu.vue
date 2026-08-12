@@ -16,7 +16,7 @@
           </span>
           <div class="flex items-center gap-2 min-w-0">
             <h1
-              class="text-secondary font-black tracking-tighter leading-none truncate flex-1"
+              class="text-secondary font-black tracking-tighter leading-none truncate flex-1 cabin-sketch-regular"
               :class="isPublicLobby ? 'text-2xl' : 'text-4xl'"
             >
               {{ isPublicLobby ? publicLobbyName : roomId }}
@@ -368,7 +368,9 @@ async function startScanningHelper() {
   }
 }
 
+/* Was `font-family: 'cabin-sketch-regular'` — a CLASS name, not a family, so the
+   code boxes silently fell back to the generic sans. They want the UI face. */
 input {
-  font-family: 'cabin-sketch-regular', sans-serif;
+  font-family: var(--font-ui);
 }
 </style>

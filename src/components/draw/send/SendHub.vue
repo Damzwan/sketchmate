@@ -1,5 +1,8 @@
 <template>
-  <div class="h-full bg-background flex flex-col relative top-pad-safe cabin-sketch-regular">
+  <!-- Body copy here is the UI face; the display face is opted into on the
+       heading only (see fonts.css — a wrapper-level opt-in smears every small
+       label under it on mobile WebViews). -->
+  <div class="h-full bg-background flex flex-col relative top-pad-safe">
 
     <div class="flex items-center px-4 py-2 backdrop-blur-md border-primary/60 z-10">
       <ion-button fill="clear" @click="goBack" class="m-0 p-0 text-black">

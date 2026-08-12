@@ -177,13 +177,20 @@ function installControlRenderer(): void {
 }
 
 function applyInteractionDefaults(): void {
-	const primaryColor = getComputedStyle(document.documentElement)
-		.getPropertyValue("--ion-color-primary")
-		.trim();
+	// Secondary, not primary: the handles sit on top of the user's own artwork,
+	// where the muted primary was hard to pick out. The brand red reads as UI
+	// chrome at a glance and never gets mistaken for part of the drawing.
+	const styles = getComputedStyle(document.documentElement);
+	const controlColor = styles.getPropertyValue("--ion-color-secondary").trim();
+	const controlBorderColor =
+		styles.getPropertyValue("--ion-color-secondary-shade").trim() ||
+		controlColor;
 
 	Object.assign(InteractiveFabricObject.ownDefaults, {
 		transparentCorners: false,
-		cornerColor: primaryColor,
+		cornerColor: controlColor,
+		cornerStrokeColor: controlBorderColor,
+		borderColor: controlColor,
 		cornerStyle: "circle",
 		cornerSize: 30,
 		originX: "center",

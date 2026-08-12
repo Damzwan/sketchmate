@@ -30,4 +30,10 @@ export enum LocalStorage {
 	 * has to treat every missing id as a hard logout and show an error card.
 	 */
 	loggedOut = "widget_logged_out",
+	/**
+	 * `{ day, used: { [itemId]: strokes } }` — the daily free-stroke allowance for
+	 * locked brushes. Deliberately device-local and unsynced: it gates a trial, so
+	 * the worst case of losing it is that someone gets to try a brush again.
+	 */
+	brushTrial = "brush_trial",
 }

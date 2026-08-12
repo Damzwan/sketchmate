@@ -1,59 +1,45 @@
 <template>
   <BaseSheetModal
     :is-open="isOpen"
-    :title="syncEnabled ? 'Draft Backup' : 'Back Up Your Drafts'"
-    :subtitle="syncEnabled ? statusSubtitle : 'Included with Pro'"
+    title="Draft Backup"
+    :subtitle="syncEnabled ? statusLine : 'Included with Pro'"
     @close="emit('close')"
   >
-    <div class="space-y-5 pb-1">
+    <div class="space-y-4 pb-1">
 
-      <!-- The pitch. Free accounts only: Pro users already know what they bought. -->
-      <div v-if="!syncEnabled" class="flex flex-col items-center text-center gap-3">
+      <!--
+        One picture, one sentence. This sheet used to open with a status line,
+        then repeat it as a subtitle, then list four icon meanings — three of
+        which a Pro account never sees. What a user opening it wants to know is
+        what backup DOES, and nothing else.
+      -->
+      <div class="flex flex-col items-center text-center gap-3">
         <div class="w-20 h-20 bg-secondary/10 rounded-[1.75rem] flex items-center justify-center rotate-[-5deg]">
-          <ion-icon :icon="svg(mdiCloudSyncOutline)" class="text-4xl text-secondary" />
+          <ion-icon
+            :icon="svg(syncEnabled ? mdiCloudCheckOutline : mdiCloudSyncOutline)"
+            class="text-4xl text-secondary"
+          />
         </div>
-        <p class="text-[15px] text-black/60 leading-relaxed max-w-[260px]">
-          Your drafts live on this phone only.
-          <span class="font-black text-black/80">Pro backs them up</span>
-          and opens them on all your devices.
+        <p class="text-[15px] text-black/70 leading-relaxed max-w-[280px]">
+          <template v-if="syncEnabled">
+            Your drafts save to your account automatically, so you can pick any
+            of them up on your other devices.
+          </template>
+          <template v-else>
+            Your drafts live on this device only.
+            <span class="font-black text-black/85">Pro backs them up</span>
+            and opens them on all your devices.
+          </template>
         </p>
       </div>
 
-      <!-- Icon legend. This is the whole reason the sheet is tappable from the
-           badges: a cloud glyph on a card means nothing until it's named. -->
-      <div class="rounded-[1.5rem] bg-tertiary border border-primary/30 divide-y divide-black/5">
-        <div
-          v-for="entry in legend"
-          :key="entry.label"
-          class="flex items-center gap-3 p-3"
-          :class="{ 'opacity-45': !syncEnabled && entry.proOnly }"
-        >
-          <div class="shrink-0 rounded-full bg-white/90 p-1.5 border border-black/5">
-            <!-- In-progress states read as motion, not as another cloud glyph. -->
-            <ion-spinner
-              v-if="entry.busy"
-              name="dots"
-              class="w-3.5 h-3.5 text-secondary block"
-            />
-            <ion-icon
-              v-else
-              :icon="svg(entry.icon)"
-              class="text-sm block"
-              :class="entry.accent ? 'text-secondary' : 'text-black/45'"
-            />
-          </div>
-          <h3 class="text-[13px] font-black text-black tracking-tight leading-tight">
-            {{ entry.label }}
-          </h3>
-        </div>
-      </div>
-
-      <div
+      <!-- The only number worth showing, and only once there is a real cap. -->
+      <p
         v-if="syncEnabled && limit > 0"
         class="text-[11px] font-black uppercase tracking-widest text-black/40 text-center"
       >
         {{ used }} of {{ limit }} drafts backed up
-      </div>
+      </p>
     </div>
 
     <template v-if="!syncEnabled || isDev" #footer>
@@ -86,14 +72,8 @@
 </template>
 
 <script setup lang="ts">
-import { alertController, IonButton, IonIcon, IonSpinner } from "@ionic/vue";
-import {
-	mdiCloudCheckOutline,
-	mdiCloudDownloadOutline,
-	mdiCloudOffOutline,
-	mdiCloudSyncOutline,
-	mdiCloudUploadOutline,
-} from "@mdi/js";
+import { alertController, IonButton, IonIcon } from "@ionic/vue";
+import { mdiCloudCheckOutline, mdiCloudSyncOutline } from "@mdi/js";
 import { computed } from "vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { svg } from "@/helper/general.helper";
@@ -128,7 +108,8 @@ async function confirmWipe() {
 	await alert.present();
 }
 
-const statusSubtitle = computed(() => {
+/** Carried by the subtitle, so the body never has to repeat the state. */
+const statusLine = computed(() => {
 	switch (props.syncStatus) {
 		case "syncing":
 			return "Backing up now";
@@ -140,35 +121,4 @@ const statusSubtitle = computed(() => {
 			return "Everything is backed up";
 	}
 });
-
-const legend = [
-	{
-		icon: mdiCloudCheckOutline,
-		accent: true,
-		busy: false,
-		proOnly: true,
-		label: "Backed up",
-	},
-	{
-		icon: mdiCloudUploadOutline,
-		accent: false,
-		busy: true,
-		proOnly: true,
-		label: "Backing up…",
-	},
-	{
-		icon: mdiCloudDownloadOutline,
-		accent: false,
-		busy: false,
-		proOnly: true,
-		label: "Tap to download",
-	},
-	{
-		icon: mdiCloudOffOutline,
-		accent: false,
-		busy: false,
-		proOnly: false,
-		label: "This device only",
-	},
-];
 </script>

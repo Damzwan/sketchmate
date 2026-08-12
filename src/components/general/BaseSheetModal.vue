@@ -10,7 +10,11 @@
     class="liquid-base-modal"
     :class="{ 'is-scrollable': scrollable }"
   >
-    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden relative">
+    <!-- No `cabin-sketch-regular` on this wrapper: it cascaded the DISPLAY face
+         onto every label, caption and paragraph in all 21 sheets, which is the
+         container anti-pattern fonts.css exists to undo. The face is opted into
+         per element (title/subtitle below, headlines in the sheets). -->
+    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background overflow-hidden relative">
 
       <div class="absolute top-2 left-2 z-20" v-if="showBack">
         <transition name="fade">

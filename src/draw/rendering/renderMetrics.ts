@@ -56,6 +56,29 @@ export interface LongFrameScriptAttribution {
 	yieldLabel: string;
 }
 
+export type RenderObjectPhase =
+	| "localBakeObject"
+	| "overviewPatchObject"
+	| "overviewBuildObject"
+	| "overviewOverlayObject"
+	| "overviewEraseObject";
+
+/**
+ * Shape of the slowest indivisible Fabric render seen in this session.
+ * Deliberately excludes object ids and user content; only structural cost
+ * signals are persisted to Sentry.
+ */
+export interface SlowRenderObject {
+	phase: RenderObjectPhase;
+	ms: number;
+	type: string;
+	pathCommands: number;
+	groupChildren: number;
+	clipChildren: number;
+	hasClipPath: boolean;
+	objectCaching: boolean;
+}
+
 export interface DrawMetricsSnapshot {
 	/** ms since the metrics module was initialised. */
 	uptimeMs: number;
@@ -181,14 +204,21 @@ export interface DrawMetricsSnapshot {
 	//
 	//   flushBake      — toJSON + structured clone inside a tile's bake prologue
 	//   flushIdle      — the same, on the background drain
-	//   localBake      — a tile the worker refused → full main-thread render
+	//   localBake      — WALL CLOCK for a yielded local tile bake
+	//   localBakeObject — one indivisible Fabric object render (ANR atom)
+	//   localBakeTransfer — synchronous transferToImageBitmap / GPU flush
+	//   localBakeCommit — synchronous cache admission + replacement
 	//   overlaySkipped — hybrid tile: worker bitmap + main-thread objects on top
-	//   overviewPatch  — patchRect: clear + redraw a region of the overview
+	//   overviewPatch  — WALL CLOCK for a yielded localized overview repair
+	//   overviewPatchObject — one indivisible object render in that repair
+	//   overviewPatchCommit — atomic clear + bitmap copy into the live overview
 	//   overviewBuild  — full O(scene) overview render
 	//   rebuildSync    — synchronous tile repair (destructiveInvalidate et al)
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
+	/** Structural attribution for the worst single Fabric render. */
+	slowestRenderObject: SlowRenderObject | null;
 
 	// ── main thread blocked at all ─────────────────────────────────────────
 	longTasks: number;
@@ -272,6 +302,7 @@ interface Counters {
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
+	slowestRenderObject: SlowRenderObject | null;
 	longTasks: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
@@ -348,6 +379,7 @@ function blank(): Counters {
 		phaseMsTotal: {},
 		phaseMsMax: {},
 		phaseCount: {},
+		slowestRenderObject: null,
 		longTasks: 0,
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
@@ -544,9 +576,16 @@ export type DrawPhase =
 	| "overviewResultCommit"
 	| "overviewOverlayObject"
 	| "localBake"
+	| "localBakeObject"
+	| "localBakeTransfer"
+	| "localBakeCommit"
 	| "overlaySkipped"
 	| "overviewPatch"
+	| "overviewPatchObject"
+	| "overviewPatchCommit"
 	| "overviewBuild"
+	| "overviewBuildObject"
+	| "overviewEraseObject"
 	| "rebuildSync"
 	| "eraseClipApply"
 	| "eraseClipUndo"
@@ -625,9 +664,66 @@ export function recordPhase(phase: DrawPhase, ms: number): void {
 	m.phaseMsTotal[phase] = (m.phaseMsTotal[phase] ?? 0) + ms;
 	if (ms > (m.phaseMsMax[phase] ?? 0)) m.phaseMsMax[phase] = ms;
 	m.phaseCount[phase] = (m.phaseCount[phase] ?? 0) + 1;
+	// These phases deliberately span awaits/yields. Their totals describe job
+	// latency, not one continuous main-thread block, so they must never be used
+	// as the causal label for a late timer or long task.
+	if (
+		phase === "localBake" ||
+		phase === "overviewPatch" ||
+		phase === "overviewBuild" ||
+		phase === "historyOp" ||
+		phase === "historyBurstFlush" ||
+		phase === "eraseCommit" ||
+		phase === "erasedSweep"
+	)
+		return;
 	lastPhaseName = phase;
 	lastPhaseMs = ms;
 	lastPhaseAt = performance.now();
+}
+
+/**
+ * Record one indivisible Fabric render and retain structural details only when
+ * it becomes the session maximum. The hot path is therefore the same counter
+ * updates plus one comparison; property inspection is rare and guarded.
+ */
+export function recordRenderObject(
+	phase: RenderObjectPhase,
+	ms: number,
+	object: unknown,
+): void {
+	recordPhase(phase, ms);
+	if (ms <= (m.slowestRenderObject?.ms ?? 0)) return;
+
+	try {
+		const candidate = object as any;
+		const clip = candidate?.clipPath;
+		m.slowestRenderObject = {
+			phase,
+			ms,
+			type: String(
+				candidate?.type ?? candidate?.constructor?.name ?? "unknown",
+			).slice(0, 64),
+			pathCommands: Array.isArray(candidate?.path) ? candidate.path.length : 0,
+			groupChildren: Array.isArray(candidate?._objects)
+				? candidate._objects.length
+				: 0,
+			clipChildren: Array.isArray(clip?._objects) ? clip._objects.length : 0,
+			hasClipPath: Boolean(clip),
+			objectCaching: candidate?.objectCaching === true,
+		};
+	} catch {
+		m.slowestRenderObject = {
+			phase,
+			ms,
+			type: "unknown",
+			pathCommands: 0,
+			groupChildren: 0,
+			clipChildren: 0,
+			hasClipPath: false,
+			objectCaching: false,
+		};
+	}
 }
 
 function roundMap(src: Record<string, number>): Record<string, number> {
@@ -711,6 +807,9 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 		phaseMsTotal: roundMap(m.phaseMsTotal),
 		phaseMsMax: roundMap(m.phaseMsMax),
 		phaseCount: { ...m.phaseCount },
+		slowestRenderObject: m.slowestRenderObject
+			? { ...m.slowestRenderObject, ms: round2(m.slowestRenderObject.ms) }
+			: null,
 		longTasks: m.longTasks,
 		longTaskMsTotal: Math.round(m.longTaskMsTotal),
 		longTaskMsMax: Math.round(m.longTaskMsMax),

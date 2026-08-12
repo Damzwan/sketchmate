@@ -42,13 +42,23 @@
 // expression — keep the two in sync if that ever changes.
 import { isPlatform } from "@ionic/vue";
 
+// `isPlatform` reads `window` on the way in, so a module that merely IMPORTS
+// this file cannot be loaded without a DOM. That is not hypothetical: the tile
+// renderer picks its work thresholds from these flags and is loaded by the
+// headless test environment (and, if it ever moves, by the bakery worker).
+// Off-DOM the desktop profile is the right assumption — no worker or test is
+// running on a phone's GPU.
+const HAS_DOM = typeof window !== "undefined";
+
 const IS_MOBILE =
-	isPlatform("mobile") ||
-	isPlatform("capacitor") ||
-	isPlatform("android") ||
-	isPlatform("ios");
-const HW = (navigator as any)?.hardwareConcurrency || 4;
-const DEVICE_MEM_GB = (navigator as any)?.deviceMemory || (IS_MOBILE ? 4 : 8);
+	HAS_DOM &&
+	(isPlatform("mobile") ||
+		isPlatform("capacitor") ||
+		isPlatform("android") ||
+		isPlatform("ios"));
+const HW = (globalThis.navigator as any)?.hardwareConcurrency || 4;
+const DEVICE_MEM_GB =
+	(globalThis.navigator as any)?.deviceMemory || (IS_MOBILE ? 4 : 8);
 
 export const IS_MOBILE_DEVICE = IS_MOBILE;
 export const DRAW_HARDWARE_CONCURRENCY = HW;

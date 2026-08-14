@@ -23,6 +23,11 @@ vi.mock("@capacitor/filesystem", () => ({
 			state.files.set(path, data);
 			return { uri: path };
 		}),
+		appendFile: vi.fn(
+			async ({ path, data }: { path: string; data: string }) => {
+				state.files.set(path, `${state.files.get(path) ?? ""}${data}`);
+			},
+		),
 		readFile: vi.fn(async ({ path }: { path: string }) => {
 			const data = state.files.get(path);
 			if (data === undefined) throw new Error("missing");
@@ -64,6 +69,7 @@ vi.mock("@capacitor/filesystem", () => ({
 }));
 
 import { Filesystem } from "@capacitor/filesystem";
+import { notifyDrawSession } from "./draftEvents";
 import {
 	awaitNativeDraftMirrors,
 	listNativeDraftMetadata,
@@ -81,9 +87,94 @@ const drawingWrites = () =>
 
 describe("native draft mirror", () => {
 	beforeEach(() => {
+		notifyDrawSession(false);
 		state.files.clear();
 		state.ownerId = "owner-1";
 		vi.mocked(Filesystem.writeFile).mockClear();
+		vi.mocked(Filesystem.appendFile).mockClear();
+	});
+
+	it("never sends a whole document over the native bridge while drawing", async () => {
+		vi.useFakeTimers();
+		try {
+			notifyDrawSession(true);
+			queueNativeDraftMirror({
+				id: "draft-live",
+				json: new Blob(["x".repeat(4 * 1024 * 1024)]),
+				updatedAt: 1,
+				thumbnail: "",
+			});
+
+			await vi.advanceTimersByTimeAsync(10 * 60_000);
+			expect(drawingWrites()).toBe(0);
+
+			// Once the canvas is gone, leave the route transition a frame budget and
+			// then persist the newest retained revision.
+			notifyDrawSession(false);
+			await vi.advanceTimersByTimeAsync(1_499);
+			expect(drawingWrites()).toBe(0);
+			await vi.advanceTimersByTimeAsync(1);
+			await awaitNativeDraftMirrors();
+			expect(drawingWrites()).toBe(1);
+		} finally {
+			notifyDrawSession(false);
+			vi.useRealTimers();
+		}
+	});
+
+	it("still honors an explicit crash-safe mirror while drawing", async () => {
+		notifyDrawSession(true);
+		try {
+			queueNativeDraftMirror(
+				{
+					id: "draft-forced-live",
+					json: { objects: [{ id: "latest" }] },
+					updatedAt: 1,
+					thumbnail: "",
+				},
+				{ force: true },
+			);
+			await awaitNativeDraftMirrors();
+			expect(drawingWrites()).toBe(1);
+		} finally {
+			notifyDrawSession(false);
+		}
+	});
+
+	it("chunks large bridge writes without corrupting UTF-8 JSON", async () => {
+		const note = `boundary-😀-${"x".repeat(1024)}`.repeat(700);
+		const json = JSON.stringify({ objects: [], note });
+		queueNativeDraftMirror(
+			{
+				id: "draft-chunked",
+				json: new Blob([json], { type: "application/json" }),
+				updatedAt: 1,
+				thumbnail: "",
+			},
+			{ force: true },
+		);
+		await awaitNativeDraftMirrors();
+
+		expect(vi.mocked(Filesystem.appendFile).mock.calls.length).toBeGreaterThan(
+			0,
+		);
+		const drawingPayloads = [
+			...vi
+				.mocked(Filesystem.writeFile)
+				.mock.calls.filter(([args]) =>
+					String(args.path).endsWith("/drawing.json"),
+				),
+			...vi
+				.mocked(Filesystem.appendFile)
+				.mock.calls.filter(([args]) =>
+					String(args.path).endsWith("/drawing.json"),
+				),
+		].map(([args]) => new TextEncoder().encode(String(args.data)).byteLength);
+		expect(Math.max(...drawingPayloads)).toBeLessThanOrEqual(128 * 1024);
+		expect(JSON.parse((await readNativeDraft("draft-chunked"))!.json)).toEqual({
+			objects: [],
+			note,
+		});
 	});
 
 	it("rotates atomically and falls back to the previous readable revision", async () => {

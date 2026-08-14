@@ -3,33 +3,32 @@
     <CircularLoader class="z-50" v-if="!isRouterReady" bg-color="bg-background" />
     <ion-router-outlet />
     <LazyMount :when="isLoggedIn && isWhatsNewOpen"><WhatsNewModal /></LazyMount>
-    <LazyMount :when="isLoggedIn && isCompetitionResultsOpen"><WinnersModal /></LazyMount>
+    <LazyMount :when="isLoggedIn && isCompetitionResultsOpen" :retain="retainHeavyOverlays"><WinnersModal /></LazyMount>
     <!-- Toast listeners stay live after login; the heavy panel loads on first open. -->
     <LazyMount :when="isLoggedIn"><ChatToasts /></LazyMount>
-    <LazyMount :when="isLoggedIn && chatPanelOpen"><ChatPanel /></LazyMount>
+    <LazyMount :when="isLoggedIn && chatPanelOpen" :retain="retainHeavyOverlays"><ChatPanel /></LazyMount>
 
     <GlobalToast />
-    <LazyMount :when="isLoggedIn && photoSwiperOpen"><PhotoSwiper /></LazyMount>
-    <LazyMount :when="isLoggedIn && viewProfileMenuOpen"><UserContextSheet/></LazyMount>
-    <LazyMount :when="feedbackMenuOpen"><FeedbackMenu /></LazyMount>
+    <LazyMount :when="isLoggedIn && photoSwiperOpen" :retain="retainHeavyOverlays"><PhotoSwiper /></LazyMount>
+    <LazyMount :when="isLoggedIn && viewProfileMenuOpen" :retain="retainHeavyOverlays"><UserContextSheet/></LazyMount>
+    <LazyMount :when="feedbackMenuOpen" :retain="retainHeavyOverlays"><FeedbackMenu /></LazyMount>
     <LazyMount :when="isLoggedIn && dateOfBirthOpen"><DateOfBirthConfirmation /></LazyMount>
     <LazyMount :when="isLoggedIn && parentalControlsOpen"><ParentalControlsModal /></LazyMount>
-    <LazyMount :when="isLoggedIn && showConfetti"><Confetti /></LazyMount>
-    <LazyMount :when="isLoggedIn && !!receivedBalloon"><ReceivedBalloon /></LazyMount>
+    <LazyMount :when="isLoggedIn && confettiVisible"><Confetti /></LazyMount>
+    <LazyMount :when="isLoggedIn && balloonVisible"><ReceivedBalloon /></LazyMount>
     <LazyMount :when="balloonMenuOpen"><BalloonMenu/></LazyMount>
-    <LazyMount :when="connectionMenuOpen"><ConnectionHub /></LazyMount>
+    <LazyMount :when="connectionMenuOpen" :retain="retainHeavyOverlays"><ConnectionHub /></LazyMount>
     <LazyMount :when="isLoggedIn && moderationMenuOpen"><ModerationMenu/></LazyMount>
-    <LazyMount :when="sharePostMenuOpen"><SharePostMenu/></LazyMount>
+    <LazyMount :when="sharePostMenuOpen" :retain="retainHeavyOverlays"><SharePostMenu/></LazyMount>
     <LazyMount :when="reportMenuOpen"><ReportMenu/></LazyMount>
-    <LazyMount :when="isLoggedIn && (shareToasts.length > 0 || shareIsSending)"><ShareToasts/></LazyMount>
-    <LazyMount :when="isShopOpen"><Shop/></LazyMount>
-    <LazyMount :when="isPaywallOpen"><PaywallModal/></LazyMount>
+    <LazyMount :when="isLoggedIn && shareToastsVisible"><ShareToasts/></LazyMount>
+    <LazyMount :when="isShopOpen" :retain="retainHeavyOverlays"><Shop/></LazyMount>
+    <LazyMount :when="isPaywallOpen" :retain="retainHeavyOverlays"><PaywallModal/></LazyMount>
     <LazyMount :when="isOnlineUpgradeMenuOpen"><OnlineUpgradeModal/></LazyMount>
   </ion-app>
 </template>
 
 <script setup lang="ts">
-import { defineCustomElements } from "@ionic/pwa-elements/loader";
 import { IonApp, IonRouterOutlet, useIonRouter } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { defineAsyncComponent, onMounted, ref, watch } from "vue";
@@ -37,8 +36,6 @@ import LazyMount from "@/components/general/LazyMount.vue";
 // Eagerly loaded components
 import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
 import { useWhatsNewPrompt } from "@/composables/general/useWhatsNewPrompt";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { useShareToastStore } from "@/draw/sharing/shareToast.store";
 import {
 	setupBackButtonBehavior,
 	setupPWAPromptListener,
@@ -47,15 +44,12 @@ import {
 import { useActiveViewSync } from "@/service/activeViewSync";
 import { installMemoryPressureHandlers } from "@/service/memoryPressureHandlers";
 import { useAuthStore } from "@/store/auth.store";
-import { useBalloonStore } from "@/store/balloon.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useNetworkStore } from "@/store/network.store";
-import { useParentalStore } from "@/store/parental.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useSessionStore } from "@/store/session.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(
@@ -154,20 +148,20 @@ const {
 } = storeToRefs(useMenuStore());
 
 const { open: photoSwiperOpen } = storeToRefs(usePhotoSwiper());
-const { isExpanded: chatPanelOpen } = storeToRefs(useChatWidgetStore());
 const { isOpen: dateOfBirthOpen } = storeToRefs(useDateOfBirthModalStore());
-const { controlsOpen: parentalControlsOpen } = storeToRefs(useParentalStore());
-const { showConfetti } = storeToRefs(useSubscriptionStore());
-const { receivedBalloon } = storeToRefs(useBalloonStore());
-const { toasts: shareToasts, isSending: shareIsSending } = storeToRefs(
-	useShareToastStore(),
-);
+const {
+	chatPanelOpen,
+	parentalControlsOpen,
+	confettiVisible,
+	balloonVisible,
+	shareToastsVisible,
+} = storeToRefs(useOverlayRuntimeStore());
 
 const networkStore = useNetworkStore();
 
 const isRouterReady = ref(false);
-const { openUserActions } = useUserContextSheet();
-
+const retainHeavyOverlays =
+	!document.documentElement.classList.contains("low-end");
 let chatPanelPrefetchQueued = false;
 watch(
 	isLoggedIn,
@@ -175,6 +169,7 @@ watch(
 		if (
 			!loggedIn ||
 			chatPanelPrefetchQueued ||
+			document.documentElement.classList.contains("low-end") ||
 			!("requestIdleCallback" in window)
 		)
 			return;
@@ -185,7 +180,6 @@ watch(
 );
 
 onMounted(async () => {
-	defineCustomElements(window);
 	const authStore = useAuthStore();
 	await authStore.waitUntilInitialized();
 
@@ -193,6 +187,10 @@ onMounted(async () => {
 		const { queryParams } = useSessionStore();
 		const mate = queryParams?.get("mate");
 		if (mate) {
+			const { useUserContextSheet } = await import(
+				"@/composables/profile/useUserContextSheet"
+			);
+			const { openUserActions } = useUserContextSheet();
 			openUserActions({ _id: mate });
 		}
 	}

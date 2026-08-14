@@ -4,7 +4,6 @@ import {
 	type User as FirebaseUser,
 } from "@capacitor-firebase/authentication";
 import type { UseIonRouterResult } from "@ionic/vue";
-import { Purchases } from "@revenuecat/purchases-capacitor";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
@@ -19,12 +18,6 @@ import {
 } from "@/helper/general.helper";
 import { isNative } from "@/helper/platform.helper";
 import router from "@/router";
-import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
-import {
-	socketConnect,
-	socketDisconnect,
-	socketLogin,
-} from "@/service/api/socket/socket.service";
 import {
 	getUser,
 	onLoginEvent,
@@ -40,22 +33,18 @@ import {
 	trackEvent,
 } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";
-import { useBalloonStore } from "@/store/balloon.store";
-import { useChatStore } from "@/store/chat.store";
-import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
-import { useInboxStore } from "@/store/inbox.store";
-import { useInventoryStore } from "@/store/inventory.store";
-import { useModerationStore } from "@/store/moderation.store";
 import { useNotificationStore } from "@/store/notification.store";
-import { useQuotaStore } from "@/store/quota.store";
 import { resetAllStores } from "@/store/resetStores";
 import { useSessionStore } from "@/store/session.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { User } from "@/types/server.types";
 import { LocalStorage } from "@/types/storage.types";
+
+// Lazy for the same reason as in the subscription store: this module is on the
+// cold-start path and the billing helper isn't needed until sign-in. Both call
+// sites below share one module instance, so the identity chain still orders
+// logout against the next login.
+const billing = () => import("@/helper/billing.helper");
 
 export const useAuthStore = defineStore("auth", () => {
 	// --- STATE ---
@@ -176,9 +165,6 @@ export const useAuthStore = defineStore("auth", () => {
 		// BOOTSTRAP: blocking, fast — just enough to make routing decisions
 		const ok = await bootstrap();
 
-		if (isNative() && user.value)
-			void Purchases.logIn({ appUserID: user.value.auth_id });
-
 		if (!ok) {
 			const { toast } = useToast();
 			if (arrivedFromLogin) {
@@ -197,14 +183,26 @@ export const useAuthStore = defineStore("auth", () => {
 		// Splash can come down NOW — user is loaded, route is decided.
 		isAuthLoading.value = false;
 
+		// Presence and unread counts are part of the always-visible app shell, not
+		// optional chat UI. Start their small metadata requests immediately; the
+		// panel and all message histories remain lazy.
+		const chatShellUser = user.value;
+		if (chatShellUser) {
+			void import("@/service/chatShellHydration")
+				.then(({ hydrateChatShell }) => hydrateChatShell(chatShellUser))
+				.catch((error) =>
+					console.warn("[auth] chat shell hydration failed", error),
+				);
+		}
+
 		// HYDRATE in two stages:
 		//   - hydrateCritical: things routing depends on. Awaited.
 		//   - hydrateBackground: everything else. Fire-and-forget, stores own their loading UI.
 		await hydrateCritical({ arrivedFromLogin });
-		void hydrateBackground({ arrivedFromLogin });
 
 		// ROUTING + post-login prompts
 		await handlePostBootstrapRouting(arrivedFromLogin);
+		scheduleBackgroundHydration({ arrivedFromLogin });
 	});
 
 	/**
@@ -230,6 +228,9 @@ export const useAuthStore = defineStore("auth", () => {
 		//    The modal saves to user.date_of_birth on confirm, so isUnderAge
 		//    becomes correct before we route anywhere.
 		if (!user.value.date_of_birth) {
+			const { useDateOfBirthModalStore } = await import(
+				"@/store/dateOfBirth.store"
+			);
 			const dobStore = useDateOfBirthModalStore();
 			await dobStore.open("initial");
 			// Don't branch on result. Soft mode means even if they declined,
@@ -272,8 +273,6 @@ export const useAuthStore = defineStore("auth", () => {
 	 */
 	async function bootstrap(): Promise<boolean> {
 		try {
-			void socketConnect();
-
 			const authUser = await getCurrentAuthUser();
 			if (!authUser) return false;
 
@@ -297,8 +296,6 @@ export const useAuthStore = defineStore("auth", () => {
 			user.value = userValue.user;
 			isNewAccount.value = userValue.new_account;
 			isLoggedIn.value = true;
-
-			void socketLogin({ _id: user.value._id });
 
 			// Draft mirror reconciliation reads user_id to keep device backups scoped
 			// to the correct account. Commit it before routing can mount the home draft
@@ -353,24 +350,23 @@ export const useAuthStore = defineStore("auth", () => {
 	 * loading state; failures are isolated via Promise.allSettled.
 	 */
 	async function hydrateBackground(opts: { arrivedFromLogin: boolean }) {
-		if (!user.value) return;
+		if (!user.value || isHydrating.value) return;
 		isHydrating.value = true;
 
 		const u = user.value;
 
 		try {
-			await Promise.allSettled([
-				useSubscriptionStore().checkProStatus(),
-				useBalloonStore().init(u),
-				useFriendStore().initializeSocialGraph(),
-				useQuotaStore().refresh(true),
-				useChatStore().loadActiveChats(),
-				useModerationStore().initFromUser(u),
-				useInAppNotificationStore().loadInitial(),
-				refreshPublicLobbies(),
-				useInventoryStore().hydrateFromUser(user.value),
-				syncCurrentTimezone(),
-			]);
+			// RevenueCat identity is required before entitlement hydration, but it is
+			// not required to render or route. Keep its SDK parse + network round trip
+			// inside the same idle phase as the paid-feature stores.
+			if (isNative()) {
+				const { identifyBillingUser } = await billing();
+				await identifyBillingUser(u.auth_id);
+			}
+			const { hydrateBackgroundStores } = await import(
+				"@/service/authBackgroundHydration"
+			);
+			await Promise.all([hydrateBackgroundStores(u), syncCurrentTimezone()]);
 
 			if (opts.arrivedFromLogin) {
 				// Await the fingerprint instead of reading the ref. It's populated by
@@ -414,6 +410,15 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 	}
 
+	function scheduleBackgroundHydration(opts: { arrivedFromLogin: boolean }) {
+		const run = () => void hydrateBackground(opts);
+		if ("requestIdleCallback" in window) {
+			window.requestIdleCallback(run, { timeout: 3000 });
+		} else {
+			setTimeout(run, 0);
+		}
+	}
+
 	/**
 	 * REFRESH: re-fetch user + re-hydrate everything that could be stale.
 	 */
@@ -433,14 +438,13 @@ export const useAuthStore = defineStore("auth", () => {
 			}
 			user.value = userValue.user;
 
-			await Promise.allSettled([
-				useInboxStore().getInboxBatch(true),
-				useChatStore().loadActiveChats(),
-				useQuotaStore().refresh(true),
-				useModerationStore().initFromUser(user.value),
-				useInAppNotificationStore().loadInitial(),
-				refreshPublicLobbies(),
-				useInventoryStore().hydrateFromUser(user.value),
+			const { refreshBackgroundStores } = await import(
+				"@/service/authBackgroundHydration"
+			);
+			const { refreshChatShell } = await import("@/service/chatShellHydration");
+			await Promise.all([
+				refreshChatShell(),
+				refreshBackgroundStores(userValue.user),
 				syncCurrentTimezone(),
 			]);
 
@@ -536,7 +540,13 @@ export const useAuthStore = defineStore("auth", () => {
 			);
 		}
 
-		socketDisconnect();
+		await import("@/service/api/socket/socket.service")
+			.then(({ socketDisconnect }) => socketDisconnect())
+			.catch((error) => console.warn("[socket] disconnect failed", error));
+
+		// Clear RC's appUserID too. Ordering is held by the identity chain, so the
+		// next account's logIn can't be overtaken by this — no need to await.
+		void billing().then(({ resetBillingUser }) => resetBillingUser());
 
 		if (ionRouter) {
 			ionRouter.navigate(FRONTEND_ROUTES.login, "root", "replace");

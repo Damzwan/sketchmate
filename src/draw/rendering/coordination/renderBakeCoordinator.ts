@@ -134,6 +134,9 @@ export abstract class RenderBakeCoordinator<
 		this.baking = true;
 		this.bakeAgain = false;
 		this.flushPendingOverview(); // off-screen patches now matter (we're about to bake)
+		// What this pass is up against, captured BEFORE it runs.
+		const passView = this.viewKey(this.surface.getVpt());
+		const holesBefore = this.lastNonFresh;
 		const ctrl = new AbortController();
 		this.bakeCtrl = ctrl;
 		try {
@@ -158,6 +161,12 @@ export abstract class RenderBakeCoordinator<
 			}
 			return;
 		}
+		// Hand the pass's starting position to the composite this is about to
+		// request. It — not this method — is what can see whether the pass
+		// actually closed any holes, and therefore whether another one is worth
+		// running. See `RenderFrames.renderNow`.
+		this.completedPassView = passView;
+		this.completedPassHoles = holesBefore;
 		this.pendingDemote = true;
 		this.requestFrame();
 		if (this.committed.overview.isDirty()) {
@@ -172,6 +181,11 @@ export abstract class RenderBakeCoordinator<
 		} else {
 			this.committed.trimPool();
 			this.committed.pruneEmpties();
+			// Now, while nothing is waiting on us. Doing it here means the NEXT
+			// bake can store its tiles without evicting anything first — which is
+			// what turns a steady-state cache into a per-tile texture
+			// destroy/allocate cycle in front of the user.
+			this.committed.trimToHeadroom();
 		}
 	}
 

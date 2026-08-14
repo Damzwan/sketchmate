@@ -15,6 +15,7 @@ import {
 	recordWorkerTiming,
 	resetDrawMetrics,
 	setWorkerProtocolVersion,
+	shouldTimeRenderObject,
 	snapshotDrawMetrics,
 	stopDrawMetrics,
 } from "./renderMetrics";
@@ -207,5 +208,30 @@ describe("draw worker cancellation metrics", () => {
 			stopDrawMetrics();
 			vi.unstubAllGlobals();
 		}
+	});
+});
+
+describe("per-object render sampling", () => {
+	it("times a fixed fraction of objects, not all of them", () => {
+		// Timing every object cost three performance.now() reads around renders
+		// that are frequently tens of microseconds, once per object PER TILE.
+		let timed = 0;
+		for (let i = 0; i < 1024; i++) if (shouldTimeRenderObject()) timed++;
+
+		expect(timed).toBeGreaterThan(0);
+		expect(timed).toBeLessThan(1024 / 4);
+	});
+
+	it("samples uniformly from one shared counter across call sites", () => {
+		// Two interleaved loops (a tile bake and an overview build) must not each
+		// get their own phase, or one of them could sample nothing at all.
+		const first: boolean[] = [];
+		const second: boolean[] = [];
+		for (let i = 0; i < 512; i++) {
+			first.push(shouldTimeRenderObject());
+			second.push(shouldTimeRenderObject());
+		}
+		expect(first.filter(Boolean).length).toBeGreaterThan(0);
+		expect(second.filter(Boolean).length).toBeGreaterThan(0);
 	});
 });

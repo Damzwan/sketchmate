@@ -4,8 +4,6 @@ import {
 	mdiPalette,
 	mdiTrashCanOutline,
 } from "@mdi/js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { type ComputedRef, computed } from "vue";
 import {
 	hydrateCustomization,
@@ -19,12 +17,11 @@ import {
 	resolveRelationship,
 } from "@/config/relationship.config";
 import { conversationActivityAt } from "@/helper/chat.helper";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
 import { useFriendStore } from "@/store/friend.store";
 import type { PopulatedConversation } from "@/types/server.types";
-
-dayjs.extend(relativeTime);
 
 interface ConversationItemProps {
 	chat: PopulatedConversation;

@@ -1,75 +1,30 @@
-# R8 / ProGuard rules.
-#
-# R8 is enabled in app/build.gradle (`minifyEnabled true`). Capacitor resolves
-# plugins and bridges JS<->native almost entirely through REFLECTION and
-# annotations, none of which R8 can see, so every reflective surface has to be
-# kept explicitly or the app compiles fine and then fails at runtime with
-# "Plugin not found" / missing-method errors that only appear in a release
-# build.
-#
-# Any new native plugin needs its package added below.
+# App-specific R8 rules only. Capacitor, Firebase, Google Play services,
+# RevenueCat, Glide, Gson and Sentry all publish consumer rules with the exact
+# reflective surfaces they require. Broad package-wide `-keep` rules here used
+# to override those rules and disabled shrinking, class merging and method
+# inlining for most of the native app.
 
-# --- WebView JS bridge -------------------------------------------------------
-# Every @JavascriptInterface method is called by name from JS.
--keepclassmembers class * {
-    @android.webkit.JavascriptInterface <methods>;
+# Match AGP 9.1's compact DEX layout while Capacitor 8 remains on AGP 8.13.
+# Classes that must retain a stable name are already protected by manifest or
+# library consumer rules.
+-repackageclasses
+
+# Keep useful error/warning logs while removing verbose production logging and
+# its method-call overhead.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
 }
 
-# --- Capacitor core + plugin discovery ---------------------------------------
--keep class com.getcapacitor.** { *; }
--keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
--keepclassmembers class * extends com.getcapacitor.Plugin {
-    @com.getcapacitor.PluginMethod <methods>;
-}
--keep class * extends com.getcapacitor.Plugin { *; }
-
-# Cordova plugins bridged through Capacitor's compat layer.
--keep class org.apache.cordova.** { *; }
-
-# --- App code ----------------------------------------------------------------
-# MainActivity, the FCM service and the widget provider are all referenced from
-# the manifest by name.
--keep class ninja.sketchmate.app.** { *; }
-
-# --- Firebase / GMS ----------------------------------------------------------
--keep class com.google.firebase.** { *; }
--dontwarn com.google.firebase.**
--keep class com.google.android.gms.** { *; }
--dontwarn com.google.android.gms.**
-
-# --- Sentry ------------------------------------------------------------------
-# The native Android SDK is what captures ANRs (post-mortem, from
-# ApplicationExitInfo) and NDK/native signals — the `libGLESv2_adreno` /
-# `libgsl` SIGSEGV cluster. The JS SDK cannot see either of those, so if R8
-# strips or renames the native side we lose exactly the reports we turned
-# Sentry on for, and the failure is silent: the app still runs, the JS errors
-# still arrive, and the ANRs simply never show up.
-#
-# Sentry loads integrations reflectively from AndroidManifest metadata (which
-# sentry-android-core contributes via manifest merging), so the classes are not
-# reachable from any call site R8 can trace.
--keep class io.sentry.** { *; }
--dontwarn io.sentry.**
--keepnames class io.sentry.android.core.** { *; }
-# Options are read/written by name from the manifest and from the Capacitor
-# bridge's JS-supplied config.
--keepclassmembers class io.sentry.SentryOptions { *; }
-
-# --- Missing classes for Capacitor plugins -----------------------------------
-# Some plugins have optional dependencies (e.g. Facebook SDK in Firebase Auth)
+# Firebase Authentication has optional Facebook-provider integration. The app
+# does not ship the Facebook SDK, so those references are intentionally absent.
 -dontwarn com.facebook.**
 
-# Gson serialises via reflection on field names; obfuscating them breaks the
-# wire format. Keep annotations and any model fields it touches.
--keepattributes Signature
--keepattributes *Annotation*
--keep class com.google.gson.** { *; }
--keepclassmembers,allowobfuscation class * {
+# Preserve generic signatures and runtime annotations used by JSON adapters and
+# annotated plugin methods. The classes and members themselves remain eligible
+# for shrinking and optimization.
+-keepattributes Signature,*Annotation*
+-keepclassmembers,allowoptimization,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
-
-# --- Readable crash reports --------------------------------------------------
-# Without these, Play Console stack traces for 0.4.3-style native/Java crashes
-# come back obfuscated and useless. Upload the mapping.txt with each release.
--keepattributes SourceFile,LineNumberTable
--renamesourcefileattribute SourceFile

@@ -529,20 +529,23 @@ matching `post.router.ts` exactly.
 
 | Method | Path | Guards | Purpose |
 |---|---|---|---|
-| GET | `/current` | auth | Active competition + viewer state (has_entered, votes_left per category). Cheap; polled by the home card. |
-| GET | `/:id/entries?cursor=&limit=` | auth | Paged entries, `status: active` only, exposure-balanced seeded shuffle (see below). |
-| GET | `/:id` | auth | One current or archived competition for detail views. |
-| GET | `/entry/:entry_id` | auth | One entry standalone. Exists so a notification deep link can open a drawing the grid has never loaded. |
-| POST | `/:id/impressions` | auth | `{ entry_ids }` seen for >1.5s. Batched, same contract as `POST /post/views`. Claims one impression per (entry, viewer) through `competition_impressions`; only first-time claims `$inc` the counter. Feeds §2.7 scoring. |
+Reads are adult-gated too, not only writes — see [§9.4](#94-age-gating) for
+which routes are exempt and why.
+
+| GET | `/current` | auth | Active competition + viewer state (has_entered, votes_left per category). Cheap; polled by the home card. Returns `{ competition: null, age_restricted: true }` under 13 rather than a 403. |
+| GET | `/:id/entries?cursor=&limit=` | auth, adult | Paged entries, `status: active` only, exposure-balanced seeded shuffle (see below). |
+| GET | `/:id` | auth, adult | One current or archived competition for detail views. |
+| GET | `/entry/:entry_id` | auth, adult | One entry standalone. Exists so a notification deep link can open a drawing the grid has never loaded. |
+| POST | `/:id/impressions` | auth, adult | `{ entry_ids }` seen for >1.5s. Batched, same contract as `POST /post/views`. Claims one impression per (entry, viewer) through `competition_impressions`; only first-time claims `$inc` the counter. Feeds §2.7 scoring. |
 | POST | `/upload-urls` | auth, `CREATE_POST`, adult | Presigned S3 URLs. Same shape as the post route. |
 | POST | `/:id/enter` | auth, `CREATE_POST`, adult | Create/replace a competition-only entry. Legacy `share_to_feed` input is ignored by current clients. |
 | DELETE | `/:id/entry` | auth | Delete an owned current or historical entry; votes and comments are removed with it. |
 | POST | `/:id/vote` | auth, `REACT_TO_POST`, adult | `{ entry_id, category_id }` → cast or move this drawing's vote to that category. |
 | DELETE | `/:id/vote` | auth | `{ entry_id, category_id }` → remove this drawing's vote and refund its category budget. |
-| GET/POST | `/entry/:entry_id/comments`, `/entry/:entry_id/comment` | auth; writes adult + `COMMENT_ON_POST` | Read or add entry comments. |
+| GET/POST | `/entry/:entry_id/comments`, `/entry/:entry_id/comment` | auth, adult; writes also `COMMENT_ON_POST` | Read or add entry comments. |
 | DELETE | `/entry/:entry_id/comment/:comment_id` | auth | Delete as comment author or entry owner. |
-| GET | `/:id/results` | auth | 404/409 unless `phase === 'announced'`. Podium + reward metadata. |
-| GET | `/archive?limit=` | auth | Past announced competitions, newest first. |
+| GET | `/:id/results` | auth, adult | 404/409 unless `phase === 'announced'`. Podium + reward metadata. |
+| GET | `/archive?limit=` | auth, adult | Past announced competitions, newest first. |
 | GET | `/themes` | auth, adult | Approved-pending themes + my upvotes. |
 | POST | `/themes` | auth, `CREATE_POST`, adult | Suggest a theme. Limited to one per active competition cycle. |
 | POST | `/themes/:id/upvote` | auth, adult | Toggle upvote. |
@@ -951,11 +954,40 @@ strike ladder entries — a bad entry is a bad post.
 
 ### 9.4 Age gating
 
-The competition is a stranger surface. Under-13 accounts get the locked card,
-and every write route carries `requireAdultAccount`, enforced server-side so a
-replayed request cannot enter a child's drawing into a public contest. This is a
-Play-policy requirement, not a UX preference — see
+The competition is a stranger surface: strangers' artwork, strangers' captions,
+strangers' comments, on a promoted slot. Under 13 it is off entirely, with no
+parental override. This is a Play-policy requirement, not a UX preference — see
 [FAMILIES_POLICY.md](FAMILIES_POLICY.md).
+
+**Reads are gated, not only writes.** Gating the writes alone was the original
+mistake: it stopped a child *entering* a contest while leaving `GET /:id/entries`,
+`/archive`, `/:id/results`, `/entry/:id/comments` and `/user/:id/entries` open to
+any authenticated account. Hiding a button is not a control when the same GET can
+be replayed. Every competition route now carries `requireAdultAccount` except:
+
+- `GET /current`, which answers `{ competition: null, age_restricted: true }`
+  instead of a 403 — the home card polls it on every app open and already draws
+  the locked variant from an empty payload, so an error there would be noise
+  rather than safety;
+- the routes that touch only the caller's **own** records — deleting their entry,
+  comment, vote or pending theme, `POST /:id/seen`, `PUT /preferences`. An
+  account reclassified as a child by a birthday correction must still be able to
+  withdraw whatever it left behind.
+
+`requireAdultAccount` is **default-deny**: `isChildDob()` treats a missing or
+unparseable birthday as a child, so guests and legacy rows that never confirmed
+an age get nothing either. The client mirrors this with the same default
+(`auth.isUnderAge` is true when `date_of_birth` is absent).
+
+Client surfaces that must stay in step, all keyed off `auth.isUnderAge`:
+
+| Surface | Gate |
+|---|---|
+| Home card | locked "unlocks at 13" variant, and `refresh()` is never called |
+| `/competition` route | `beforeEnter` redirects to home — a deep link, a notification tap or a restored history entry all reach the route without passing the card |
+| Profile *Competitions* tab | tab strip dropped; the posts tab is forced |
+| SendHub competition section | `competitionStore.canEnter` already requires `!isUnderAge` |
+| Settings "Weekly competition" toggle | hidden |
 
 ### 9.5 Profanity
 

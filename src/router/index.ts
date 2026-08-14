@@ -61,6 +61,23 @@ const routes: Array<RouteRecordRaw> = [
 		// Lazy on purpose: the entry grid must not be in the app-start chunk.
 		path: `/${FRONTEND_ROUTES.competition}`,
 		component: () => import("@/views/competition.view.vue"),
+		// 13+ only — the grid is strangers' artwork and strangers' comments on a
+		// promoted surface (docs/FAMILIES_POLICY.md, docs/COMPETITION.md §9.4).
+		// The home card hides itself, but the route is still reachable directly:
+		// a deep link, a notification tap, a restored history entry, or the back
+		// stack after a birthday correction. The server refuses the data either
+		// way; this is what stops a child landing on an empty competition page
+		// full of 403s instead of somewhere they can actually be.
+		//
+		// `auth.store` imports this module, so the store is pulled in lazily here
+		// rather than at the top of the file.
+		beforeEnter: async () => {
+			const { useAuthStore } = await import("@/store/auth.store");
+			const auth = useAuthStore();
+			await auth.waitUntilInitialized();
+			// Default-deny: `isUnderAge` is already true for an unconfirmed birthday.
+			return auth.isUnderAge ? `/${FRONTEND_ROUTES.home}` : true;
+		},
 	},
 ];
 

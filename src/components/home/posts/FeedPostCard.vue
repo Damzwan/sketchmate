@@ -266,18 +266,16 @@
 <script setup lang="ts">
 import { IonIcon } from "@ionic/vue";
 import { mdiArrowExpand, mdiDotsHorizontal } from "@mdi/js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
 import type { FeedPost } from "@/types/server.types";
 import FeedPostFooter from "./FeedPostFooter.vue";
 import { useFeedPostCard } from "./useFeedPostCard";
 
-dayjs.extend(relativeTime);
 const props = defineProps<{
 	post: FeedPost;
 	isMine: boolean;

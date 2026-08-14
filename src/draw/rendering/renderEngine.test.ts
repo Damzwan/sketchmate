@@ -356,3 +356,107 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 });
+
+describe("bake stall latch", () => {
+	beforeEach(() => {
+		vi.stubGlobal(
+			"requestAnimationFrame",
+			vi.fn(() => 1),
+		);
+		vi.stubGlobal("cancelAnimationFrame", vi.fn());
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	/** Composite that always reports the same number of holes — a cache too
+	 *  small to ever satisfy the viewport. */
+	function makeStuckEngine(holes = 4) {
+		const engine = makeEngine({ bakeDebounceMs: 0 }) as any;
+		vi.spyOn(engine.committed, "composite").mockReturnValue({
+			needsBake: holes > 0,
+			nonFresh: holes,
+		});
+		vi.spyOn(engine.committed, "bake").mockResolvedValue(undefined);
+		vi.spyOn(engine.live, "composite").mockImplementation(() => {});
+		vi.spyOn(engine.live, "gcExpired").mockReturnValue([]);
+		return engine;
+	}
+
+	it("stops rescheduling once a pass fails to close any holes", async () => {
+		const engine = makeStuckEngine();
+		const schedule = vi.spyOn(engine, "scheduleBake");
+
+		// Frame 1: holes seen, nothing has been tried yet → schedule a bake.
+		engine.renderNow();
+		expect(schedule).toHaveBeenCalledTimes(1);
+
+		// The pass runs and closes nothing, then requests the frame that judges it.
+		await engine.runBake();
+		engine.renderNow();
+
+		// That frame must NOT arm another pass: same view, same hole count.
+		expect(schedule).toHaveBeenCalledTimes(1);
+
+		// And it must stay quiet — this is the infinite blur/unblur loop.
+		engine.renderNow();
+		engine.renderNow();
+		expect(schedule).toHaveBeenCalledTimes(1);
+	});
+
+	it("re-arms when the viewport moves", async () => {
+		const engine = makeStuckEngine();
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+		const settled = (vi.spyOn(engine, "scheduleBake") as any).mock.calls.length;
+
+		engine.surface.getVpt = () => [1, 0, 0, 1, -400, -300];
+		engine.renderNow();
+
+		expect((engine.scheduleBake as any).mock.calls.length).toBeGreaterThan(
+			settled,
+		);
+	});
+
+	it("re-arms when the scene is edited", async () => {
+		const engine = makeStuckEngine();
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+		const schedule = vi.spyOn(engine, "scheduleBake");
+
+		// Any invalidation bumps the mutation epoch, which is part of the key —
+		// so no invalidation path has to remember to clear the latch.
+		engine.committed.mutationEpoch++;
+		engine.renderNow();
+
+		expect(schedule).toHaveBeenCalled();
+	});
+
+	it("keeps baking while passes ARE making progress", async () => {
+		const engine = makeEngine({ bakeDebounceMs: 0 }) as any;
+		let holes = 6;
+		vi.spyOn(engine.committed, "composite").mockImplementation(() => ({
+			needsBake: holes > 0,
+			nonFresh: holes,
+		}));
+		vi.spyOn(engine.committed, "bake").mockImplementation(async () => {
+			holes -= 2; // each pass closes some
+		});
+		vi.spyOn(engine.live, "composite").mockImplementation(() => {});
+		vi.spyOn(engine.live, "gcExpired").mockReturnValue([]);
+		const schedule = vi.spyOn(engine, "scheduleBake");
+
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+
+		// Never latched: a partly-filled viewport must keep going.
+		expect(schedule.mock.calls.length).toBeGreaterThan(1);
+	});
+});

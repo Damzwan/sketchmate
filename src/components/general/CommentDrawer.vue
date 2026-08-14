@@ -130,9 +130,9 @@ import {
 } from "@ionic/vue";
 import { mdiClose, mdiDotsHorizontal, mdiSend } from "@mdi/js";
 import { useInfiniteScroll } from "@vueuse/core";
-import dayjs from "dayjs";
 import { nextTick, ref, watch } from "vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
 import { useToast } from "@/service/toast.service";
@@ -147,6 +147,11 @@ const props = defineProps<{
 	userLookup?: (userId: string) => any;
 	onComment?: (item: any, message: string) => Promise<any>;
 }>();
+
+// The open drawer owns the complete paginated thread. The backing feed/gallery
+// item only needs a recent preview; bounding it prevents a long-lived item from
+// retaining every comment received or posted during the session.
+const MAX_RETAINED_COMMENT_PREVIEWS = 20;
 
 const emit = defineEmits(["update:open"]);
 
@@ -272,7 +277,10 @@ async function submitComment() {
 		if (comment) {
 			comments.value.push(comment);
 			props.currItem.comment_count = (props.currItem.comment_count ?? 0) + 1;
-			props.currItem.comments = [...(props.currItem.comments || []), comment];
+			props.currItem.comments = [
+				...(props.currItem.comments || []),
+				comment,
+			].slice(-MAX_RETAINED_COMMENT_PREVIEWS);
 		}
 		scrollToBottom();
 	} catch (e) {

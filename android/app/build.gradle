@@ -19,6 +19,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 141
         versionName "0.4.4"
+        // The web UI and Android resources currently ship in English only.
+        // Do not package translations contributed by native dependencies that
+        // the app can never select.
+        resourceConfigurations += ['en']
         testInstrumentationRunner "androi dx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -45,6 +49,14 @@ repositories {
     flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
+}
+
+// RevenueCat documents Amazon IAP as an optional store dependency. This app is
+// distributed through Google Play and never configures `useAmazon`, so exclude
+// the Amazon SDK pulled in by Hybrid Common from every app configuration.
+configurations.configureEach {
+    exclude group: 'com.revenuecat.purchases', module: 'purchases-store-amazon'
+    exclude group: 'com.amazon.device', module: 'amazon-appstore-sdk'
 }
 
 dependencies {

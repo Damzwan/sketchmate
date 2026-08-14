@@ -1,6 +1,10 @@
 import { Capacitor } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Preferences } from "@capacitor/preferences";
+import {
+	isDrawSessionActive,
+	onDrawSessionChanged,
+} from "@/draw/document/draftEvents";
 import { LocalStorage } from "@/types/storage.types";
 
 const ROOT = "SketchMate/drafts";
@@ -29,6 +33,18 @@ const MIRROR_MIN_INTERVAL_MS = 30_000;
 const MIRROR_MAX_INTERVAL_MS = 5 * 60_000;
 /** Document size that still earns the fastest interval. */
 const MIRROR_CHEAP_BYTES = 512 * 1024;
+/** Let canvas teardown and the Ionic route transition paint before disk I/O. */
+const MIRROR_POST_SESSION_DELAY_MS = 1_500;
+/**
+ * Bound each Capacitor bridge message. The bridge serializes plugin arguments;
+ * one multi-megabyte UTF-8 string can monopolize a low-end device's main
+ * thread long enough to cross Android's ANR threshold.
+ */
+const MIRROR_BLOB_CHUNK_BYTES = 128 * 1024;
+// TextDecoder may carry at most three bytes of a partial UTF-8 code point into
+// the next decode. Leave four bytes of headroom so the re-encoded plugin
+// argument remains at or below the advertised 128 KiB ceiling.
+const MIRROR_BLOB_READ_BYTES = MIRROR_BLOB_CHUNK_BYTES - 4;
 
 function payloadBytes(json: unknown): number {
 	if (json instanceof Blob) return json.size;
@@ -79,6 +95,7 @@ const lastMirroredAt = new Map<string, number>();
  */
 const cloudReplicaAt = new Map<string, number>();
 let mirrorQueue: Promise<void> = Promise.resolve();
+let postSessionTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function noteCloudReplica(id: string, updatedAt: number): void {
 	cloudReplicaAt.set(id, updatedAt);
@@ -118,15 +135,80 @@ async function ignoreMissing(action: () => Promise<unknown>): Promise<void> {
 	}
 }
 
-async function jsonText(json: unknown): Promise<string> {
-	if (json instanceof Blob) return json.text();
-	if (typeof json === "string") return json;
-	return JSON.stringify(json);
+async function writeNativeTextChunk(
+	path: string,
+	data: string,
+	first: boolean,
+): Promise<void> {
+	if (first) {
+		await Filesystem.writeFile({
+			path,
+			directory: Directory.Data,
+			data,
+			encoding: Encoding.UTF8,
+			recursive: true,
+		});
+		return;
+	}
+	await Filesystem.appendFile({
+		path,
+		directory: Directory.Data,
+		data,
+		encoding: Encoding.UTF8,
+	});
+}
+
+async function writeTextInChunks(path: string, text: string): Promise<number> {
+	if (text.length === 0) {
+		await writeNativeTextChunk(path, "", true);
+		return 1;
+	}
+	// Blob gives the string the same byte-bounded path as the primary Blob
+	// payload. A character-count split is not sufficient: non-ASCII text can use
+	// up to four UTF-8 bytes per JavaScript character.
+	return writeBlobInChunks(path, new Blob([text]));
+}
+
+async function writeBlobInChunks(path: string, blob: Blob): Promise<number> {
+	if (blob.size === 0) {
+		await writeNativeTextChunk(path, "", true);
+		return 1;
+	}
+
+	const decoder = new TextDecoder();
+	let first = true;
+	let chunks = 0;
+	for (let offset = 0; offset < blob.size; offset += MIRROR_BLOB_READ_BYTES) {
+		const bytes = new Uint8Array(
+			await blob.slice(offset, offset + MIRROR_BLOB_READ_BYTES).arrayBuffer(),
+		);
+		const text = decoder.decode(bytes, { stream: true });
+		if (!text) continue;
+		await writeNativeTextChunk(path, text, first);
+		first = false;
+		chunks += 1;
+	}
+	const tail = decoder.decode();
+	if (tail || first) {
+		await writeNativeTextChunk(path, tail, first);
+		chunks += 1;
+	}
+	return chunks;
+}
+
+async function writeJsonInChunks(path: string, json: unknown): Promise<number> {
+	if (json instanceof Blob) return writeBlobInChunks(path, json);
+	if (typeof json === "string") return writeTextInChunks(path, json);
+	const text = JSON.stringify(json);
+	if (text === undefined) throw new Error("Draft JSON is not serializable");
+	return writeTextInChunks(path, text);
 }
 
 async function writeMirror(input: MirrorInput): Promise<void> {
 	const ownerId = await currentOwnerId();
 	if (!ownerId) return;
+	noteMirrorWrite("start", input);
+	const startedAt = performance.now();
 
 	const base = draftPath(input.id);
 	const metadata: NativeDraftMetadata = {
@@ -137,14 +219,8 @@ async function writeMirror(input: MirrorInput): Promise<void> {
 		thumbnail: input.thumbnail,
 	};
 
-	await Promise.all([
-		Filesystem.writeFile({
-			path: `${base}/next/drawing.json`,
-			directory: Directory.Data,
-			data: await jsonText(input.json),
-			encoding: Encoding.UTF8,
-			recursive: true,
-		}),
+	const [bridgeChunks] = await Promise.all([
+		writeJsonInChunks(`${base}/next/drawing.json`, input.json),
 		Filesystem.writeFile({
 			path: `${base}/next/metadata.json`,
 			directory: Directory.Data,
@@ -173,6 +249,37 @@ async function writeMirror(input: MirrorInput): Promise<void> {
 		to: `${base}/current`,
 		directory: Directory.Data,
 	});
+	noteMirrorWrite("finish", input, performance.now() - startedAt, bridgeChunks);
+}
+
+/**
+ * Leave a content-free breadcrumb around the native bridge call. Historical
+ * ANRs have no live JS stack, so byte size + start/finish is what distinguishes
+ * a bridge stall from a draw-engine stall on the next report.
+ */
+function noteMirrorWrite(
+	state: "start" | "finish",
+	input: MirrorInput,
+	durationMs?: number,
+	bridgeChunks?: number,
+): void {
+	void import("@sentry/capacitor")
+		.then((Sentry) =>
+			Sentry.addBreadcrumb({
+				category: "draft.mirror",
+				level: "info",
+				message: `Native draft mirror ${state}`,
+				data: {
+					bytes: payloadBytes(input.json),
+					bridgeChunks,
+					durationMs:
+						durationMs === undefined ? undefined : Math.round(durationMs),
+				},
+			}),
+		)
+		.catch(() => {
+			/* diagnostics must never affect recovery persistence */
+		});
 }
 
 function clearTrailing(id: string): void {
@@ -225,6 +332,16 @@ export function queueNativeDraftMirror(
 		flushMirror(input.id, { force: true });
 		return;
 	}
+	// Converting a multi-megabyte Blob to text and crossing the Capacitor bridge
+	// used to be indivisible native work. A size-based timer could fire this in the
+	// middle of long drawing sessions; a ~4 MB document landed roughly four
+	// minutes later, matching the otherwise unexplained ANR window. IndexedDB is
+	// already durable at this point, so retain only the newest mirror payload and
+	// spend the redundant filesystem write after the canvas is gone.
+	if (isDrawSessionActive()) {
+		clearTrailing(input.id);
+		return;
+	}
 	if (trailingTimers.has(input.id)) return;
 
 	const wait = Math.max(
@@ -242,6 +359,25 @@ export function queueNativeDraftMirror(
 		setTimeout(() => flushMirror(input.id), wait),
 	);
 }
+
+onDrawSessionChanged((active) => {
+	if (postSessionTimer !== undefined) {
+		clearTimeout(postSessionTimer);
+		postSessionTimer = undefined;
+	}
+	if (active) {
+		// A timer scheduled on Home must not mature after a drawing opens.
+		for (const id of [...trailingTimers.keys()]) clearTrailing(id);
+		return;
+	}
+
+	if (latest.size === 0) return;
+	postSessionTimer = setTimeout(() => {
+		postSessionTimer = undefined;
+		if (isDrawSessionActive()) return;
+		for (const id of [...latest.keys()]) flushMirror(id, { force: true });
+	}, MIRROR_POST_SESSION_DELAY_MS);
+});
 
 export async function awaitNativeDraftMirrors(): Promise<void> {
 	// Anything still sitting behind the throttle is owed to disk before the

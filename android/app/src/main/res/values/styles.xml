@@ -30,7 +30,10 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:windowSplashScreenBackground">
+        <!-- AndroidX maps this compat attribute to the API 31 platform
+             attribute and supplies the equivalent window background on older,
+             lower-end Android versions. -->
+        <item name="windowSplashScreenBackground">
             @color/SplashScreenColor
         </item>
     </style>
@@ -47,4 +50,3 @@
 
 
 </resources>
-

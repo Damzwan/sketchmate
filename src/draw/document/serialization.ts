@@ -5,7 +5,10 @@ import {
 	rememberSerializedObject,
 	serializeAtRevision,
 } from "@/draw/objects/objectSerialization";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import {
+	recordPhase,
+	shouldTimeRenderObject,
+} from "@/draw/rendering/renderMetrics";
 import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
 import { downsampleFabricImagesInObject } from "@/draw/tools/imageDownsampling";
 import { watercolorComplexity } from "@/draw/utils/brushes/watercolorGeometry";
@@ -295,9 +298,15 @@ export async function generateChunkedJSON(
 	for (let i = 0; i < objects.length; i++) {
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-		const objectStartedAt = performance.now();
+		const timed = shouldTimeRenderObject();
+		const objectStartedAt = timed ? performance.now() : 0;
 		json.objects.push(serializeAtRevision(objects[i]));
-		recordPhase("documentSerializeObject", performance.now() - objectStartedAt);
+		if (timed) {
+			recordPhase(
+				"documentSerializeObject",
+				performance.now() - objectStartedAt,
+			);
+		}
 
 		if (yielder.shouldYield()) {
 			await yielder.yield();

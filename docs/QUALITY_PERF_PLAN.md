@@ -851,3 +851,37 @@ P7  Vapor spike ─────────────────────�
 - **Purge all 1,198 `any` sites.** Scoped to stores/services where a type error becomes a data error.
 - **Promise a Vapor Mode win.** Ionic-rooted trees make it a leaf-component optimization at best.
 - **Promise a perf win from vue-router 5.** It is a maintenance upgrade; the bundle delta is −5 KB.
+
+---
+
+## 14. Low-end follow-up (2026-08-13)
+
+Measured from production builds using `ANALYZE=1 pnpm build` and
+`scripts/checkBudget.mjs`:
+
+| Cold-start metric | Before | After | Change |
+|---|---:|---:|---:|
+| Eager JavaScript, raw | 1,115.6 kB | 1,084.9 kB | −30.7 kB (−2.8%) |
+| Eager JavaScript, gzip | 294.5 kB | 285.0 kB | −9.5 kB (−3.2%) |
+| Largest eager Ionic chunk | 763.7 kB | 699.0 kB | −64.7 kB (−8.5%) |
+
+Runtime work removed from or delayed beyond the critical startup path:
+
+- PWA camera custom elements load only when the web camera is first opened.
+- Billing identity and non-critical store hydration wait until after initial
+  routing and an idle window; Sentry remains post-frame. The social shell is
+  intentionally exempt: socket login, online presence, pending requests and
+  active-chat metadata start immediately so header counters remain available.
+- Global overlays use a tiny runtime flag store. On low-end devices, closed
+  heavy overlay trees are destroyed after their leave animation instead of
+  being retained for the entire session.
+- Memory-pressure handling clears only stores that already exist, so pressure
+  cannot instantiate dormant feature stores while attempting to shed memory.
+- Typing, balloon and share-toast timers are bounded and reset-safe; socket
+  comment previews retain at most 20 items while preserving the server count.
+
+The main remaining cold-start floor is Ionic itself (699.0 kB raw). Store/auth
+import cycles also cause some feature code to be hoisted even when its runtime
+initialization is deferred. Further meaningful reduction should focus on
+breaking those ownership cycles and splitting the Ionic shell, then measuring
+PSS and first-route timing on a physical 2–3 GB Android device.

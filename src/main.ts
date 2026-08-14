@@ -14,11 +14,6 @@ import "@/theme/text_effects.css";
 
 import { Capacitor } from "@capacitor/core";
 import { StatusBar, Style } from "@capacitor/status-bar";
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-import isToday from "dayjs/plugin/isToday";
-import isYesterday from "dayjs/plugin/isYesterday";
-import relativeTime from "dayjs/plugin/relativeTime";
 import mitt from "mitt";
 import { createPinia } from "pinia";
 import App from "@/App.vue";
@@ -34,12 +29,7 @@ import { addNotificationListeners } from "@/helper/notification.helper";
 import { isMobile } from "@/helper/platform.helper";
 
 const pinia = createPinia();
-initFirebase();
-
-dayjs.extend(relativeTime);
-dayjs.extend(duration);
-dayjs.extend(isToday);
-dayjs.extend(isYesterday);
+void initFirebase();
 
 export const EventBus = mitt();
 
@@ -63,16 +53,6 @@ if (Capacitor.getPlatform() === "android") {
 async function bootstrap() {
 	const app = createApp(App).use(IonicVue).use(pinia).use(router);
 
-	// Load observability as a separate chunk, but still attach Vue's error handler
-	// before mount. A monitoring failure must never prevent the application from
-	// starting.
-	try {
-		const { initSentry } = await import("@/observability/sentry");
-		initSentry(app);
-	} catch (error) {
-		console.warn("[sentry] initialization failed", error);
-	}
-
 	app.mount("#app");
 
 	// Eager synchronous setup
@@ -86,8 +66,17 @@ async function bootstrap() {
 		StatusBar.setStyle({ style: Style.Light });
 	}
 
-	import("@/helper/billing.helper").then(({ initBilling }) => {
-		initBilling();
+	// Let WebView commit the first application frame before parsing monitoring.
+	// Billing initializes on first authenticated use, so login and anonymous
+	// sessions never pay for RevenueCat during app-shell startup.
+	requestAnimationFrame(() => {
+		setTimeout(() => {
+			void import("@/observability/sentry")
+				.then(({ initSentry }) => initSentry(app))
+				.catch((error) =>
+					console.warn("[sentry] initialization failed", error),
+				);
+		}, 0);
 	});
 }
 

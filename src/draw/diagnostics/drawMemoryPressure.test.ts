@@ -6,6 +6,7 @@ vi.mock("@capacitor/app", () => ({
 	App: { addListener: () => Promise.reject(new Error("unsupported")) },
 }));
 
+import { emitMemoryPressure } from "@/service/memoryPressure";
 import {
 	HIDE_GRACE_MS,
 	installDrawMemoryPressure,
@@ -86,6 +87,16 @@ describe("draw memory pressure", () => {
 		// Nothing was released, so nothing needs restoring — a restore here would
 		// trigger a pointless overview rebuild on every app switch.
 		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("releases immediately when Android reports that the UI is hidden", () => {
+		const release = vi.fn();
+		installDrawMemoryPressure({ release, restore: vi.fn() });
+
+		emitMemoryPressure("uiHidden");
+
+		expect(release).toHaveBeenCalledTimes(1);
+		expect(isDrawGraphicsReleased()).toBe(true);
 	});
 
 	it("restores exactly once after a real release", () => {

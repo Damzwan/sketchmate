@@ -1,3 +1,4 @@
+import type { RasterSurface } from "../rasterSurface";
 import { minimumTiledZoom, minimumViewportZoomFor } from "../zoomLevels";
 import { TileBaker } from "./tileBaker";
 import { type TileKey, tileKey } from "./tileKey";
@@ -22,7 +23,7 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	 */
 	private stampInPlace(
 		key: TileKey,
-		surface: OffscreenCanvas,
+		surface: RasterSurface,
 		obj: T,
 		tier: number,
 		tx: number,
@@ -78,11 +79,14 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	 * allocation entirely. Bounded by `HOT_TILE_MAX` because a canvas-backed tile
 	 * holds a pooled canvas hostage and can composite slower than a bitmap.
 	 */
-	private hotSurfaceFor(key: TileKey): OffscreenCanvas | null {
-		if (this.HOT_TILE_MAX === 0) return null;
+	private hotSurfaceFor(key: TileKey): RasterSurface | null {
 		const tile = this.tiles.get(key);
 		if (!tile?.bitmap) return null;
+		// Already a canvas — which is EVERY tile where snapshotting is skipped
+		// (Gecko). Checked before HOT_TILE_MAX so the cap never turns a tile that
+		// is already stampable into a full bitmap-copy round trip.
 		if (isCanvasSurface(tile.bitmap)) return tile.bitmap;
+		if (this.HOT_TILE_MAX === 0) return null;
 		if (this.hotTileCount() >= this.HOT_TILE_MAX) return null;
 
 		const off = this.acquire();
@@ -123,6 +127,12 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	 *
 	 * `keep` leaves the N most recently used hot tiles alone, so a user who is
 	 * still drawing in one spot does not pay a demote/promote cycle per stroke.
+	 *
+	 * INERT where tiles are canvas-backed by default (Gecko): `HOT_TILE_MAX` is 0
+	 * there and this returns immediately. A DOM canvas has no synchronous
+	 * snapshot to demote THROUGH — only async `createImageBitmap` — and the byte
+	 * budget already holds the resident count below that platform's
+	 * accelerated-surface knee, so there is nothing for this to protect.
 	 */
 	demoteHotTiles(keep = 0): void {
 		if (this.HOT_TILE_MAX === 0) return;
@@ -137,16 +147,14 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 			const tile = this.tiles.get(hot[i].key);
 			if (!tile || !isCanvasSurface(tile.bitmap)) continue;
 			const canvas = tile.bitmap;
-			let bmp: ImageBitmap;
-			try {
-				// Leaves `canvas` blank but reusable, which is why it can go straight
-				// back to the pool instead of being reallocated.
-				bmp = canvas.transferToImageBitmap();
-			} catch {
-				continue; // keep it hot rather than lose the pixels
-			}
+			// Leaves `canvas` blank but reusable, which is why it can go straight
+			// back to the pool instead of being reallocated. `harvest` hands back
+			// the canvas ITSELF where there is no cheaper form (a DOM canvas has no
+			// synchronous snapshot); treating that as "stays hot" is what makes this
+			// safely inert on that path rather than silently losing the tile.
+			const bmp = this.harvest(canvas);
+			if (!bmp || bmp === canvas) continue; // keep it hot rather than lose the pixels
 			tile.bitmap = bmp;
-			this.release(canvas);
 		}
 	}
 
@@ -212,17 +220,11 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 				}
 				c2d.restore();
 
-				let bmp: ImageBitmap;
-				try {
-					bmp = off.transferToImageBitmap();
-				} catch {
-					this.release(off);
-					continue;
-				}
-				this.release(off);
+				const bmp = this.harvest(off);
+				if (!bmp) continue;
 				const bytes = this.BMP * this.BMP * 4;
 				if (!this.ensureMemory(bytes)) {
-					bmp.close();
+					this.discardTile(bmp);
 					continue;
 				}
 				this.store(key, tier, tx, ty, bmp, bytes, newGen);
@@ -311,18 +313,14 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 				}
 				c2d.restore();
 
-				let bmp: ImageBitmap;
-				try {
-					bmp = off.transferToImageBitmap();
-				} catch {
-					this.release(off);
+				const bmp = this.harvest(off);
+				if (!bmp) {
 					complete = false;
 					continue;
 				}
-				this.release(off);
 				const bytes = this.BMP * this.BMP * 4;
 				if (!this.ensureMemory(bytes)) {
-					bmp.close();
+					this.discardTile(bmp);
 					complete = false;
 					continue;
 				}
@@ -401,19 +399,15 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 				}
 				c2d.restore();
 
-				let out: ImageBitmap;
-				try {
-					out = off.transferToImageBitmap();
-				} catch {
-					this.release(off);
+				const out = this.harvest(off);
+				if (!out) {
 					this.invalidateKey(key, rect);
 					complete = false;
 					continue;
 				}
-				this.release(off);
 				const bytes = this.BMP * this.BMP * 4;
 				if (!this.ensureMemory(bytes)) {
-					out.close();
+					this.discardTile(out);
 					this.invalidateKey(key, rect);
 					complete = false;
 					continue;
@@ -438,12 +432,23 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	 *
 	 * Demote FIRST: a hot tile is holding a pooled canvas, so trimming the pool
 	 * before demoting would free canvases that are about to be handed back and
-	 * leave the hot ones outstanding. `keep = 1` lets a user still drawing in one
-	 * place keep that tile hot across the idle gap instead of paying a
-	 * demote/promote round trip on their next stroke.
+	 * leave the hot ones outstanding.
+	 *
+	 * Keep the entire bounded hot set across idle gaps. The old `keep = 1`
+	 * demoted every other active tile after each bake, allocating an ImageBitmap;
+	 * the next undo/stroke promoted it again and immediately closed that bitmap.
+	 * On Adreno that repeated native texture deallocation is much riskier than
+	 * retaining at most `HOT_TILE_MAX` canvases (2 low-end, 4 normal mobile).
+	 *
+	 * Inert where tiles are canvas-backed by default (Gecko): `HOT_TILE_MAX` is
+	 * 0 there, so `demoteHotTiles` returns immediately. Demotion needs a bitmap
+	 * snapshot and a DOM canvas has no synchronous one — `createImageBitmap` is
+	 * async and ~1.5 ms per tile. It is not needed either: the BYTE budget
+	 * already holds the resident tile count below the platform's
+	 * accelerated-surface knee (see drawMemoryProfile → CANVAS_SURFACE_BUDGET_MB).
 	 */
 	override trimPool(keep = 2): void {
-		this.demoteHotTiles(1);
+		this.demoteHotTiles(this.HOT_TILE_MAX);
 		super.trimPool(keep);
 	}
 

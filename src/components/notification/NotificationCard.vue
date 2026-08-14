@@ -112,14 +112,13 @@ import {
 	mdiShieldAlertOutline,
 	mdiTrophyOutline,
 } from "@mdi/js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { computed } from "vue";
 import { useCompetitionEntryViewer } from "@/composables/competition/useCompetitionEntryViewer";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { masterAnimation } from "@/helper/animation.helper";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
 import { useCompetitionStore } from "@/store/competition.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
@@ -127,8 +126,6 @@ import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { Notification } from "@/types/server.types";
-
-dayjs.extend(relativeTime);
 
 const props = defineProps<{ notification: Notification }>();
 const store = useInAppNotificationStore();

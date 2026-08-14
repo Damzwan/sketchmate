@@ -1,7 +1,8 @@
-import { defineStore } from "pinia";
-import { ref } from "vue";
+import { defineStore, storeToRefs } from "pinia";
+import { ref, watch } from "vue";
 import { resolveTitleDef } from "@/config/profile_options.config";
 import { useInboxStore } from "@/store/inbox.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { usePostStore } from "@/store/post.store";
 import type { FeedPost, InboxItem } from "@/types/server.types";
 
@@ -36,12 +37,21 @@ export interface ShareToast {
 export const useShareToastStore = defineStore("shareToast", () => {
 	const inboxStore = useInboxStore();
 	const postStore = usePostStore();
+	const { shareToastsVisible } = storeToRefs(useOverlayRuntimeStore());
 
 	const toasts = ref<ShareToast[]>([]);
 	// Presentation-only progress state. Keeping it here lets the global toast
 	// renderer stay independent from the drawing export pipeline.
 	const isSending = ref(false);
 	const timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+	watch(
+		[() => toasts.value.length, isSending],
+		([toastCount, sending]) => {
+			shareToastsVisible.value = sending || toastCount > 0;
+		},
+		{ flush: "sync" },
+	);
 
 	// Helper to get the actual item from stores reactively
 	const getInboxItem = (id: string) =>
@@ -64,6 +74,14 @@ export const useShareToastStore = defineStore("shareToast", () => {
 			timers.delete(id);
 		}
 		toasts.value = toasts.value.filter((t) => t.id !== id);
+	}
+
+	function resetRuntimeState() {
+		for (const timer of timers.values()) clearTimeout(timer);
+		timers.clear();
+		toasts.value = [];
+		isSending.value = false;
+		shareToastsVisible.value = false;
 	}
 
 	// --- Public Push Methods ---
@@ -192,5 +210,6 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		pushCompetitionToast,
 		pushSavedToast,
 		pushTitleToast,
+		resetRuntimeState,
 	};
 });

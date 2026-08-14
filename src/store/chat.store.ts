@@ -179,6 +179,8 @@ export const useChatStore = defineStore("chat", () => {
 		notifications.value.forEach((notification) =>
 			clearTimeout(notification.timer),
 		);
+		for (const timer of typingTimers.values()) clearTimeout(timer);
+		typingTimers.clear();
 		activeChats.value = [];
 		messagesByChat.value = {};
 		typingStatuses.value = {};
@@ -190,6 +192,7 @@ export const useChatStore = defineStore("chat", () => {
 		messageCacheClock = 0;
 	}
 	const typingStatuses = ref<Record<string, boolean>>({});
+	const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	const hasMoreMessagesByChat = ref<Record<string, boolean>>({});
 	const notifications = ref<ChatNotificationEntry[]>([]);
 	// Conversations this session has already read. Kept outside `activeChats` so
@@ -280,15 +283,20 @@ export const useChatStore = defineStore("chat", () => {
 
 	// --- CORE ACTIONS ---
 
-	async function loadActiveChats() {
+	function applyActiveChats(chats: PopulatedConversation[]) {
 		const userCache = useUserCacheStore();
+		activeChats.value = chats;
+		for (const chat of chats) {
+			userCache.upsertMany(chat.participants);
+		}
+		reapplyLocalReads();
+		chatsHydrated.value = true;
+	}
+
+	async function loadActiveChats() {
 		try {
 			const chats = await getActiveChats();
-			activeChats.value = chats as PopulatedConversation[];
-			for (const chat of chats) {
-				userCache.upsertMany(chat.participants);
-			}
-			reapplyLocalReads();
+			applyActiveChats(chats as PopulatedConversation[]);
 		} catch (e) {
 			console.error("Failed to load active chats:", e);
 		} finally {
@@ -689,11 +697,18 @@ export const useChatStore = defineStore("chat", () => {
 
 	function setTypingStatus(sender_id: string, is_typing: boolean) {
 		typingStatuses.value[sender_id] = is_typing;
+		const existing = typingTimers.get(sender_id);
+		if (existing) clearTimeout(existing);
+		typingTimers.delete(sender_id);
 		if (is_typing) {
-			setTimeout(() => {
-				if (typingStatuses.value[sender_id])
-					typingStatuses.value[sender_id] = false;
-			}, 3000);
+			typingTimers.set(
+				sender_id,
+				setTimeout(() => {
+					typingTimers.delete(sender_id);
+					if (typingStatuses.value[sender_id])
+						typingStatuses.value[sender_id] = false;
+				}, 3000),
+			);
 		}
 	}
 
@@ -1201,6 +1216,7 @@ export const useChatStore = defineStore("chat", () => {
 		chatInputPlaceholder,
 		isMate,
 		mateRequestStatus,
+		applyActiveChats,
 		loadActiveChats,
 		addIncomingMessage,
 		injectSharedInboxOptimistic,

@@ -112,6 +112,7 @@ import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { svg } from "@/helper/general.helper";
 import { compressImg } from "@/helper/image.helper";
+import { ensurePwaElements } from "@/helper/pwaElements.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
@@ -219,6 +220,7 @@ async function onImgClick() {
 
 async function onCameraClick() {
 	await closePopover(); // weird location but it does not work otherwise haha
+	await ensurePwaElements();
 
 	const image = await Camera.getPhoto({
 		quality: 100,

@@ -1,8 +1,5 @@
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { computed, type Ref } from "vue";
-
-dayjs.extend(relativeTime);
+import dayjs from "@/helper/dayjsRelative.helper";
 
 /**
  * Whether the current user may offer to become Mates right now, and if not,

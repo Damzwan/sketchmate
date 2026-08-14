@@ -18,6 +18,7 @@ import {
 	recordPhase,
 	recordRenderObject,
 	recordSyncRepairDeclined,
+	shouldTimeRenderObject,
 } from "@/draw/rendering/renderMetrics";
 import type { Yielder } from "@/draw/scheduling/yielder";
 import type {
@@ -29,6 +30,12 @@ import type {
 	WorldRect,
 } from "./committedLayer";
 import { chooseOverviewDimensions } from "./overviewSizing";
+import {
+	createRasterSurface,
+	type RasterContext,
+	type RasterSurface,
+	releaseRasterSurface,
+} from "./rasterSurface";
 
 /**
  * How much of the requested preview edge the overview must actually hold in
@@ -57,8 +64,8 @@ interface OverviewOptions {
 }
 
 interface PreparedOverviewPatch<T> {
-	target: OffscreenCanvas;
-	targetCtx: OffscreenCanvasRenderingContext2D;
+	target: RasterSurface;
+	targetCtx: RasterContext;
 	px0: number;
 	py0: number;
 	width: number;
@@ -77,8 +84,8 @@ export class WorldOverview<T extends Bounded> {
 	private readonly splitRenderer?: SplitTileRenderer<T>;
 	private readonly PATCH_PIXEL_BUDGET: number;
 
-	private canvas: OffscreenCanvas | null = null;
-	private ctx: OffscreenCanvasRenderingContext2D | null = null;
+	private canvas: RasterSurface | null = null;
+	private ctx: RasterContext | null = null;
 	private bounds: WorldRect | null = null; // world region the bitmap covers
 	private sx = 1;
 	private sy = 1; // world → overview px
@@ -87,7 +94,7 @@ export class WorldOverview<T extends Bounded> {
 	private rebuildInFlight: Promise<void> | null = null;
 	/** One bounded reusable localized-repair surface. On low-end Android this is
 	 * capped to 192² (~144 KB), avoiding per-edit canvas allocation churn. */
-	private patchCanvas: OffscreenCanvas | null = null;
+	private patchCanvas: RasterSurface | null = null;
 
 	constructor(
 		index: SpatialIndex<T>,
@@ -192,7 +199,7 @@ export class WorldOverview<T extends Bounded> {
 	}
 
 	/** Destination-out the eraser stroke into the overview (approximate). */
-	erase(renderEraser: (ctx: OffscreenCanvasRenderingContext2D) => void): void {
+	erase(renderEraser: (ctx: RasterContext) => void): void {
 		if (!this.ctx || !this.bounds) return;
 		const ctx = this.ctx;
 		ctx.save();
@@ -291,18 +298,21 @@ export class WorldOverview<T extends Bounded> {
 						(ms, child) => recordRenderObject("overviewPatchObject", ms, child),
 					);
 				} else {
-					const objectStartedAt = performance.now();
+					const timed = shouldTimeRenderObject();
+					const objectStartedAt = timed ? performance.now() : 0;
 					this.renderer(
 						ctx as any,
 						object,
 						Math.max(this.sx, this.sy),
 						prepared.r,
 					);
-					recordRenderObject(
-						"overviewPatchObject",
-						performance.now() - objectStartedAt,
-						object,
-					);
+					if (timed) {
+						recordRenderObject(
+							"overviewPatchObject",
+							performance.now() - objectStartedAt,
+							object,
+						);
+					}
 				}
 			} catch {
 				/* overview is a fallback approximation; keep repairing */
@@ -403,14 +413,13 @@ export class WorldOverview<T extends Bounded> {
 
 		// Build into a TEMP canvas. The currently-displayed overview stays untouched
 		// until we swap atomically at the end — never cleared mid-repaint.
-		const tmp = new OffscreenCanvas(width, height);
-		const tctx = tmp.getContext("2d");
+		const tmp = createRasterSurface(width, height);
+		const tctx = tmp.getContext("2d") as RasterContext | null;
 		const discardTmp = () => {
 			// Dropping the JS reference leaves backing-store reclamation to GC, which
 			// is far too late under Android WebView memory pressure. Resizing to zero
 			// releases the raster allocation immediately.
-			tmp.width = 0;
-			tmp.height = 0;
+			releaseRasterSurface(tmp);
 		};
 		if (!tctx) {
 			discardTmp();
@@ -427,10 +436,7 @@ export class WorldOverview<T extends Bounded> {
 			this.sx = sx;
 			this.sy = sy;
 			this.dirty = this.dirtyRevision !== buildRevision;
-			if (previous && previous !== tmp) {
-				previous.width = 0;
-				previous.height = 0;
-			}
+			if (previous && previous !== tmp) releaseRasterSurface(previous);
 		};
 
 		// Objects big enough to leave a mark at overview resolution, z-ordered.
@@ -531,17 +537,20 @@ export class WorldOverview<T extends Bounded> {
 											recordRenderObject("overviewOverlayObject", ms, child),
 									);
 								} else {
-									const overlayStartedAt = performance.now();
+									const overlayTimed = shouldTimeRenderObject();
+									const overlayStartedAt = overlayTimed ? performance.now() : 0;
 									this.renderer(
 										tctx as any,
 										remote.skipped[i],
 										Math.max(sx, sy),
 									);
-									recordRenderObject(
-										"overviewOverlayObject",
-										performance.now() - overlayStartedAt,
-										remote.skipped[i],
-									);
+									if (overlayTimed) {
+										recordRenderObject(
+											"overviewOverlayObject",
+											performance.now() - overlayStartedAt,
+											remote.skipped[i],
+										);
+									}
 								}
 							} catch {
 								/* ignore */
@@ -592,13 +601,16 @@ export class WorldOverview<T extends Bounded> {
 						(ms, child) => recordRenderObject("overviewBuildObject", ms, child),
 					);
 				} else {
-					const objectStartedAt = performance.now();
+					const timed = shouldTimeRenderObject();
+					const objectStartedAt = timed ? performance.now() : 0;
 					this.renderer(tctx as any, visible[i], Math.max(sx, sy), bounds);
-					recordRenderObject(
-						"overviewBuildObject",
-						performance.now() - objectStartedAt,
-						visible[i],
-					);
+					if (timed) {
+						recordRenderObject(
+							"overviewBuildObject",
+							performance.now() - objectStartedAt,
+							visible[i],
+						);
+					}
 				}
 			} catch {
 				/* ignore */
@@ -907,9 +919,9 @@ export class WorldOverview<T extends Bounded> {
 		};
 	}
 
-	private acquirePatchCanvas(width: number, height: number): OffscreenCanvas {
+	private acquirePatchCanvas(width: number, height: number): RasterSurface {
 		if (!this.patchCanvas) {
-			this.patchCanvas = new OffscreenCanvas(width, height);
+			this.patchCanvas = createRasterSurface(width, height);
 			return this.patchCanvas;
 		}
 		// Grow when the retained shape stays inside the budget. Alternating a wide,
@@ -927,7 +939,7 @@ export class WorldOverview<T extends Bounded> {
 		return this.patchCanvas;
 	}
 
-	private applyWorldTransform(ctx: OffscreenCanvasRenderingContext2D) {
+	private applyWorldTransform(ctx: RasterContext) {
 		if (!this.bounds) return;
 		ctx.setTransform(
 			this.sx,
@@ -939,7 +951,7 @@ export class WorldOverview<T extends Bounded> {
 		);
 	}
 
-	private paintOne(ctx: OffscreenCanvasRenderingContext2D, obj: T) {
+	private paintOne(ctx: RasterContext, obj: T) {
 		ctx.save();
 		this.applyWorldTransform(ctx);
 		try {

@@ -30,7 +30,11 @@
             show-stats
           />
 
-          <div class="mt-7 p-1 rounded-2xl bg-primary/15 grid grid-cols-2 gap-1 border border-primary/20">
+          <!-- Competitions is a 13+ surface, so under 13 there is no second tab
+               to switch to and the strip is dropped rather than shown disabled.
+               The server 403s /competition/user/:id/entries for these accounts
+               anyway — this keeps that from surfacing as a broken tab. -->
+          <div v-if="!isUnderAge" class="mt-7 p-1 rounded-2xl bg-primary/15 grid grid-cols-2 gap-1 border border-primary/20">
             <button
               v-for="tab in profileTabs"
               :key="tab.id"
@@ -43,10 +47,10 @@
             </button>
           </div>
 
-          <ProfilePost v-if="profileTab === 'posts'" :posts="userPosts" :loading="loadingPosts" />
+          <ProfilePost v-if="showPosts" :posts="userPosts" :loading="loadingPosts" />
           <ProfileCompetitions v-else :user="user" />
 
-          <ion-infinite-scroll v-if="profileTab === 'posts'" @ionInfinite="loadMorePosts" :disabled="!hasMoreUserPosts">
+          <ion-infinite-scroll v-if="showPosts" @ionInfinite="loadMorePosts" :disabled="!hasMoreUserPosts">
             <ion-infinite-scroll-content loading-spinner="bubbles" />
           </ion-infinite-scroll>
         </div>
@@ -65,7 +69,7 @@ import {
 	useIonRouter,
 } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import TopBar from "@/components/general/TopBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
@@ -83,7 +87,7 @@ const authStore = useAuthStore();
 const postStore = usePostStore();
 const { toast } = useToast();
 
-const { user } = storeToRefs(authStore);
+const { user, isUnderAge } = storeToRefs(authStore);
 const { userPosts, hasMoreUserPosts, isProfileDirty } = storeToRefs(postStore);
 const { openMenu } = useMenuStore();
 
@@ -94,6 +98,11 @@ const profileTabs = [
 	{ id: "posts" as const, label: "Posts" },
 	{ id: "competitions" as const, label: "Competitions" },
 ];
+// Not just "which tab is selected": a birthday correction can leave `profileTab`
+// parked on `competitions` from before, so age wins over the stored selection.
+const showPosts = computed(
+	() => isUnderAge.value || profileTab.value === "posts",
+);
 
 // World lotties measure their canvas via getBoundingClientRect at mount. When a
 // world edit re-renders them while this page is `ion-page-hidden` (display:none),

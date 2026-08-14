@@ -215,6 +215,22 @@ export interface Draw {
 	kh?: number;
 }
 
+export interface CompositeResult {
+	/** Is anything under the viewport missing or stale? */
+	needsBake: boolean;
+	/**
+	 * HOW MANY active-tier cells are missing or stale.
+	 *
+	 * A count rather than the old boolean because the caller needs to know
+	 * whether a bake pass made PROGRESS. When the cache cannot hold the viewport,
+	 * a pass evicts its own earlier tiles, the next composite reports exactly as
+	 * many holes as the last one, and rescheduling on the boolean alone loops
+	 * forever — visibly, as the picture flipping between sharp and blurred.
+	 * See `RenderBakeCoordinator`'s stall latch.
+	 */
+	nonFresh: number;
+}
+
 export interface CompositeCell {
 	tx: number;
 	ty: number;
@@ -326,6 +342,19 @@ export class TileLayerBase<T extends Bounded> {
 	protected readonly _partial: PartialDraw[] = [];
 
 	private POOL_MAX = 16;
+
+	/**
+	 * Bumped by anything that changes what a bake would produce — an
+	 * invalidation, a dropped tile, a reset.
+	 *
+	 * Exists so callers can tell "nothing has changed since I last tried" from
+	 * "the scene moved under me" WITHOUT every mutating entry point having to
+	 * remember to notify them. `RenderBakeCoordinator` folds it into its stall
+	 * latch: an engine that has given up re-baking a viewport it cannot fit must
+	 * still wake up the instant the drawing itself changes, and there are far too
+	 * many invalidation paths to hook one by one.
+	 */
+	mutationEpoch = 0;
 
 	constructor(
 		index: SpatialIndex<T>,
@@ -477,6 +506,7 @@ export class TileLayerBase<T extends Bounded> {
 		keepUsable = false,
 		transition = false,
 	): void {
+		this.mutationEpoch++;
 		const t = this.tiles.get(key);
 		// A transition is safe only from a tile that represented the complete
 		// previous scene. Never promote an older dirty/additive tile to trusted just
@@ -679,6 +709,7 @@ export class TileLayerBase<T extends Bounded> {
 	}
 
 	dropTiles(rect: WorldRect, tier: number): void {
+		this.mutationEpoch++;
 		const r = this.tileRange(rect, tier);
 		// Same area-bound as markDirty: never iterate more cells than tiles exist.
 		const cells = (r.tx1 - r.tx0 + 1) * (r.ty1 - r.ty0 + 1);

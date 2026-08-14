@@ -7,7 +7,7 @@ import { exportBoundingBoxImage } from "@/draw/document/export";
 import { useLayersStore } from "@/draw/layers/layers.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
-import { createRoomCanvasSnapshot } from "@/draw/sync/roomSnapshot";
+import { createRoomCanvasSnapshotBytes } from "@/draw/sync/roomSnapshot";
 import { type LobbyChatItem, useDrawSyncer } from "@/draw/sync/session.store";
 import {
 	addRoomIdToUrl,
@@ -176,11 +176,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const canvas = getCanvas();
 			if (!canvas) return;
 
-			const canvasString = JSON.stringify(createRoomCanvasSnapshot(canvas));
-			const stream = new Blob([canvasString])
-				.stream()
-				.pipeThrough(new CompressionStream("gzip"));
-			const compressedBuffer = await new Response(stream).arrayBuffer();
+			// Yielded serialize + worker gzip. Doing this inline used to be three
+			// un-yielded whole-board passes on the main thread, several times a
+			// minute — see docs/DRAW_ENGINE_HARDENING_PLAN.md → F1.
+			const compressedBuffer = await createRoomCanvasSnapshotBytes(canvas);
 			const sizeKB = Math.round(compressedBuffer.byteLength / 1024);
 
 			if (uploadUrl) {

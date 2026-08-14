@@ -12,8 +12,12 @@
 //   4. longTasks                      — is the main thread blocked at all?
 //
 // Everything here is integer adds plus a couple of `performance.now()` pairs
-// around blocks that already cost milliseconds, so there is no sampling gate —
-// collection is always on and effectively free. Only REPORTING is throttled.
+// around blocks that already cost milliseconds, so collection is always on and
+// effectively free. Only REPORTING is throttled.
+//
+// ONE exception: the per-OBJECT phases are SAMPLED. Those sit inside loops that
+// run once per object per tile, around renders measured in microseconds, where
+// the clock reads cost more than the work — see RENDER_OBJECT_SAMPLE_STRIDE.
 //
 // There is deliberately no network call in this file. The app has no analytics
 // transport today; `setDrawMetricsSink` is the seam to wire one in later.
@@ -214,6 +218,11 @@ export interface DrawMetricsSnapshot {
 	//   overviewPatchCommit — atomic clear + bitmap copy into the live overview
 	//   overviewBuild  — full O(scene) overview render
 	//   rebuildSync    — synchronous tile repair (destructiveInvalidate et al)
+	//
+	// SAMPLED: the per-OBJECT phases (`*Object`, `documentSerializeObject`) are
+	// recorded for 1 in `RENDER_OBJECT_SAMPLE_STRIDE` renders — timing every one
+	// cost more than the renders did. Read their `Total` and `Count` as a sample,
+	// not a sum; `phaseMsMax` and `slowestRenderObject` remain meaningful.
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
@@ -680,6 +689,51 @@ export function recordPhase(phase: DrawPhase, ms: number): void {
 	lastPhaseName = phase;
 	lastPhaseMs = ms;
 	lastPhaseAt = performance.now();
+}
+
+/**
+ * How often a per-OBJECT render is timed at all.
+ *
+ * The comment on `recordPhase` — "call sites wrap work that already costs
+ * milliseconds, so the two `performance.now()` reads are free" — is true for
+ * phases and false for objects. A per-object site pays THREE clock reads
+ * (two at the call site, one for `lastPhaseAt`) plus three map updates around
+ * a render that is frequently tens of microseconds, and it runs once per object
+ * PER TILE: a dense board hands one tile a few thousand objects and a bake pass
+ * covers ~40 of them. The overview build is worse — every object on the board,
+ * in one pass. That is six figures of clock reads per pass, which is real money
+ * on the low-end Android this instrumentation exists to protect.
+ *
+ * So sample. `phaseMsMax` and `slowestRenderObject` are the diagnostics that
+ * matter here and both are extreme-value statistics: a stride still sees
+ * thousands of objects per pass and finds the pathological ones. What it costs
+ * is the per-object phase TOTALS, which become 1-in-N samples rather than sums
+ * — noted on `phaseMsTotal` in the snapshot.
+ *
+ * Larger stride where the overhead hurts most and the object counts are
+ * highest.
+ */
+const RENDER_OBJECT_SAMPLE_STRIDE =
+	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent)
+		? 31
+		: 7;
+
+let renderObjectSampleCounter = 0;
+
+/**
+ * Should this object's render be timed? Counts across ALL per-object sites from
+ * one shared counter, so the sample stays uniform whichever loop is running.
+ *
+ * Call it ONCE per object and reuse the answer for both the clock read and the
+ * record, or the two will disagree.
+ *
+ * The stride is PRIME on purpose. Two sites interleaving in lockstep — a tile
+ * bake and an overview build alternating — hit every other counter value, so an
+ * even stride can be aliased away entirely and starve one site of samples
+ * completely. A prime cannot be aliased by any smaller period.
+ */
+export function shouldTimeRenderObject(): boolean {
+	return ++renderObjectSampleCounter % RENDER_OBJECT_SAMPLE_STRIDE === 0;
 }
 
 /**

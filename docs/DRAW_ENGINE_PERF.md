@@ -1,5 +1,39 @@
 # Draw engine — ANR / crash remediation plan
 
+## Field incidents follow-up — 2026-08-13
+
+A Sentry ANR at `2026-08-13T14:35:18.953Z` contained breadcrumbs but no native
+thread dump. It occurred during a long drawing session with no tap near the ANR;
+the last visible action was an undo roughly 75 seconds earlier. The Google
+`ModuleInstall.API` error in the same trail is not causal: it occurred on draw
+mount and the app remained responsive for several minutes afterward.
+
+**Correction:** the native filesystem recovery mirror did not exist in the
+version installed for this event, so it is ruled out as the cause. Its timing
+looked similar but cannot be causal. The later mirror pacing/chunking work remains
+a preventative optimization for the next release, not the fix for this ANR.
+
+A second event at `20:29:41` supplies the missing direction: Scudo aborted while
+`libGLESv2_adreno` was deallocating graphics memory on Android's HWUI render
+thread. The session held 57.43 MB of tile surfaces (64.89 MB peak, effectively
+the full 65.17 MB limit), reached 266 tile entries, repeatedly used undo/fill,
+and crossed two `TRIM_MEMORY_UI_HIDDEN` background/foreground transitions. Scudo
+`invalid chunk state` usually means a double free or deallocation race. This is
+the known Adreno texture-lifecycle cohort described below, and is also a better
+shared explanation for the earlier GPU-shaped ANR.
+
+Mitigation added after this field report:
+
+- `TRIM_MEMORY_UI_HIDDEN` now immediately releases reconstructable tile and
+  canvas-pool resources instead of retaining them for the 20-second browser
+  visibility grace period. The overview stays resident, so return paints a soft
+  but complete board while visible tiles rebuild.
+- The bounded hot tile set now stays canvas-backed across idle bake passes.
+  Repeated undo/stroke operations no longer demote all but one hot canvas into a
+  new bitmap and then promote/close it again on the next edit.
+- Sentry breadcrumbs record graphics release/restore and their trigger, allowing
+  subsequent native events to prove whether the lifecycle purge ran.
+
 > **Architecture follow-up (2026-08-08):**
 > [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md) evaluates
 > replacing Fabric itself. Its recommendation keeps the tile/overview/compositor

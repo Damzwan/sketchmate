@@ -117,3 +117,84 @@ describe("draw memory profile", () => {
 		expect(fitted.factor).toBeLessThan(0.5);
 	});
 });
+
+describe("canvas-backed tile surfaces", () => {
+	const desktop = {
+		mobile: false,
+		lowEnd: false,
+		deviceMemoryGB: 8,
+		hardwareConcurrency: 8,
+		screenEdgePx: 3024,
+	};
+
+	it("leaves the bitmap profile untouched when tiles are ImageBitmaps", () => {
+		const profile = resolveDrawMemoryProfile(desktop);
+		expect(profile.tileBudgetMB).toBe(128);
+		expect(profile.hotTileMax).toBe(6);
+	});
+
+	it("caps tiles by SURFACE COUNT, not by shrinking them, when tiles are canvases", () => {
+		const profile = resolveDrawMemoryProfile({
+			...desktop,
+			canvasTileSurfaces: true,
+		});
+		// Gecko's knee is ~100 live canvases whatever they weigh, so the working
+		// set is bounded and everything colder demotes to an ImageBitmap, which
+		// is not on that budget at all.
+		expect(profile.hotTileMax).toBe(0);
+		expect(profile.tilePoolMax).toBeLessThanOrEqual(4);
+		// Bytes are the secondary constraint only.
+		expect(profile.tileBudgetMB).toBe(96);
+	});
+
+	it("keeps the overview at full size — it is ONE surface, not a count problem", () => {
+		const profile = resolveDrawMemoryProfile({
+			...desktop,
+			canvasTileSurfaces: true,
+		});
+		expect(profile.overviewPx).toBe(
+			resolveDrawMemoryProfile(desktop).overviewPx,
+		);
+	});
+
+	it("keeps resident tiles between the viewport working set and the surface knee", () => {
+		// Both bounds matter and they squeeze from opposite sides. Too few tiles
+		// and the cache cannot hold what one bake pass covers, so every pass
+		// evicts what the next frame needs — thrash, which reads as the picture
+		// flipping between sharp and blurred. Too many and Gecko drops the
+		// overflow canvases to software, which is the original bug.
+		const profile = resolveDrawMemoryProfile({
+			...desktop,
+			canvasTileSurfaces: true,
+		});
+		const tileBytes = 516 * 516 * 4;
+		const overviewBytes = profile.overviewPx ** 2 * 4;
+		const poolBytes = profile.tilePoolMax * tileBytes;
+		const residentTiles = Math.floor(
+			(profile.tileBudgetMB * 1024 * 1024 - overviewBytes - poolBytes) /
+				tileBytes,
+		);
+
+		// A 3024x1800 render-pixel viewport is 6x4 cells, and a bake pass pads by
+		// a one-tile ring: 8x6 = 48 at the active tier alone.
+		expect(residentTiles).toBeGreaterThan(48);
+
+		// Everything else on the page draws on the same pool.
+		const OTHER_SURFACES = profile.tilePoolMax + 1 + 2 + 2;
+		const MEASURED_KNEE = 96;
+		expect(residentTiles + OTHER_SURFACES).toBeLessThan(MEASURED_KNEE);
+	});
+
+	it("never raises a small device byte budget to the desktop cap", () => {
+		const phone = resolveDrawMemoryProfile({
+			mobile: true,
+			lowEnd: true,
+			deviceMemoryGB: 2,
+			hardwareConcurrency: 4,
+			canvasTileSurfaces: true,
+		});
+		expect(phone.hotTileMax).toBe(0);
+		// And its byte budget is still its own, never raised to the desktop cap.
+		expect(phone.tileBudgetMB).toBe(24);
+	});
+});

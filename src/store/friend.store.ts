@@ -162,15 +162,29 @@ export const useFriendStore = defineStore("friend", () => {
 	};
 
 	async function initializeSocialGraph() {
-		const [onlineIds] = await Promise.all([
-			fetchInitialOnlineFriends(),
+		await Promise.all([
+			fetchInitialOnlineFriends().then((onlineIds) => {
+				// Presence is visible in the app shell. Publish it as soon as its own
+				// request completes instead of waiting for requests/blocks to finish.
+				onlineFriendIds.value = new Set(onlineIds);
+			}),
 			fetchPendingRequests(), // Seeds cache with pending users
 			fetchBlockedUsers(), // Evicts blocked users
 		]);
+	}
 
-		if (onlineIds && Array.isArray(onlineIds)) {
-			onlineIds.forEach((id) => onlineFriendIds.value.add(id));
-		}
+	function applySocialShell(payload: {
+		onlineFriendIds: string[];
+		pendingRequests: PopulatedConversation[];
+		blockedUserIds: string[];
+	}) {
+		onlineFriendIds.value = new Set(payload.onlineFriendIds);
+		blockedUserIds.value = new Set(payload.blockedUserIds);
+		pendingRequests.value = payload.pendingRequests;
+		payload.pendingRequests.forEach((conversation) =>
+			userCache.upsertMany(conversation.participants),
+		);
+		friendRequestLoading.value = false;
 	}
 
 	async function fetchInitialOnlineFriends(): Promise<string[]> {
@@ -412,6 +426,7 @@ export const useFriendStore = defineStore("friend", () => {
 		allConnectedPartners,
 		isBlocked,
 		totalCounts,
+		applySocialShell,
 		initializeSocialGraph,
 		setFriendOnlineStatus,
 		fetchPendingRequests,

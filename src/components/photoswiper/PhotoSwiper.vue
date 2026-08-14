@@ -111,7 +111,7 @@
 import { IonModal } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { register } from "swiper/element/bundle";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
@@ -306,13 +306,20 @@ watch(currItem, async () => {
 	await prefetchComments();
 });
 
-EventBus.on("goToSlide", () => {
+const handleGoToSlide = () => {
 	nextTick(() => swiper.value?.swiper?.slideTo(slide.value, 0));
 	if (config.value.onSeen && currItem.value)
 		config.value.onSeen(currItem.value);
 	const query = router.currentRoute.value.query;
 	isCommentDrawerOpen.value = query.comments === "true";
 	setTimeout(() => router.replace({ query: undefined }), 100);
+};
+
+EventBus.on("goToSlide", handleGoToSlide);
+
+onBeforeUnmount(() => {
+	EventBus.off("goToSlide", handleGoToSlide);
+	window.removeEventListener("keydown", keyboardListener);
 });
 
 function handleReply() {

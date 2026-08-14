@@ -401,7 +401,7 @@ ANRs happen**:
 | --- | --- | --- | --- | --- |
 | 1 | **M8** Sentry: native verification, persisted context, long-task breadcrumbs, stall detector | S | Turns every item below from a guess into a measurement | ✅ shipped |
 | 2 | **M1** Cost-estimate gate on all synchronous render paths; drop the first-tile exemption | S | Directly removes the ANR-shaped blocks | ✅ shipped |
-| 3 | **M7** `visibilitychange` release + `onTrimMemory` bridge | S–M | Converts OOM crashes into blurs | ✅ shipped (JS side; native trimMemory bridge still to build) |
+| 3 | **M7** `visibilitychange` release + `onTrimMemory` bridge | S–M | Converts OOM/driver crashes into blurs | ✅ shipped (native bridge; `UI_HIDDEN` immediately purges tiles) |
 | 4 | **M2** Persistent canvas for hot tiles, demote when cold | M | Kills the continuous Adreno texture churn | ✅ shipped |
 | 5 | **M3** Per-tier quota + weaker fallback LRU bump | S | Stops the zoom-oscillation eviction storm | ✅ shipped |
 | 6 | **M6** Integer tile keys, scratch-array queries, allocation-free `prepareForBake` | M | Lowers GC pause frequency | ✅ shipped |

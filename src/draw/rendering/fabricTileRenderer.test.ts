@@ -88,7 +88,10 @@ describe("yielded merged-group rendering", () => {
 
 		expect(renders.every((spy) => spy.mock.calls.length === 1)).toBe(true);
 		expect(yielder.yield).toHaveBeenCalledTimes(3);
-		expect(timings).toHaveLength(48);
+		// Timing is SAMPLED — every child renders, only a fraction is measured.
+		// Instrumenting all of them cost more than the renders themselves.
+		expect(timings.length).toBeGreaterThan(0);
+		expect(timings.length).toBeLessThan(children.length);
 		expect(group._transformDone).toBeUndefined();
 	});
 });

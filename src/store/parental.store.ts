@@ -6,6 +6,7 @@ import { presentAdultGate } from "@/helper/adultGate.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import type { ParentalControls } from "@/types/server.types";
 
 /**
@@ -61,11 +62,13 @@ const SAFETY_LOCAL_KEY = "sm_child_safety_ack";
 export const useParentalStore = defineStore("parental", () => {
 	const authStore = useAuthStore();
 	const { user, isUnderAge } = storeToRefs(authStore);
+	const { parentalControlsOpen: controlsOpen } = storeToRefs(
+		useOverlayRuntimeStore(),
+	);
 	const { toast } = useToast();
 	const { confirm } = useConfirm();
 
 	/** Controls sheet visibility. Only ever opened behind the adult gate. */
-	const controlsOpen = ref(false);
 	const savingFeature = ref<ChildFeature | null>(null);
 
 	const controls = computed<ParentalControls>(() => user.value?.parental ?? {});

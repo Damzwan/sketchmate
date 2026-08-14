@@ -109,6 +109,7 @@ export const useMenuStore = defineStore("menu", () => {
 		for (const open of Object.values(menuMapping)) open.value = false;
 		isPaywallOpen.value = false;
 		isWhatsNewOpen.value = false;
+		isCompetitionResultsOpen.value = false;
 		menuEvent.value = undefined;
 		shopScrollTarget.value = null;
 		shopEquipTarget.value = "profile";

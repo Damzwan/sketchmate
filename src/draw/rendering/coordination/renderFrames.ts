@@ -137,7 +137,7 @@ export abstract class RenderFrames<
 			const expired = this.live.gcExpired();
 			for (const r of expired) this.patchOverview(r);
 		}
-		const { needsBake } = this.committed.composite(
+		const { needsBake, nonFresh } = this.committed.composite(
 			ctx,
 			vpt,
 			size,
@@ -145,6 +145,26 @@ export abstract class RenderFrames<
 			this.surface.getBackground(),
 			this.gesturing ? 1 : 0,
 		);
+		this.lastNonFresh = nonFresh;
+
+		// Judge the bake pass that requested this frame. A pass that ran against
+		// THIS view and left at least as many holes as it started with did not
+		// fail transiently — it could not fit the viewport in the cache, and
+		// evicted its own output getting there. Latch, so the reschedule below
+		// stops firing; a pan, zoom or edit clears it.
+		if (this.completedPassView !== null) {
+			const finishedView = this.completedPassView;
+			const before = this.completedPassHoles;
+			this.completedPassView = null;
+			if (
+				nonFresh > 0 &&
+				before > 0 &&
+				nonFresh >= before &&
+				finishedView === this.viewKey(vpt)
+			) {
+				this.bakeStallKey = finishedView;
+			}
+		}
 		const vw = this.committed.viewWorld(vpt, size, dpr);
 		// Items whose tile already carries them are skipped rather than drawn on
 		// top: at alpha < 1 the overlap reads as a one-frame darkening every time
@@ -161,7 +181,12 @@ export abstract class RenderFrames<
 			if (this.demoteSettled() > 0) this.requestFrame();
 		}
 
-		if (needsBake) this.scheduleBake();
+		// Not when the last pass against THIS view already failed to make progress
+		// — that is a cache too small for the viewport, and re-baking only
+		// re-evicts. See `bakeStallKey`.
+		if (needsBake && this.bakeStallKey !== this.viewKey(vpt)) {
+			this.scheduleBake();
+		}
 		this.afterComposite?.();
 	}
 }

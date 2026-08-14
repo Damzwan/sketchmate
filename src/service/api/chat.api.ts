@@ -1,6 +1,22 @@
 import type { BaseMessage, PopulatedConversation } from "@/types/server.types";
 import { request } from "./http";
 
+export interface ChatShellPayload {
+	activeChats: PopulatedConversation[];
+	pendingRequests: PopulatedConversation[];
+	onlineFriendIds: string[];
+	blockedUserIds: string[];
+}
+
+/**
+ * The metadata needed by the always-visible social shell. Keeping this behind
+ * one endpoint avoids four auth-token bridge calls and four network round trips
+ * during startup; full message histories remain lazy.
+ */
+export async function getChatShell() {
+	return await request<ChatShellPayload>("/chats/shell");
+}
+
 /**
  * Returns active mates + temporary 24h chats.
  * Backend logic should now filter conversations based on the

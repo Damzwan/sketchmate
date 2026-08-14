@@ -55,9 +55,11 @@ export interface DrawMemoryPressureHandlers {
  * moment later costs far more than it saves: on a 7,000-object board the
  * re-bake is seconds of work the user watches happen.
  *
- * Android does not begin reclaiming a backgrounded process anywhere near this
- * quickly, so waiting costs nothing real. Genuine pressure does not wait for
- * this timer at all — `trimMemory` releases immediately.
+ * Android's native `TRIM_MEMORY_UI_HIDDEN` signal does not use this delay: it
+ * is the platform telling us the UI-backed bitmaps are no longer visible, and
+ * field evidence ties retaining a full cache across that transition to an
+ * Adreno allocator abort. This grace remains for browser visibility changes
+ * and platforms where a transient dialog is the only signal.
  */
 export const HIDE_GRACE_MS = 20_000;
 
@@ -68,18 +70,43 @@ let onVisibility: (() => void) | null = null;
 let appStateListener: PluginListenerHandle | null = null;
 let unsubscribeMemoryPressure: (() => void) | null = null;
 
+type GraphicsReleaseReason =
+	| "hidden-grace"
+	| "memory-uiHidden"
+	| "memory-low"
+	| "memory-critical";
+
 function cancelHideTimer(): void {
 	if (hideTimer === null) return;
 	clearTimeout(hideTimer);
 	hideTimer = null;
 }
 
-function releaseNow(): void {
+function reportGraphicsLifecycle(
+	action: "released" | "restored",
+	reason?: GraphicsReleaseReason,
+): void {
+	void import("@sentry/capacitor")
+		.then((Sentry) =>
+			Sentry.addBreadcrumb({
+				category: "draw.graphics",
+				level: "info",
+				message: `Draw graphics ${action}`,
+				data: reason ? { reason } : undefined,
+			}),
+		)
+		.catch(() => {
+			/* diagnostics must never interfere with releasing graphics memory */
+		});
+}
+
+function releaseNow(reason: GraphicsReleaseReason): void {
 	cancelHideTimer();
 	if (released || !handlers) return;
 	released = true;
 	try {
 		handlers.release();
+		reportGraphicsLifecycle("released", reason);
 	} catch {
 		// A failed release must never be able to break the canvas on return.
 	}
@@ -87,7 +114,7 @@ function releaseNow(): void {
 
 function scheduleRelease(): void {
 	if (released || hideTimer !== null) return;
-	hideTimer = setTimeout(releaseNow, HIDE_GRACE_MS);
+	hideTimer = setTimeout(() => releaseNow("hidden-grace"), HIDE_GRACE_MS);
 }
 
 function restoreNow(): void {
@@ -96,6 +123,7 @@ function restoreNow(): void {
 	released = false;
 	try {
 		handlers.restore();
+		reportGraphicsLifecycle("restored");
 	} catch {
 		/* ignore — the next edit or gesture will request a frame anyway */
 	}
@@ -121,12 +149,15 @@ function bindNativeListeners(): void {
 	// `service/memoryPressure.ts`. `moderate` is the system asking politely
 	// while it still has room; from `low` upwards it is already choosing a
 	// process to kill, so release immediately rather than waiting out the grace
-	// period. `uiHidden` says only that the UI went away — `visibilitychange`
-	// and the app-state listener already handle that, with the grace period
-	// intact, so it must not short-circuit them.
+	// period. `uiHidden` is exactly the point at which Android recommends
+	// releasing UI-only bitmap resources. Do it immediately: preserving a warm
+	// tile cache across WebView/Adreno surface transitions is less important than
+	// avoiding a native graphics allocator failure.
 	installMemoryPressureBridge();
 	unsubscribeMemoryPressure = onMemoryPressure((level) => {
-		if (level === "low" || level === "critical") releaseNow();
+		if (level === "uiHidden" || level === "low" || level === "critical") {
+			releaseNow(`memory-${level}`);
+		}
 	});
 }
 

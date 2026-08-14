@@ -1,10 +1,16 @@
+import { Capacitor } from "@capacitor/core";
 import {
 	FirebaseAuthentication,
 	type User as FirebaseUser,
 } from "@capacitor-firebase/authentication";
-import { initializeApp } from "firebase/app";
 
-export function initFirebase() {
+export async function initFirebase() {
+	// Native authentication is provided by the Capacitor plugin and the native
+	// Firebase SDK. Loading the web SDK as well only adds parsing/allocation work
+	// to Android startup. Keep it available for the PWA, but in a separate chunk.
+	if (Capacitor.isNativePlatform()) return;
+
+	const { initializeApp } = await import("firebase/app");
 	const firebaseConfig = {
 		apiKey: "AIzaSyA0QXGKwWkDCMkyL4SEvdHGlaVQNyc7FUk",
 		authDomain: "sketchmate-b5977.firebaseapp.com",

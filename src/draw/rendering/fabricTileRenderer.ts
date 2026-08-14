@@ -3,6 +3,7 @@ import {
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
 } from "@/draw/config/renderQuality.config";
+import { shouldTimeRenderObject } from "@/draw/rendering/renderMetrics";
 
 /**
  * Prepare one object (and, recursively, a group's children) to be rasterized
@@ -297,14 +298,15 @@ export const renderSplitForBake = async (
 					/* un-measurable child: render it */
 				}
 			}
-			const renderStartedAt = performance.now();
+			const timed = !onObjectRendered || shouldTimeRenderObject();
+			const renderStartedAt = timed ? performance.now() : 0;
 			isolatedTileRenderer(
 				ctx as CanvasRenderingContext2D,
 				child,
 				tierScale,
 				clipRect,
 			);
-			onObjectRendered?.(performance.now() - renderStartedAt, child);
+			if (timed) onObjectRendered?.(performance.now() - renderStartedAt, child);
 			if ((i & 15) === 15 || yielder.shouldYield()) {
 				await yielder.yield();
 				// A stale tile is dropped by the caller's generation check, so leaving

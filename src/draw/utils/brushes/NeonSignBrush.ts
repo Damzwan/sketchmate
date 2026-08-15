@@ -35,7 +35,11 @@ export class NeonBrush extends BaseBrush {
 			);
 			if (img) {
 				const stroke = new NeonStroke(img.getElement(), {
-					...img.toObject(),
+					// Without the suppression this `toObject()` PNG-encodes the whole
+					// stroke raster ON THE COMMIT FRAME, for a `src` nothing ever reads
+					// (getSrc goes to the canvas element) and that our own toObject
+					// drops again. See toObjectWithoutSrc.
+					...toObjectWithoutSrc(img, (p) => img.toObject(p as any)),
 					color: this.color,
 					baseWidth: this.width,
 					neonPoints: [...this._points],
@@ -104,7 +108,8 @@ export class NeonBrush extends BaseBrush {
 
 import {
 	enlivenStrokeProps,
-	TEXTURE_SUPERSAMPLE,
+	fitTextureRaster,
+	toObjectWithoutSrc,
 } from "@/draw/utils/brushes/brush.helpers";
 
 // Pure renderer: (points, width, color) → glow bitmap wrapped as FabricImage.
@@ -138,12 +143,15 @@ export function generateNeonImage(
 	const h = Math.ceil(maxY - minY);
 	if (w <= 0 || h <= 0) return null;
 
-	// Device-independent — see TEXTURE_SUPERSAMPLE.
-	const dpr = TEXTURE_SUPERSAMPLE;
+	// Device-independent — see TEXTURE_SUPERSAMPLE. Clamped, because the stroke
+	// bounding box is unbounded on an infinite canvas — see fitTextureRaster.
+	const raster = fitTextureRaster(w, h);
+	if (!raster) return null;
+	const dpr = raster.scale;
 
 	const off = document.createElement("canvas");
-	off.width = Math.ceil(w * dpr);
-	off.height = Math.ceil(h * dpr);
+	off.width = raster.width;
+	off.height = raster.height;
 	const ctx = off.getContext("2d");
 	if (!ctx) return null;
 	ctx.scale(dpr, dpr);
@@ -242,13 +250,13 @@ export class NeonStroke extends FabricImage {
 			lastX = ix;
 			lastY = iy;
 		}
-		const baseObj = super.toObject([
+		// CRITICAL: drop the rasterized bitmap — this is the whole payload win —
+		// and never pay for its PNG encode on the way out. See toObjectWithoutSrc.
+		const baseObj = toObjectWithoutSrc(this, (p) => super.toObject(p as any), [
 			"color",
 			"baseWidth",
 			...additionalProperties,
-		] as any);
-		// CRITICAL: drop the rasterized bitmap — this is the whole payload win.
-		delete (baseObj as any).src;
+		]);
 		return { ...baseObj, compressedTrace: flat };
 	}
 

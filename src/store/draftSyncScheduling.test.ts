@@ -194,6 +194,30 @@ describe("draft sync scheduling", () => {
 		});
 	});
 
+	it("ignores a malformed cloud draft id before persistence", async () => {
+		state.cloudPage = {
+			drafts: [
+				{
+					draft_id: undefined,
+					updated_at: 2000,
+					bytes: 42,
+					thumbnail: "https://cdn.test/draft.webp",
+					drawing: "https://cdn.test/draft.json.gz",
+				},
+			],
+			deleted: [],
+			cursor: 2000,
+			limit: 60,
+			used: 0,
+		};
+
+		const sync = useDraftSyncStore();
+		await vi.waitFor(() => expect(state.cloudFetches).toBe(1));
+
+		expect(state.syncStates.has(undefined as any)).toBe(false);
+		expect(sync.remoteDraftMetadata.has(undefined as any)).toBe(false);
+	});
+
 	it("runs a fresh pull when refresh is pressed during startup sync", async () => {
 		let releasePull!: () => void;
 		state.pullGate = new Promise<void>((resolve) => {

@@ -67,7 +67,7 @@
       ref="artwork"
       class="relative z-10 bg-primary/10 select-none"
       :style="{ aspectRatio: entry.aspect_ratio || 1 }"
-      @dblclick.prevent="$emit('vote', entry)"
+      @dblclick.prevent="requestVote"
       @contextmenu.prevent
     >
 <img
@@ -124,7 +124,11 @@
       </p>
 
       <div class="flex items-center gap-1">
+        <!-- No vote control on your own entry: a self-vote is refused anyway
+             (CompetitionEntrySheet), so the button only ever led to a sheet
+             with every category disabled. -->
         <ion-button
+          v-if="!isOwnEntry"
           fill="clear"
           color="secondary"
           size="small"
@@ -283,9 +287,16 @@ let retentionObserver: IntersectionObserver | null = null;
 let dwellTimer: ReturnType<typeof setTimeout> | null = null;
 let reported = false;
 
+/** Both artwork shortcuts into the vote sheet, minus your own entry. */
+function requestVote() {
+	if (props.isOwnEntry) return;
+	emit("vote", props.entry);
+}
+
 onLongPress(
 	artwork,
 	() => {
+		if (props.isOwnEntry) return;
 		playSelectionTick();
 		emit("vote", props.entry);
 	},

@@ -143,6 +143,28 @@ export const usePostStore = defineStore("post", () => {
 		userPosts.value = userPosts.value.filter((p) => p._id !== postId);
 	}
 
+	/**
+	 * Drop one user out of a post's shoutout list everywhere it is cached.
+	 *
+	 * The post itself stays: removing your tag is not a moderation action on
+	 * someone else's work, it only takes your name off it.
+	 */
+	function removeMentionLocally(postId: string, userId: string) {
+		const strip = (post: FeedPost) => {
+			if (!post.mentions?.length) return;
+			const remaining = post.mentions.filter((user) => user._id !== userId);
+			post.mentions = remaining.length ? remaining : undefined;
+		};
+
+		eachFeedList((list) => {
+			for (const post of list) if (post._id === postId) strip(post);
+		});
+		for (const post of userPosts.value) if (post._id === postId) strip(post);
+
+		const cached = postCache.value[postId];
+		if (cached) strip(cached);
+	}
+
 	function applyReactionToggle(post: FeedPost, type: string) {
 		const isRemoving = post.user_reaction === type;
 		const previousReaction = post.user_reaction;
@@ -251,6 +273,7 @@ export const usePostStore = defineStore("post", () => {
 		getUserPosts,
 		getFeed,
 		removePostLocally,
+		removeMentionLocally,
 		toggleReactionLocally,
 		deletePostComment,
 		markProfileDirty,

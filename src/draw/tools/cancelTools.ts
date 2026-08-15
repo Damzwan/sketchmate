@@ -1,6 +1,7 @@
 import type { Canvas } from "fabric";
 import { ERASERS } from "@/draw/config/tools.config";
 import { useEraser } from "@/draw/tools/eraser.store";
+import { useInstrumentStore } from "@/draw/tools/instruments/instrument.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
@@ -45,6 +46,7 @@ export function cancelPenAction(c: Canvas) {
 }
 
 export function cancelPreviousAction(c: Canvas) {
+	useInstrumentStore().endStroke();
 	const { selectedTool } = useToolSelection();
 	if (ERASERS.includes(selectedTool)) cancelEraserAction(c);
 	if (selectedTool == DrawTool.Pen) cancelPenAction(c);

@@ -3,7 +3,8 @@ import { type Canvas, FabricImage, PatternBrush, Point } from "fabric";
 import { isLayerHidden } from "@/draw/layers/layerRegistry";
 import {
 	enlivenStrokeProps,
-	TEXTURE_SUPERSAMPLE,
+	fitTextureRaster,
+	toObjectWithoutSrc,
 } from "@/draw/utils/brushes/brush.helpers";
 
 // Deterministic PRNG so the random crayon texture regenerates identically from
@@ -104,12 +105,15 @@ export function generateCrayonImage(
 
 	// Textural brush → softening on extreme zoom-in is acceptable; keep memory
 	// modest with a small headroom multiplier.
-	// Device-independent — see TEXTURE_SUPERSAMPLE.
-	const dpr = TEXTURE_SUPERSAMPLE;
+	// Device-independent — see TEXTURE_SUPERSAMPLE. Clamped, because the stroke
+	// bounding box is unbounded on an infinite canvas — see fitTextureRaster.
+	const raster = fitTextureRaster(w, h);
+	if (!raster) return null;
+	const dpr = raster.scale;
 
 	const off = document.createElement("canvas");
-	off.width = Math.ceil(w * dpr);
-	off.height = Math.ceil(h * dpr);
+	off.width = raster.width;
+	off.height = raster.height;
 	const ctx = off.getContext("2d");
 	if (!ctx) return null;
 	ctx.scale(dpr, dpr);
@@ -206,13 +210,15 @@ export class CrayonStroke extends FabricImage {
 			lastX = ix;
 			lastY = iy;
 		}
-		const baseObj = super.toObject([
+		// Drops the bitmap — the payload win — WITHOUT encoding it first. See
+		// toObjectWithoutSrc: `super.toObject()` would PNG-encode the whole stroke
+		// raster synchronously just so this line could delete it.
+		const baseObj = toObjectWithoutSrc(this, (p) => super.toObject(p as any), [
 			"color",
 			"baseWidth",
 			"seed",
 			...additionalProperties,
-		] as any);
-		delete (baseObj as any).src; // drop the bitmap — the payload win
+		]);
 		return { ...baseObj, compressedTrace: flat };
 	}
 
@@ -337,7 +343,9 @@ export class CrayonBrush extends PatternBrush {
 		);
 		if (img) {
 			const stroke = new CrayonStroke(img.getElement(), {
-				...img.toObject(),
+				// Encoding the raster here cost a synchronous PNG on the commit frame
+				// for a `src` nothing reads. See toObjectWithoutSrc.
+				...toObjectWithoutSrc(img, (p) => img.toObject(p as any)),
 				color: this.color,
 				baseWidth: this.width,
 				seed: this._seed,

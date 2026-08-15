@@ -1,4 +1,8 @@
-import { mdiDeleteOutline, mdiFlagVariantOutline } from "@mdi/js";
+import {
+	mdiAccountRemoveOutline,
+	mdiDeleteOutline,
+	mdiFlagVariantOutline,
+} from "@mdi/js";
 import { onLongPress } from "@vueuse/core";
 import { type CSSProperties, computed, ref, watch } from "vue";
 import { useOverlayScrollGuardContext } from "@/composables/general/useOverlayScrollGuard";
@@ -22,9 +26,13 @@ import {
 import { useShareService } from "@/draw/sharing/shareService.store";
 import { svg } from "@/helper/general.helper";
 import router from "@/router";
+import { removeMyMention } from "@/service/api/post.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
+import { usePostStore } from "@/store/post.store";
 import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { FeedPost } from "@/types/server.types";
@@ -46,6 +54,7 @@ export function useFeedPostCard(
 	const { openUserActions } = useUserContextSheet();
 	const { presentActionSheet } = useOverlayScrollGuardContext();
 	const { confirm } = useConfirm();
+	const { toast } = useToast();
 	const menu = useMenuStore();
 	const descriptionEl = ref<HTMLElement | null>(null);
 	const {
@@ -204,11 +213,39 @@ export function useFeedPostCard(
 			() =>
 				void router.push({
 					path: FRONTEND_ROUTES.draw,
-					query: { canvas_url: props.post.drawing_url, mode: "solo" },
+					query: {
+						canvas_url: props.post.drawing_url,
+						mode: "solo",
+						remix_of: props.post._id,
+					},
 				}),
 			100,
 		);
 	}
+	const isMentioned = computed(() =>
+		(props.post.mentions || []).some(
+			(user) => user._id === useAuthStore().user?._id,
+		),
+	);
+
+	/**
+	 * Optimistic: the row disappears on tap. A failed request leaves the tag in
+	 * place on the server, and the next feed load puts it back — better than
+	 * making someone wait on a round trip to take their own name off a post.
+	 */
+	async function removeMyTag() {
+		const userId = useAuthStore().user?._id;
+		if (!userId) return;
+		usePostStore().removeMentionLocally(props.post._id, userId);
+		try {
+			await removeMyMention(props.post._id);
+			toast("Tag removed", { color: "success" });
+		} catch (error) {
+			console.error("Failed to remove mention:", error);
+			toast("Could not remove the tag", { color: "danger" });
+		}
+	}
+
 	function handleDoubleTap(event: MouseEvent | TouchEvent) {
 		event.preventDefault();
 		emit("open-reaction-popover", { event, post: props.post });
@@ -227,6 +264,12 @@ export function useFeedPostCard(
 					}),
 			},
 		];
+		if (isMentioned.value)
+			buttons.unshift({
+				text: "Remove my tag",
+				icon: svg(mdiAccountRemoveOutline),
+				handler: () => void removeMyTag(),
+			});
 		if (props.isMine)
 			buttons.unshift({
 				text: "Delete Post",

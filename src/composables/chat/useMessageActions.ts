@@ -36,6 +36,8 @@ export function useMessageActions(opts: {
 	messages: () => any[];
 	currentUserId: () => string | undefined;
 	isLobby: () => boolean;
+	/** The live lobby, when there is one — see the lobby branch below. */
+	roomId?: () => string | undefined;
 }) {
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let startX = 0;
@@ -63,6 +65,30 @@ export function useMessageActions(opts: {
 			const msg = opts.messages().find((m) => (m._id || m.id) === id);
 			if (msg) openMessageActions(msg);
 		}, LONG_PRESS_MS);
+	};
+
+	/**
+	 * The explicit way in: a `…` button on the bubble carrying
+	 * `data-msg-menu`. Long-press stays, but it is invisible — nothing on the
+	 * bubble says the actions exist, and on a slow scroller the press is eaten
+	 * by the move tolerance. Delegated from the same container, so it still
+	 * costs the list zero listeners per row.
+	 */
+	const onClick = (ev: MouseEvent) => {
+		const trigger = (ev.target as HTMLElement | null)?.closest?.(
+			"[data-msg-menu]",
+		) as HTMLElement | null;
+		if (!trigger) return;
+
+		const id = trigger.closest<HTMLElement>("[data-msg-id]")?.dataset.msgId;
+		if (!id) return;
+
+		// A press that already opened the sheet must not open it a second time
+		// when the pointer sequence ends in a click on the same button.
+		cancel();
+		ev.stopPropagation();
+		const msg = opts.messages().find((m) => (m._id || m.id) === id);
+		if (msg) void openMessageActions(msg);
 	};
 
 	const onPointerMove = (ev: PointerEvent) => {
@@ -109,7 +135,8 @@ export function useMessageActions(opts: {
 			// Lobby messages live in an in-memory buffer on the server and are never
 			// written to a collection, so there is no id a report could be attached
 			// to. Reporting the artist is the honest equivalent there — and the
-			// moderator still gets the lobby context from the user's other reports.
+			// room id makes the server copy that buffer onto the report, so the
+			// moderator sees the exchange rather than a bare account flag.
 			if (opts.isLobby() || !OBJECT_ID.test(msg._id ?? "")) {
 				buttons.push({
 					text: "Report artist",
@@ -120,6 +147,7 @@ export function useMessageActions(opts: {
 							type: "user",
 							id: senderId,
 							label: senderName ? `${senderName}` : "this artist",
+							contextRoomId: opts.isLobby() ? opts.roomId?.() : undefined,
 						});
 					},
 				});
@@ -161,5 +189,6 @@ export function useMessageActions(opts: {
 		onPointerMove,
 		onPointerUp: cancel,
 		onPointerCancel: cancel,
+		onClick,
 	};
 }

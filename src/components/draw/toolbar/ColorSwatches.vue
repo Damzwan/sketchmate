@@ -8,7 +8,7 @@
     class="fixed z-40 flex flex-col gap-2 pointer-events-auto"
     :style="{
       right: 'calc(0.75rem + env(safe-area-inset-right))',
-      bottom: 'calc(9.5rem + env(safe-area-inset-bottom))',
+      bottom: 'calc(12rem + env(safe-area-inset-bottom))',
     }"
   >
       <button

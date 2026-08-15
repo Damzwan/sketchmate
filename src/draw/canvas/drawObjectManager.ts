@@ -56,6 +56,11 @@ import { createLiveObjectRenderer } from "@/draw/rendering/liveObjectRenderer";
 import { RenderEngine, type Surface } from "@/draw/rendering/renderEngine";
 import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
 import { createYielder } from "@/draw/scheduling/yielder";
+import {
+	releaseFillBuffer,
+	shutdownBucketFillWorker,
+} from "@/draw/tools/bucketFill";
+import { shutdownErasureAnalysisWorker } from "@/draw/tools/erasureAnalysisClient";
 import * as localTransform from "@/draw/transform/transformController";
 import { getViewportRect } from "@/draw/utils/QuadTree";
 import { useFriendStore } from "@/store/friend.store";
@@ -104,6 +109,7 @@ export function createDrawObjectManager() {
 	);
 
 	let loadingDepth = 0;
+	let lifecycleGeneration = 0;
 	const isLoading = () => loadingDepth > 0;
 
 	// ── batch mode ─────────────────────────────────────────────────────────
@@ -472,6 +478,7 @@ export function createDrawObjectManager() {
 
 	// ── init / lifecycle ─────────────────────────────────────────────────────
 	function init(canvas: Canvas) {
+		lifecycleGeneration++;
 		c = canvas;
 		const renderBackend = getDrawRenderBackend();
 		installDrawRenderBackendDebugApi();
@@ -537,12 +544,35 @@ export function createDrawObjectManager() {
 			},
 		);
 
-		// Hand back every GPU-backed cache while the app is in the background, and
-		// on an Android memory-pressure signal. The scene is untouched — this only
-		// drops tiles, the overview and the canvas pool — so coming back is a
-		// repaint, not a reload. See drawMemoryPressure.ts.
+		// Hand back every RECONSTRUCTABLE cache while the app is in the background,
+		// or on an Android memory-pressure signal. The scene, the overview and the
+		// undo history are untouched, so coming back is a repaint, not a reload.
+		// See drawMemoryPressure.ts.
+		//
+		// The tile cache is the biggest item but not the only one, and this fires
+		// exactly when Android is deciding whether to kill the process — so it is
+		// worth giving up everything that can be rebuilt on demand:
+		//   • the transform layer's selection + vacated ImageBitmaps, which are
+		//     re-baked on the next drag anyway;
+		//   • the bucket fill's offscreen buffer (up to 16.8 MB) and its worker;
+		//   • the erasure-analysis worker, which retains an object snapshot per
+		//     in-flight check. Its pending checks settle as "not fully erased",
+		//     which is the safe answer — the drain never deletes on uncertainty.
+		// All three recreate lazily on next use.
+		//
+		// NOT the tile bakery session. Tearing it down also clears the worker's
+		// scene mirror, so every tile afterwards comes back `missing` and pays a
+		// re-upsert + retry. It self-heals, but it is the one item here whose
+		// release costs something on return — and it is inert today anyway, since
+		// the worker backend is opt-in.
 		installDrawMemoryPressure({
-			release: () => renderEngine?.releaseGraphicsMemory(),
+			release: () => {
+				renderEngine?.releaseGraphicsMemory();
+				localTransform.invalidateCache();
+				releaseFillBuffer();
+				shutdownBucketFillWorker();
+				shutdownErasureAnalysisWorker();
+			},
 			restore: () => renderEngine?.restoreFromRelease(),
 		});
 
@@ -582,15 +612,16 @@ export function createDrawObjectManager() {
 	 * Stage 2's budget bounds the WAIT, not the work: on timeout the bake keeps
 	 * going and reveals happen against the overview, which is soft but complete.
 	 */
-	async function prepareFirstPaint(signal?: AbortSignal): Promise<void> {
-		if (!renderEngine) return;
+	async function prepareFirstPaint(
+		signal?: AbortSignal,
+		expectedGeneration = lifecycleGeneration,
+	): Promise<void> {
+		const engine = renderEngine;
+		if (!engine) return;
 		try {
-			await renderEngine.warmOverviewBlocking();
+			await engine.warmOverviewBlocking();
 			if (signal?.aborted) return;
-			await renderEngine.bakeVisibleBlocking(
-				FIRST_PAINT_BAKE_BUDGET_MS,
-				signal,
-			);
+			await engine.bakeVisibleBlocking(FIRST_PAINT_BAKE_BUDGET_MS, signal);
 		} finally {
 			// Reveal even if a stage threw. A soft or partial picture is recoverable;
 			// a canvas stuck behind a permanent loading gate is not.
@@ -600,10 +631,14 @@ export function createDrawObjectManager() {
 			// a document swap to call beginLoading(); revealing here would un-suppress
 			// frames over a scene that is mid-rebuild. Whoever owns the new load will
 			// reveal when it is done.
-			if (loadingDepth === 0) {
-				renderEngine?.setLoading(false);
-				renderEngine?.requestFrame();
-				renderEngine?.scheduleBake();
+			if (
+				expectedGeneration === lifecycleGeneration &&
+				renderEngine === engine &&
+				loadingDepth === 0
+			) {
+				engine.setLoading(false);
+				engine.requestFrame();
+				engine.scheduleBake();
 			}
 		}
 	}
@@ -614,6 +649,7 @@ export function createDrawObjectManager() {
 	 * fabric canvas. The next `init()` builds a fresh engine.
 	 */
 	function detach() {
+		lifecycleGeneration++;
 		renderEngine?.destroy();
 		renderEngine = null;
 		objectMap.clear();
@@ -679,44 +715,61 @@ export function createDrawObjectManager() {
 		finishIndexRebuild();
 	}
 
-	async function rebuildIndexFromCanvasYielded() {
+	async function rebuildIndexFromCanvasYielded(
+		expectedCanvas: Canvas,
+		isCurrent: () => boolean,
+	): Promise<boolean> {
 		const { isBlocked } = useFriendStore();
 		const yielder = createYielder({
 			budgetMs: IS_LOW_END ? 4 : 6,
 			label: "spatial-index-rebuild",
 		});
 		beginIndexRebuild();
-		const objs = c!.getObjects();
+		const objs = expectedCanvas.getObjects();
 		yielder.reset();
 		for (let i = objs.length - 1; i >= 0; i--) {
+			if (!isCurrent()) return false;
 			indexCanvasObject(objs[i], isBlocked);
 			await yielder.maybeYield();
 		}
+		if (!isCurrent()) return false;
 		finishIndexRebuild();
+		return true;
 	}
 
 	// ── loading ──────────────────────────────────────────────────────────────
-	function beginLoading() {
+	function beginLoading(): number {
 		if (loadingDepth === 0) renderEngine?.setLoading(true);
 		loadingDepth++;
+		return lifecycleGeneration;
 	}
 
-	async function endLoading() {
+	async function endLoading(generation = lifecycleGeneration) {
+		// A socket load may finish after the old canvas was detached and a new one
+		// initialized. Its finally block must not decrement the new session's gate.
+		if (generation !== lifecycleGeneration) return;
 		loadingDepth = Math.max(0, loadingDepth - 1);
 		if (loadingDepth !== 0) return;
-		if (!renderEngine || !c) return;
+		const engine = renderEngine;
+		const canvas = c;
+		if (!engine || !canvas) return;
+		const isCurrent = () =>
+			generation === lifecycleGeneration &&
+			renderEngine === engine &&
+			c === canvas;
 
 		// One load finalization pass. Callers used to rebuild the index, reset all
 		// tiles, synchronously warm the overview, then come through here and do
 		// the same rebuild/dirty/warm sequence again. Besides the duplicate CPU
 		// and allocations, both overview jobs could overlap.
-		renderEngine.reset();
-		await rebuildIndexFromCanvasYielded();
-		renderEngine.setContentBounds(computeContentBounds());
+		engine.reset();
+		if (!(await rebuildIndexFromCanvasYielded(canvas, isCurrent))) return;
+		if (!isCurrent()) return;
+		engine.setContentBounds(computeContentBounds());
 		// Same reveal contract as the solo path: overview first so the canvas can
 		// never be blank, then the visible tiles so the first gesture after the
 		// reveal is not competing with the first bake pass.
-		await prepareFirstPaint();
+		await prepareFirstPaint(undefined, generation);
 	}
 
 	// ── blocked users ────────────────────────────────────────────────────────

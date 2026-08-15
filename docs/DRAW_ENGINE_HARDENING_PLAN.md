@@ -140,6 +140,94 @@ Not flipped here: the field snapshot has `backend: "main"`, so `refusalRate: 0`
 and `localFallbacks: 0` are trivially zero and say nothing about how the worker
 would behave on that device. Enabling it needs a measured cohort, not a guess.
 
+### F9 — Bucket fill: an unbounded un-yielded render + readback, twice per click  ·  P0 · ANR · **fixed**
+
+`buildSmartOffscreenCanvas` was the last synchronous render loop in the engine
+with **no yielder and no cost gate**, unlike every sibling path. Per attempt it
+allocated a fresh canvas, painted the background, rendered EVERY object in a
+region up to 2500 world units across, and read the whole buffer back with
+`getImageData`. A mobile fill runs two escalation levels when the first reaches
+the border, so that is the whole thing twice per bucket click.
+
+Measured on desktop Chromium, 1200 strokes in region:
+
+```
+1200²   draw  8.74 ms   read  5.76 ms   total 14.50 ms
+2048²   draw  6.58 ms   read 12.44 ms   total 19.02 ms
+                                  both levels: 33.52 ms
+```
+
+33 ms un-yielded on a fast Mac, before the low-end multiplier — and the SIGABRT
+breadcrumb trail is a user clicking bucket repeatedly. Fixed by yielding the
+object loop on a 4 ms budget (abortable through the existing session signal).
+
+The buffer is now ONE reusable canvas instead of a fresh one per attempt. At
+5.8 MB and 16.8 MB those were two GPU surfaces created and destroyed per click,
+which is the same Adreno texture churn as F2.
+
+**`willReadFrequently` is deliberately NOT set here, and the code says so.** It
+is the obvious-looking fix for a buffer that exists to be read once, and it is
+**10x slower** on this shape — the buffer is drawn to far more than it is read
+from, so the accelerated surface wins by an order of magnitude even paying for
+the readback:
+
+```
+1200²   GPU-backed  5.76 ms      willReadFrequently  134.86 ms
+2048²   GPU-backed 12.44 ms      willReadFrequently  171.08 ms
+```
+
+### F10 — Merged-group cull bookkeeping  ·  P3 · measured, not worth it
+
+`renderSplitForBake` and `prepareForBake` call `child.setCoords()` +
+`getBoundingRect()` per child per tile before the cheap intersect test. Measured
+on a 400-child group: 0.47 ms for the bookkeeping alone, but only ~0.22 ms of
+the 1.36 ms group render, because culled children then skip rendering and give
+most of it back. ~16 % of one object's cost. Recorded so it is not re-derived.
+
+### F11 — Procedural brush rasters were pixel-unbounded  ·  P0 · crash · **fixed**
+
+Neon, Crayon and Spray each allocated ONE canvas covering the whole stroke
+bounding box at `TEXTURE_SUPERSAMPLE`, with no clamp of any kind:
+
+```ts
+off.width  = Math.ceil(w * dpr);   // dpr = 2, w = full stroke bbox
+off.height = Math.ceil(h * dpr);
+```
+
+The canvas is infinite, so the bbox is unbounded. Past the browser's own canvas
+limits the allocation simply fails — a dead stroke or a dead renderer, not a
+slow one. And because these bitmaps are deliberately not serialized
+("deterministic, so the bitmap can be dropped from the payload and rebuilt"),
+every such stroke re-allocates its full-bbox canvas on every document LOAD,
+which is the shape of "either drawing opens fine, opening both crashes"
+(`DRAW_ENGINE_STABILITY_AUDIT.md` → DRAW-05).
+
+Fixed with `fitTextureRaster()` in `brush.helpers.ts`: clamp by dimension AND by
+area, degrading the supersample so an oversized stroke loses SHARPNESS instead
+of failing. 2048² (16 MB) is a full-quality 1024x1024 world-unit stroke; the
+common stroke is bit-identical to before.
+
+The budget is a device-independent CONSTANT, for the same reason
+`TEXTURE_SUPERSAMPLE` is: the same stroke is rasterized on the main thread, in
+the bakery worker, and on every device that opens the document. A per-device
+budget would make a worker-baked tile disagree with the live render — the exact
+bug that pinning the supersample was introduced to fix.
+
+### F12 — Memory-pressure release stopped at tiles  ·  P1 · crash · **fixed**
+
+`releaseGraphicsMemory()` ended at `committed.releaseTiles()` — "Tiles + canvas
+pool only." It fires exactly when Android is deciding whether to kill the
+process, so it now also drops the transform layer's selection/vacated
+`ImageBitmap`s, the bucket fill's offscreen buffer (up to 16.8 MB) and its
+worker, and the erasure-analysis worker (whose pending checks settle as "not
+fully erased" — the safe answer; the drain never deletes on uncertainty). All
+recreate lazily.
+
+Deliberately NOT the tile bakery session: tearing it down clears the worker's
+scene mirror, so every later tile comes back `missing` and pays a re-upsert plus
+retry. It self-heals, but it is the only item here whose release costs something
+on return — and it is inert today anyway, since that backend is opt-in.
+
 ### F5 — Lobby thumbnail export  ·  P2
 
 `request-lobby-thumbnail` → `exportBoundingBoxImage` → `exportWithMainThreadChunking`,
@@ -163,6 +251,10 @@ on demand and could move to the existing preview worker.
 1. **F1** — snapshot off the main thread. Highest confidence, lowest risk.
 2. **F2** — stop the texture churn.
 3. **F7** — stop paying for instrumentation on low-end. Done.
+3b. **F9** — bucket fill yielded + buffer reused. Done.
 4. **F8** — enable the worker for a measured cohort. Biggest remaining win,
    and the one that needs field data rather than reasoning.
-5. F5/F6 — opportunistic.
+5. **F11** — brush raster clamp. Done.
+6. **F12** — release everything reconstructable under pressure. Done.
+7. Hydration — see `DRAW_ENGINE_HYDRATION_PLAN.md`. Gated on measurement.
+8. F5/F6 — opportunistic.

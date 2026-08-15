@@ -1,10 +1,12 @@
 import { storeToRefs } from "pinia";
 import type { Socket } from "socket.io-client";
+import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { fitToDensestRegion } from "@/draw/canvas/viewport";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { exportBoundingBoxImage } from "@/draw/document/export";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
 import { createRoomCanvasSnapshotBytes } from "@/draw/sync/roomSnapshot";
@@ -51,6 +53,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
 			useClaimArea().setAreas(claimedAreas);
+			useDrawingReferenceStore().enterRoom(roomId);
 			// PUBLIC: every peer — creator or joiner — installs the fixed set here.
 			// Deriving it from `init` alone is not enough: a URL/deep-link join opens
 			// the canvas before `isPublic` is known (it is only known now), and the
@@ -270,9 +273,16 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			// room's snapshot over the canvas they are now looking at is worse than
 			// dropping it.
 			const joinedRoom = roomId.value;
-			const stillInRoom = () => roomId.value === joinedRoom;
+			const canvasController = useCanvasController();
+			const joinedCanvas = canvasController.getCanvasIfReady();
+			const stillInRoom = () =>
+				!!joinedRoom &&
+				!!joinedCanvas &&
+				roomId.value === joinedRoom &&
+				canvasController.getCanvasIfReady() === joinedCanvas;
+			if (!stillInRoom()) return;
 
-			mgr.beginLoading();
+			const loadingGeneration = mgr.beginLoading();
 			// EVERYTHING after beginLoading lives in the try. `endLoading` is what
 			// lifts the render engine's loading gate and decrements a counter that
 			// outlives the session; missing it once left the canvas permanently
@@ -307,7 +317,9 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 				if (!stillInRoom()) return;
 
 				const json = JSON.parse(decompressedString);
-				await engine.loadRoomCanvas(json, isInitialSync);
+				useDrawingReferenceStore().replaceRemoteSnapshot(json.sharedReferences);
+				delete json.sharedReferences;
+				if (!(await engine.loadRoomCanvas(json, isInitialSync))) return;
 
 				if (missedActions && missedActions.length > 0) {
 					for (const item of missedActions) {
@@ -325,9 +337,11 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			} catch (e) {
 				console.error("Room canvas load failed:", e);
 			} finally {
-				await mgr.endLoading().catch(() => undefined);
-				mgr.renderViewport();
-				isLoadingCanvas.value = false;
+				await mgr.endLoading(loadingGeneration).catch(() => undefined);
+				if (stillInRoom()) {
+					mgr.renderViewport();
+					isLoadingCanvas.value = false;
+				}
 			}
 		},
 	);
@@ -340,20 +354,34 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		const mgr = useDrawObjectManager();
 		const { roomId } = storeToRefs(useDrawSyncer());
 		const joinedRoom = roomId.value;
-		const stillInRoom = () => roomId.value === joinedRoom;
+		const canvasController = useCanvasController();
+		const joinedCanvas = canvasController.getCanvasIfReady();
+		const stillInRoom = () =>
+			!!joinedRoom &&
+			!!joinedCanvas &&
+			roomId.value === joinedRoom &&
+			canvasController.getCanvasIfReady() === joinedCanvas;
+		if (!stillInRoom()) return;
 
-		mgr.beginLoading();
+		const loadingGeneration = mgr.beginLoading();
 		// Same contract as `initial-canvas-state`: whatever happens in here, the
 		// loading gate must come back down exactly once.
 		try {
 			if (isInitialSync) {
 				const { reset } = useDrawStore();
 				reset();
+				useDrawingReferenceStore().replaceRemoteSnapshot([]);
 			}
 
 			for (const item of actions) {
 				if (!stillInRoom()) return;
 				if (isBlocked(item.userId)) continue;
+				// Replayed work counts the same as live work — this is how someone
+				// who drew while you were disconnected still gets their credit.
+				// Self-limiting for the initial sync: `noteContributor` only records
+				// peers it can name from the current member list, so long-gone
+				// authors of the existing canvas are skipped rather than guessed at.
+				useDrawSyncer().noteContributor(item.userId);
 				lastProcessedSequenceId.value = item.sequenceId;
 				await engine.executeDrawSyncingAction(item);
 			}
@@ -366,19 +394,25 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			console.error("Missed-action replay failed:", e);
 		} finally {
 			// endLoading owns the single index/reset/overview finalization pass.
-			await mgr.endLoading().catch(() => undefined);
-			mgr.renderViewport();
-			isLoadingCanvas.value = false;
+			await mgr.endLoading(loadingGeneration).catch(() => undefined);
+			if (stillInRoom()) {
+				mgr.renderViewport();
+				isLoadingCanvas.value = false;
+			}
 		}
 	});
 
 	socket.on("draw-event", async (data) => {
 		const engine = useDrawSyncEngine();
-		const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(
-			useDrawSyncer(),
-		);
+		const drawSyncer = useDrawSyncer();
+		const { isLoadingCanvas, lastProcessedSequenceId } =
+			storeToRefs(drawSyncer);
 
 		if (isBlocked(data.creator)) return;
+
+		// After the block check on purpose: someone you blocked doesn't get a
+		// credit line on your post.
+		drawSyncer.noteContributor(data.creator);
 
 		if (data.sequenceId !== undefined) {
 			lastProcessedSequenceId.value = data.sequenceId;

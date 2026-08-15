@@ -277,6 +277,37 @@ describe("CommittedLayer safety bounds", () => {
 		expect(result.needsBake).toBe(true);
 	});
 
+	it("invalidates an in-flight new tile when an additive stroke arrives", () => {
+		const layer = makeLayer() as any;
+		const tier = layer.pickActiveTier(1);
+		const key = tileKey(tier, 0, 0);
+		// This is the new-tile race: rebuildTile captured generation zero and added
+		// the key to inFlight, but no bitmap exists in the tile map yet.
+		layer.inFlight.add(key);
+
+		// A large footprint selects markStale's map-walk optimization. It must walk
+		// both stored and in-flight keys or the pre-stroke result can land as fresh.
+		const rect = { x: -10_000, y: -10_000, w: 20_000, h: 20_000 };
+		layer.markStale(rect);
+
+		expect(layer.gen.get(key)).toBe(1);
+		expect(layer.dirtyRects.get(key)).toEqual([rect]);
+
+		// The already-running bake returns with its captured generation zero. It may
+		// be retained as a stale result, but it must not become eligible to suppress
+		// the live cross-tier stroke.
+		layer.store(
+			key,
+			tier,
+			0,
+			0,
+			{ close: vi.fn() } as unknown as ImageBitmap,
+			256 * 256 * 4,
+			0,
+		);
+		expect(layer.canStampAll({ x: 0, y: 0, w: 1, h: 1 }, tier)).toBe(false);
+	});
+
 	it("keeps only visible active-tier tiles sharp during a discrete transition", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);

@@ -52,6 +52,20 @@
       </button>
     </div>
 
+    <!-- Tapping the card used to do nothing at all while the archive was empty
+         or still in flight, which reads as a broken button. Say which it is. -->
+    <div
+      v-if="archiveOpen && !archive.length"
+      class="rounded-2xl border border-dashed border-primary/50 bg-tertiary px-4 py-5 text-center"
+    >
+      <p class="text-sm font-black text-black">
+        {{ archiveLoading ? 'Loading previous competitions…' : 'No previous competitions yet' }}
+      </p>
+      <p v-if="!archiveLoading" class="text-xs font-bold text-black/80 mt-1">
+        This one is the first. Winners show up here once it wraps.
+      </p>
+    </div>
+
     <div v-if="archiveOpen && archive.length" class="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-1">
       <button
         v-for="past in archive"
@@ -111,6 +125,7 @@ defineEmits<{
 const archive = ref<ArchivedCompetition[]>([]);
 const themes = ref<CompetitionTheme[]>([]);
 const archiveOpen = ref(false);
+const archiveLoading = ref(true);
 const colors = computed(() => resolveAccent(props.accent));
 const ctaStyle = computed(() => ({
 	background: `linear-gradient(135deg, ${colors.value.from}, ${colors.value.to})`,
@@ -128,7 +143,6 @@ function formatCompetitionDate(competition: ArchivedCompetition) {
 }
 
 function openPast() {
-	if (!archive.value.length) return;
 	archiveOpen.value = !archiveOpen.value;
 }
 
@@ -147,6 +161,7 @@ onMounted(async () => {
 	}
 	if (next.status === "fulfilled" && next.value)
 		themes.value = next.value.themes;
+	archiveLoading.value = false;
 });
 </script>
 

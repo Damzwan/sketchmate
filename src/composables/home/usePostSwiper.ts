@@ -38,6 +38,9 @@ export function usePostSwiper() {
 			onReply: async (item) => {
 				await openDrawingCopy({
 					canvasUrl: item.drawing_url || item.drawing,
+					// The swiper is shared with the inbox, where items are not
+					// posts — only stamp lineage when this really is one.
+					originPostId: item.drawing_url ? item._id : undefined,
 					header: "Remix this Drawing?",
 					message:
 						"This will load a copy of this drawing onto your canvas so you can edit and reply to it.",

@@ -2,6 +2,11 @@ import type { Bounded, WorldRect } from "../committedLayer";
 import { getObjectBounds, mergeNearbyRects, unionRects } from "./invalidation";
 import { RenderInvalidationCoordinator } from "./renderInvalidationCoordinator";
 
+interface OverviewPatchJob {
+	rect: WorldRect;
+	handoffId?: string;
+}
+
 /**
  * Breathing room at the far end of the zoom range: the floor must let the whole
  * drawing sit on screen with a margin, not pressed against the bezels.
@@ -17,7 +22,7 @@ export abstract class RenderOverviewCoordinator<
 > extends RenderInvalidationCoordinator<T> {
 	/** Dense overview regions being subdivided instead of triggering a full
 	 *  O(scene) rebuild. Never merged — see scheduleOverviewSplitDrain. */
-	protected overviewSplitQueue: WorldRect[] = [];
+	protected overviewSplitQueue: OverviewPatchJob[] = [];
 	protected overviewSplitTimer: any = null;
 	protected overviewSplitRunning = false;
 	/** Invalidates an in-flight patch when reset/release crosses document state. */
@@ -232,8 +237,45 @@ export abstract class RenderOverviewCoordinator<
 		// rasterize Fabric objects is queued onto the yielded, scratch-canvas path;
 		// `patchRect` intentionally returns false for those.
 		if (this.committed.overview.patchRect(rect, this.overviewPatchMax)) return;
-		this.overviewSplitQueue.push({ ...rect });
+		this.overviewSplitQueue.push({ rect: { ...rect } });
 		this.scheduleOverviewSplitDrain();
+	}
+
+	/**
+	 * Queue an atomic overview handoff for a topmost additive object.
+	 *
+	 * The object remains live while this job is queued, running, aborted, retried,
+	 * or escalated to a full rebuild. A successful atomic commit retires the live
+	 * copy before requesting the next frame.
+	 */
+	protected queueOverviewHandoff(obj: T, rect: WorldRect): void {
+		if (!obj.id || this.overviewHandoffPending.has(obj.id)) return;
+		this.overviewHandoffPending.add(obj.id);
+		this.overviewHandoffRect.set(obj.id, { ...rect });
+		if (!this.overviewHandoffTier.has(obj.id)) {
+			this.overviewHandoffTier.set(
+				obj.id,
+				this.committed.pickActiveTier(this.surface.getVpt()[0]),
+			);
+		}
+		if (this.committed.overview.usesRemoteRenderer()) {
+			this.overviewHandoffRebuild.add(obj.id);
+			this.committed.overview.markDirty();
+			this.scheduleOverviewRebuild();
+			return;
+		}
+		this.overviewSplitQueue.push({ rect: { ...rect }, handoffId: obj.id });
+		this.scheduleOverviewSplitDrain();
+	}
+
+	protected cancelOverviewHandoff(id: string): void {
+		this.overviewHandoffPending.delete(id);
+		this.overviewHandoffRebuild.delete(id);
+		this.overviewHandoffTier.delete(id);
+		this.overviewHandoffRect.delete(id);
+		this.overviewSplitQueue = this.overviewSplitQueue.filter(
+			(job) => job.handoffId !== id,
+		);
 	}
 
 	/**
@@ -252,7 +294,18 @@ export abstract class RenderOverviewCoordinator<
 	 * rebuild remains the last resort for a region too small to split — that
 	 * means genuinely thousands of objects in a few world units.
 	 */
-	protected splitOverviewPatch(rect: WorldRect): void {
+	protected splitOverviewPatch(job: OverviewPatchJob): void {
+		const { rect, handoffId } = job;
+		// A handoff must be atomic as a whole. Committing quadrants one by one while
+		// the full live stroke remains visible would briefly double semi-transparent
+		// pixels in the completed quadrants. Escalate oversized/dense handoffs to the
+		// already-atomic full overview rebuild instead.
+		if (handoffId) {
+			this.deferOverviewHandoffToRebuild(handoffId);
+			this.committed.overview.markDirty();
+			this.scheduleOverviewRebuild();
+			return;
+		}
 		const MIN_SPLIT = 8; // world units
 		if (
 			rect.w <= MIN_SPLIT ||
@@ -269,10 +322,13 @@ export abstract class RenderOverviewCoordinator<
 		const hw = rect.w / 2;
 		const hh = rect.h / 2;
 		this.overviewSplitQueue.push(
-			{ x: rect.x, y: rect.y, w: hw, h: hh },
-			{ x: rect.x + hw, y: rect.y, w: hw, h: hh },
-			{ x: rect.x, y: rect.y + hh, w: hw, h: hh },
-			{ x: rect.x + hw, y: rect.y + hh, w: hw, h: hh },
+			{ rect: { x: rect.x, y: rect.y, w: hw, h: hh }, handoffId },
+			{ rect: { x: rect.x + hw, y: rect.y, w: hw, h: hh }, handoffId },
+			{ rect: { x: rect.x, y: rect.y + hh, w: hw, h: hh }, handoffId },
+			{
+				rect: { x: rect.x + hw, y: rect.y + hh, w: hw, h: hh },
+				handoffId,
+			},
 		);
 		this.scheduleOverviewSplitDrain();
 	}
@@ -300,13 +356,13 @@ export abstract class RenderOverviewCoordinator<
 			return;
 		this.overviewSplitRunning = true;
 		const epoch = this.overviewPatchEpoch;
-		const piece = this.overviewSplitQueue.shift()!;
+		const job = this.overviewSplitQueue.shift()!;
 		const ctrl = new AbortController();
 		this.overviewPatchCtrl?.abort();
 		this.overviewPatchCtrl = ctrl;
 		try {
 			const patched = await this.committed.overview.patchRectYielded(
-				piece,
+				job.rect,
 				this.overviewPatchMax,
 				this.makeYielder("overview-patch") as any,
 				ctrl.signal,
@@ -315,16 +371,18 @@ export abstract class RenderOverviewCoordinator<
 				// The private scratch bitmap was never committed. Put the region back;
 				// the gesture/erase settle seam restarts the drain.
 				if (epoch === this.overviewPatchEpoch)
-					this.overviewSplitQueue.unshift(piece);
+					this.overviewSplitQueue.unshift(job);
 				return;
 			}
-			if (!patched) this.splitOverviewPatch(piece);
+			if (!patched) this.splitOverviewPatch(job);
+			else if (job.handoffId) this.completeOverviewHandoff(job.handoffId);
 			else this.requestFrame();
 		} catch {
 			if (ctrl.signal.aborted) {
 				if (epoch === this.overviewPatchEpoch)
-					this.overviewSplitQueue.unshift(piece);
+					this.overviewSplitQueue.unshift(job);
 			} else {
+				if (job.handoffId) this.deferOverviewHandoffToRebuild(job.handoffId);
 				this.committed.overview.markDirty();
 				this.scheduleOverviewRebuild();
 			}
@@ -340,6 +398,57 @@ export abstract class RenderOverviewCoordinator<
 			)
 				this.scheduleOverviewSplitDrain();
 		}
+	}
+
+	private completeOverviewHandoff(id: string): void {
+		if (!this.overviewHandoffPending.has(id)) return;
+		this.retireCommittedOverviewHandoff(id);
+	}
+
+	/**
+	 * Finish the cross-tier transfer without ever exposing overview + live ink.
+	 *
+	 * Normally the origin tier is fully fresh before the handoff starts. If the
+	 * user zoomed all the way to the overview first, however, that tier may still
+	 * contain a mixture of pre-stroke usable tiles and holes. Discard that
+	 * incomplete footprint now that the overview contains the stroke; every cell
+	 * then resolves from either a complete tile or the updated overview before the
+	 * live copy is removed. No animation frame can observe the intermediate state.
+	 */
+	private retireCommittedOverviewHandoff(id: string): void {
+		const rect = this.overviewHandoffRect.get(id);
+		const tier = this.overviewHandoffTier.get(id);
+		if (
+			rect &&
+			tier !== undefined &&
+			tier > this.committed.overviewTier &&
+			!this.committed.canStampAll(rect, tier)
+		) {
+			this.committed.dropTiles(rect, tier);
+		}
+		this.live.remove(id);
+		this.overviewHandoffPending.delete(id);
+		this.overviewHandoffRebuild.delete(id);
+		this.overviewHandoffTier.delete(id);
+		this.overviewHandoffRect.delete(id);
+		this.requestFrame();
+	}
+
+	private deferOverviewHandoffToRebuild(id: string): void {
+		if (!this.overviewHandoffPending.has(id)) return;
+		this.overviewHandoffRebuild.add(id);
+		this.overviewSplitQueue = this.overviewSplitQueue.filter(
+			(job) => job.handoffId !== id,
+		);
+	}
+
+	private completeRebuiltOverviewHandoffs(): void {
+		if (this.committed.overview.isDirty()) return;
+		for (const id of [...this.overviewHandoffRebuild]) {
+			if (!this.overviewHandoffPending.has(id)) continue;
+			this.retireCommittedOverviewHandoff(id);
+		}
+		this.overviewHandoffRebuild.clear();
 	}
 
 	protected deferOverview(rect: WorldRect): void {
@@ -386,7 +495,7 @@ export abstract class RenderOverviewCoordinator<
 		}
 		const rects = this.mergeRects(this.pendingOverview);
 		this.pendingOverview = [];
-		for (const rect of rects) this.overviewSplitQueue.push(rect);
+		for (const rect of rects) this.overviewSplitQueue.push({ rect });
 		this.scheduleOverviewSplitDrain();
 	}
 
@@ -405,6 +514,7 @@ export abstract class RenderOverviewCoordinator<
 					this.newOverviewSignal(),
 				)
 				.then(() => {
+					this.completeRebuiltOverviewHandoffs();
 					this.requestFrame();
 					this.scheduleBake();
 				});
@@ -431,6 +541,10 @@ export abstract class RenderOverviewCoordinator<
 			this.overviewSplitTimer = null;
 		}
 		this.overviewSplitQueue = [];
+		this.overviewHandoffPending.clear();
+		this.overviewHandoffRebuild.clear();
+		this.overviewHandoffTier.clear();
+		this.overviewHandoffRect.clear();
 		this.pendingRemote = null;
 		this.pendingOverview = [];
 		this.live.clear();
@@ -476,6 +590,13 @@ export abstract class RenderOverviewCoordinator<
 	releaseGraphicsMemory(): void {
 		this.abortBakes();
 		this.overviewPatchEpoch++;
+		// A pending additive handoff means the live layer still owns pixels that
+		// have not reached the overview. This method clears that live layer below;
+		// mark the overview dirty first so restore rebuilds from the canonical scene
+		// instead of preserving a coherent-but-incomplete bitmap indefinitely.
+		if (this.overviewHandoffTier.size > 0) {
+			this.committed.overview.markDirty();
+		}
 		if (this.overviewTimer !== null) {
 			clearTimeout(this.overviewTimer);
 			this.overviewTimer = null;
@@ -489,6 +610,10 @@ export abstract class RenderOverviewCoordinator<
 			this.overviewSplitTimer = null;
 		}
 		this.overviewSplitQueue = [];
+		this.overviewHandoffPending.clear();
+		this.overviewHandoffRebuild.clear();
+		this.overviewHandoffTier.clear();
+		this.overviewHandoffRect.clear();
 		this.pendingRemote = null;
 		this.pendingOverview = [];
 		this.live.clear();

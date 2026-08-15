@@ -11,7 +11,7 @@
       <h2 class="text-2xl cabin-sketch-regular font-bold text-black pt-1">Share</h2>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-3 space-y-4 pb-32">
+    <div class="flex-1 overflow-y-auto p-3 space-y-4 bot-clear-anchor">
       <div
         class="bg-primary/20 rounded-3xl p-2 border border-primary/40 shadow-inner max-w-[200px] mx-auto animate-fade-in">
         <PreviewDrawing :newPreview="newPreview" :src="preview" @crop-completed="(e: any) => crop(e)"
@@ -131,6 +131,18 @@
                     class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:font-normal placeholder:text-black/70 h-20"
                     maxlength="100" />
 
+          <!-- Its own control rather than an @-autocomplete inside the caption:
+               the caption is 100 characters on a phone keyboard, and a tag
+               typed as text can name anyone. Picking from your own mates makes
+               the credit structured, so it survives a rename and gives the
+               person named something concrete to remove. -->
+          <!-- Confirmation, not a picker: the room already knows who drew, and
+               everyone starts selected. It exists because the credit is
+               canvas-wide while the post may be a crop of one corner. -->
+          <PostCollaboratorRow :picker="collaboratorPicker" />
+
+          <PostMentionRow :picker="mentionPicker" />
+
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">
               <p class="text-sm font-black text-black leading-none">Allow comments</p>
@@ -210,7 +222,10 @@
       </section>
     </div>
 
-    <div class="absolute bottom-6 left-0 right-0 px-6 z-20">
+    <!-- Anchored clear of the Android navigation bar. Reported from the field:
+         reaching for Send (which is what actually releases a balloon) hit
+         Back/Home/Recents instead. -->
+    <div class="absolute bot-anchor-safe left-0 right-0 px-6 z-20">
       <ion-button expand="block" shape="round" color="secondary" size="large" @click="executeShares"
                   :disabled="shareService.isSending || isPreparing || noActionSelected">
         <span v-if="!shareService.isSending && !isPreparing">{{ sendButtonLabel }}</span>
@@ -237,6 +252,8 @@ import {
 } from "@mdi/js";
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
 import { svg } from "@/helper/general.helper";
+import PostCollaboratorRow from "./PostCollaboratorRow.vue";
+import PostMentionRow from "./PostMentionRow.vue";
 import SendMateSection from "./SendMateSection.vue";
 import { useSendHub } from "./useSendHub";
 
@@ -250,6 +267,8 @@ const {
 	quotaStore,
 	competitionStore,
 	matePicker,
+	mentionPicker,
+	collaboratorPicker,
 	isSaveAndSend,
 	isBalloon,
 	isCompetition,

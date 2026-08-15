@@ -198,6 +198,96 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 
+	it("waits for every high-zoom tile before handing a live stroke to the overview", async () => {
+		const engine = makeEngine() as any;
+		const object = {
+			id: "fresh-stroke",
+			getBoundingRect: () => ({ left: 20, top: 30, width: 100, height: 80 }),
+		};
+		let tilesReady = false;
+		vi.spyOn(engine.committed, "canStampAll").mockImplementation(
+			() => tilesReady,
+		);
+		const dropOtherTiers = vi.spyOn(engine.committed, "dropOtherTiers");
+		let attempts = 0;
+		const patch = vi
+			.spyOn(engine.committed.overview, "patchRectYielded")
+			.mockImplementation(async (...args: any[]) => {
+				attempts++;
+				if (attempts === 1) {
+					// This is what an immediate pinch does: gesture start aborts the
+					// in-flight overview patch before its atomic commit.
+					engine.setGesturing(true);
+					expect(args[3].aborted).toBe(true);
+					return false;
+				}
+				return true;
+			});
+
+		engine.onObjectAdded(object, true);
+
+		expect(dropOtherTiers).toHaveBeenCalledOnce();
+		expect(engine.live.has(object.id)).toBe(true);
+		expect(engine.live.items.get(object.id).mode).toBe("additive");
+		// A multi-tile high-zoom region is all-or-nothing. Starting the overview
+		// patch while one tile is still stale would put low-res ink under the full
+		// live vector and produce the post-stroke blurry halo.
+		expect(engine.demoteSettled()).toBe(0);
+		expect(engine.overviewSplitQueue).toHaveLength(0);
+		expect(patch).not.toHaveBeenCalled();
+
+		tilesReady = true;
+		expect(engine.demoteSettled()).toBe(0);
+		expect(engine.overviewSplitQueue).toHaveLength(1);
+
+		await engine.drainOneOverviewPatch();
+
+		// Abort requeues the exact tracked job and cannot retire the only
+		// cross-tier copy of the stroke.
+		expect(engine.live.has(object.id)).toBe(true);
+		expect(engine.overviewSplitQueue).toHaveLength(1);
+		// At far zoom the overview is still old, so the live bridge must paint.
+		expect(
+			engine.liveItemAlreadyPainted({ x: 20, y: 30, w: 100, h: 80 }, 0.01),
+		).toBe(false);
+
+		engine.setGesturing(false);
+		await engine.drainOneOverviewPatch();
+
+		expect(patch).toHaveBeenCalledTimes(2);
+		// Commit and retirement are one transition: no frame can composite the
+		// updated overview underneath the same translucent live stroke.
+		expect(engine.live.has(object.id)).toBe(false);
+		engine.reset();
+	});
+
+	it("drops an incomplete origin tier when overview zoom commits the handoff", async () => {
+		const engine = makeEngine() as any;
+		const rect = { x: 20, y: 30, w: 100, h: 80 };
+		const object = {
+			id: "zoomed-away-stroke",
+			getBoundingRect: () => ({ left: 20, top: 30, width: 100, height: 80 }),
+		};
+		vi.spyOn(engine.committed, "canStampAll").mockReturnValue(false);
+		const dropTiles = vi.spyOn(engine.committed, "dropTiles");
+		vi.spyOn(engine.committed.overview, "patchRectYielded").mockResolvedValue(
+			true,
+		);
+
+		engine.onObjectAdded(object, true);
+		const originTier = engine.overviewHandoffTier.get(object.id);
+		vi.spyOn(engine.surface, "getVpt").mockReturnValue([
+			0.01, 0, 0, 0.01, 0, 0,
+		]);
+		expect(engine.demoteSettled()).toBe(0);
+		await engine.drainOneOverviewPatch();
+
+		expect(dropTiles).toHaveBeenCalledWith(rect, originTier);
+		expect(engine.live.has(object.id)).toBe(false);
+		expect(engine.overviewHandoffPending.has(object.id)).toBe(false);
+		engine.reset();
+	});
+
 	it("repairs a lower-z insertion in the same frame instead of waiting for the bake", () => {
 		// A stroke drawn on a lower LAYER takes this branch on every commit: it
 		// gets no live overlay (it must not paint over what covers it), so without

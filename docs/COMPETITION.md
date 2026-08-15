@@ -143,7 +143,7 @@ choice is respected forever.
 
 ### 2.3 Submission and voting overlap; results land Sunday evening
 
-Two states, not four. Submissions run Mon–Fri, voting runs Mon until **Sunday
+Two states, not four. Submissions run Mon–Sat 18:00, voting runs Mon until **Sunday
 18:00 UTC**, and that is when results are announced. Rationale:
 
 - A separate "voting only" week doubles the cycle length and halves how often
@@ -156,7 +156,7 @@ Two states, not four. Submissions run Mon–Fri, voting runs Mon until **Sunday
 - The gap between the announcement and the next Monday is deliberate: for those
   ~6 hours the results are the only competition content in the app, with no new
   theme competing for attention.
-- Closing submissions on Friday bounds the late-entry disadvantage, and
+- Closing submissions 24h before the end bounds the late-entry disadvantage, and
   [§2.7](#27-late-entries-must-still-be-able-to-win) removes the rest of it.
 - **Tallies stay hidden until reveal.** This kills bandwagon voting, removes
   "I'm 4th, why bother", and is what makes the Sunday moment a moment.
@@ -196,7 +196,7 @@ Raw vote counts are not a measure of quality — they are a measure of *exposure
 quality*. An entry posted Monday morning is on screen for five days; one posted
 Thursday night gets a fraction of that. Ranking on raw votes hands the win to
 whoever submitted earliest, and everyone learns to dump something in on Monday
-rather than make something good by Friday.
+rather than make something good by the deadline.
 
 Two mechanisms, and both are needed — one fixes the measurement, the other fixes
 the thing being measured.
@@ -256,9 +256,8 @@ Consequences to keep in mind:
   ledger rows are deleted along with its votes and comments. The counter has to
   describe the drawing that is actually on screen, and leaving the claims behind
   would make it impossible for the new artwork to be counted at all by anyone
-  who had already seen the old one. Submissions close on Friday, so the reset is
-  bounded to the half of the week where catch-up ordering still has time to
-  work.
+  who had already seen the old one. Submissions close 24h before the end, so a
+  reset still leaves the catch-up ordering a day to work.
 
 ---
 
@@ -270,11 +269,11 @@ scheduling).
 
 ```
 Mon 00:00   competition N opens         phase = open
-            ├── submissions accepted    (Mon–Fri)
+            ├── submissions accepted    (Mon–Sat 18:00)
             └── votes accepted          (Mon–Sun)
 
-Fri 00:00   submissions close           phase = voting
-            └── votes still accepted    (Fri–Sun)
+Sat 18:00   submissions close           phase = voting
+            └── votes still accepted    (final 24h)
 
 Sun 18:00   competition N closes        phase = closed → scored → announced
             └── results are the only competition content until Monday
@@ -355,7 +354,7 @@ New collections in `sketchmate_server/src/models/competition.model.ts`.
   accent: string,              // palette key for the colourful card, e.g. "sunset"
 
   starts_at: Date,             // Mon 00:00 UTC
-  submissions_close_at: Date,  // Fri 00:00 UTC  (starts_at + 4d)
+  submissions_close_at: Date,  // Sat 18:00 UTC  (starts_at + 5d 18h)
   ends_at: Date,               // Sun 18:00 UTC  (starts_at + 6d 18h)
   results_grace_ms?: number,   // how long the results stay in front — §3
 
@@ -555,7 +554,7 @@ shuffle. The sort key is `(floor(impressions / EXPOSURE_BUCKET), hash(entry_id +
 viewer_id + week_key))`:
 
 - The **bucket** pushes under-seen entries to the front of everyone's grid, so a
-  Friday entry catches up on impressions instead of losing on exposure (§2.7).
+  late entry catches up on impressions instead of losing on exposure (§2.7).
 - The **hash** orders within a bucket, so every user sees a different grid and
   there is no single top slot to win.
 
@@ -860,7 +859,7 @@ annoying. Rules:
 | When | Sent to | Suppressed if |
 |---|---|---|
 | Mon, local ~10:00 | everyone opted in | user has not entered or voted in the last 3 weeks |
-| Fri, local ~18:00 ("last call") | opted in, **not entered** | already entered, or never entered any competition |
+| Sat, local ~18:00 ("last call") | opted in, **not entered** | already entered, or never entered any competition |
 | local ≥19:00 after the announcement (results) | opted in **and** entered or voted this week | user is a winner — they got the better push already |
 
 - **Winners always get a push** regardless of the engagement suppressions above
@@ -1044,7 +1043,7 @@ minute.
 ```ts
 export const CYCLE = {
   duration_ms:            6 * DAY + 18 * HOUR,
-  submissions_close_ms:   4 * DAY,   // offset from starts_at
+  submissions_close_ms:   5 * DAY + 18 * HOUR,  // offset from starts_at: 24h of voting-only
   results_grace_ms:       6 * HOUR,  // how long the results stay in front — §3
 };
 ```

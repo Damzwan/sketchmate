@@ -16,6 +16,7 @@ import type { Canvas } from "fabric";
  * cursor could usefully depict anyway.
  */
 const MAX_CURSOR_PX = 128;
+const cursorCache = new WeakMap<Canvas, { key: string; cursor: string }>();
 
 export function updateFreeDrawingCursor(
 	c: Canvas,
@@ -27,6 +28,13 @@ export function updateFreeDrawingCursor(
 		1,
 		Math.min(MAX_CURSOR_PX, Math.round(size * c.getZoom())),
 	);
+	const cacheKey = `${adjustedSize}|${color}|${eraser}`;
+	const cached = cursorCache.get(c);
+	if (cached?.key === cacheKey) {
+		c.freeDrawingCursor = cached.cursor;
+		c.setCursor(cached.cursor);
+		return;
+	}
 
 	const canvas: HTMLCanvasElement = document.createElement("canvas");
 	canvas.width = adjustedSize;
@@ -59,5 +67,6 @@ export function updateFreeDrawingCursor(
 	// Convert to data URL
 	const url = canvas.toDataURL("image/png");
 	c.freeDrawingCursor = `url(${url}) ${adjustedSize / 2} ${adjustedSize / 2}, crosshair`;
+	cursorCache.set(c, { key: cacheKey, cursor: c.freeDrawingCursor });
 	c.setCursor(c.freeDrawingCursor);
 }

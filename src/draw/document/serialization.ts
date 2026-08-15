@@ -365,12 +365,17 @@ export async function documentJsonToBlob(
 	json: any,
 	signal?: AbortSignal,
 ): Promise<Blob> {
-	const { objects, ...rest } = json ?? {};
+	const { objects, sharedReferences, ...rest } = json ?? {};
 	const list: any[] = Array.isArray(objects) ? objects : [];
+	const referenceList: any[] = Array.isArray(sharedReferences)
+		? sharedReferences
+		: [];
 
 	// `rest` is metadata only (version, background, layers, clipPath) — small
-	// enough to stringify whole. Splice the objects array in by hand so the
-	// per-object parts can be appended without re-encoding anything.
+	// enough to stringify whole. Objects and room-only shared references are
+	// spliced in separately: each reference may contain a bounded data URL, and
+	// six of those should not turn this previously-yielded serializer back into
+	// one large JSON.stringify on the main thread.
 	const head = JSON.stringify(rest);
 	const parts: BlobPart[] = [
 		head.slice(0, -1),
@@ -396,6 +401,23 @@ export async function documentJsonToBlob(
 			if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 		}
 	}
-	parts.push("]}");
+	parts.push("]");
+	if (referenceList.length > 0) {
+		parts.push(',"sharedReferences":[');
+		for (let i = 0; i < referenceList.length; i++) {
+			if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+			parts.push(
+				i === 0
+					? JSON.stringify(referenceList[i])
+					: `,${JSON.stringify(referenceList[i])}`,
+			);
+			if (yielder.shouldYield()) {
+				await yielder.yield();
+				if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+			}
+		}
+		parts.push("]");
+	}
+	parts.push("}");
 	return new Blob(parts, { type: "application/json" });
 }

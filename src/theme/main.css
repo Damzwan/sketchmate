@@ -40,6 +40,32 @@ img {
     padding-bottom: var(--ion-safe-area-bottom, 0);
 }
 
+/* For an absolutely-positioned primary control anchored near the bottom edge.
+ *
+ * Two separate problems, which is why this is a base offset AND an inset:
+ *
+ * The base is 2.5rem rather than the 1.5rem it replaced because the previous
+ * offset put Send roughly a thumb's width above Android's three-button
+ * navigation bar — reaching for it hit Back/Home/Recents instead, which is what
+ * a user reported. Without edge-to-edge the WebView viewport already stops
+ * above that bar, so the platform reports NO safe-area inset there and an inset
+ * alone would have changed nothing on the device that hit this. Aiming past a
+ * row of system buttons needs real clearance, not zero overlap.
+ *
+ * The inset then handles the devices that DO report one — iOS home-indicator
+ * phones, and Android if this app ever goes edge-to-edge — where the viewport
+ * extends under the system UI and 2.5rem alone would sit beneath it. */
+.bot-anchor-safe {
+    bottom: calc(2.5rem + var(--ion-safe-area-bottom, 0px));
+}
+
+/* Bottom padding for a scroll area that has a `.bot-anchor-safe` control
+ * floating over it, so the last row can always be scrolled clear of the button
+ * rather than coming to rest underneath it. Tracks the anchor's own growth. */
+.bot-clear-anchor {
+    padding-bottom: calc(9rem + var(--ion-safe-area-bottom, 0px));
+}
+
 .top-pad-safe {
     padding-top: var(--ion-safe-area-top, 0);
 }

@@ -1,4 +1,5 @@
 import { storeToRefs } from "pinia";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { type PublicLobby, useDrawSyncer } from "@/draw/sync/session.store";
 import { EventBus } from "@/main";
 import router from "@/router";
@@ -86,6 +87,10 @@ export function leaveRoom(skipEmit = false) {
 
 	roomMembers.value = [];
 	invitedFriends.value = [];
+	// Credit is scoped to one session on one canvas. Carrying it out of the room
+	// would let the next drawing inherit collaborators it never had.
+	useDrawSyncer().resetContributors();
+	useDrawingReferenceStore().leaveRoom();
 	removeRoomIdFromUrl();
 	isPublicLobby.value = false;
 	isLoadingCanvas.value = false;

@@ -48,6 +48,26 @@ describe("documentJsonToBlob", () => {
 		});
 	});
 
+	it("keeps shared references outside the Fabric object list", async () => {
+		const sharedReferences = [
+			{
+				id: "ref-1",
+				dataUrl: "data:image/webp;base64,YQ==",
+				aspectRatio: 1.5,
+				name: "Pose",
+				ownerId: "artist-1",
+			},
+		];
+		const result = await roundTrip({
+			version: "7",
+			objects: [{ id: "stroke-1" }],
+			sharedReferences,
+		});
+
+		expect(result.objects).toEqual([{ id: "stroke-1" }]);
+		expect(result.sharedReferences).toEqual(sharedReferences);
+	});
+
 	it("produces a Blob, which IndexedDB clones by reference", async () => {
 		// The entire point: `put` structured-clones synchronously, and a plain
 		// document object is cloned field by field — 3.4 s of main-thread block on

@@ -15,6 +15,31 @@ export interface PublishPostParams {
 	description: string;
 	enable_comments?: boolean;
 	enable_remix?: boolean;
+	/**
+	 * The post this drawing was started from. Only the id travels — the server
+	 * reads the author off the origin, so this can't be used to credit someone
+	 * the drawing didn't actually come from.
+	 */
+	remix_of_post_id?: string;
+	/**
+	 * Peers who drew on this canvas in a shared room. The server re-checks every
+	 * id against the user collection and caps the list before storing it.
+	 */
+	collaborator_ids?: string[];
+	/** Shoutouts picked in the composer. Verified and capped server-side. */
+	mention_ids?: string[];
+}
+
+/**
+ * Remove your own name from someone else's post. Idempotent — a tag that is
+ * already gone reports success.
+ */
+export async function removeMyMention(
+	postId: string,
+): Promise<{ removed: boolean }> {
+	return await request<{ removed: boolean }>(`/post/${postId}/mention`, {
+		method: "DELETE",
+	});
 }
 
 export async function getPostUploadUrls(): Promise<PresignedUploadBundle> {

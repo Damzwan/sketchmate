@@ -10,6 +10,15 @@ const AVATAR_DISAPPEAR_TIMEOUT_MS = 3000;
 
 export const useDrawUIStore = defineStore("drawUI", () => {
 	const colorPickerMode = ref(false);
+	/**
+	 * Where the eyedropper is pointing and what it reads there, in CSS pixels
+	 * relative to the canvas element. Set by useCanvasEyedropper, rendered by
+	 * EyedropperOverlay — the sampling and the loupe stay in separate files
+	 * because only the overlay needs the DOM.
+	 */
+	const colorPickerProbe = ref<{ x: number; y: number; hex: string } | null>(
+		null,
+	);
 	const addTextMode = ref(false);
 	const isEditingText = ref(false);
 	const shapeCreationMode = ref<ShapeCreationMode>();
@@ -87,6 +96,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		activeAvatars.value.clear();
 		activeAvatars.value = new Map();
 		colorPickerMode.value = false;
+		colorPickerProbe.value = null;
 		addTextMode.value = false;
 		isEditingText.value = false;
 		shapeCreationMode.value = undefined;
@@ -100,6 +110,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 
 	return {
 		colorPickerMode,
+		colorPickerProbe,
 		addTextMode,
 		isEditingText,
 		shapeCreationMode,

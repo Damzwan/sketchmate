@@ -13,6 +13,7 @@ import {
 
 const PREVIEW_HEIGHT = 56;
 const PREVIEW_FALLBACK_WIDTH = 256;
+const PREVIEW_INTERVAL_MS = 1000 / 30;
 
 export function usePenBrushPreview() {
 	const {
@@ -28,6 +29,9 @@ export function usePenBrushPreview() {
 	const previewStage = ref<HTMLElement>();
 	let canvas: Canvas | undefined;
 	let stageObserver: ResizeObserver | null = null;
+	let previewFrame: number | null = null;
+	let previewTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastPreviewAt = 0;
 
 	const previewWidth = () =>
 		Math.round(previewStage.value?.clientWidth || 0) || PREVIEW_FALLBACK_WIDTH;
@@ -39,6 +43,7 @@ export function usePenBrushPreview() {
 				width,
 				height: PREVIEW_HEIGHT,
 				selection: false,
+				renderOnAddRemove: false,
 			});
 		} else {
 			canvas.clear();
@@ -78,6 +83,22 @@ export function usePenBrushPreview() {
 		brush.onMouseUp({ e: new MouseEvent("mouseup") });
 		canvas.getObjects().forEach((object) => object.set("selectable", false));
 		canvas.renderAll();
+		lastPreviewAt = performance.now();
+	}
+
+	function schedulePreview() {
+		if (previewFrame !== null || previewTimer !== null) return;
+		const delay = Math.max(
+			0,
+			PREVIEW_INTERVAL_MS - (performance.now() - lastPreviewAt),
+		);
+		previewTimer = setTimeout(() => {
+			previewTimer = null;
+			previewFrame = requestAnimationFrame(() => {
+				previewFrame = null;
+				renderPreview();
+			});
+		}, delay);
 	}
 
 	onMounted(() => {
@@ -86,12 +107,16 @@ export function usePenBrushPreview() {
 		stageObserver = new ResizeObserver(() => {
 			if (!previewStage.value?.clientWidth) return;
 			if (canvas && canvas.width === previewWidth()) return;
-			renderPreview();
+			schedulePreview();
 		});
 		stageObserver.observe(previewStage.value);
 	});
 
 	onBeforeUnmount(() => {
+		if (previewFrame !== null) cancelAnimationFrame(previewFrame);
+		previewFrame = null;
+		if (previewTimer !== null) clearTimeout(previewTimer);
+		previewTimer = null;
 		stageObserver?.disconnect();
 		void canvas?.dispose();
 		canvas = undefined;
@@ -105,7 +130,7 @@ export function usePenBrushPreview() {
 		dotWidth,
 		pixelSize,
 	] as const) {
-		watch(source, renderPreview);
+		watch(source, schedulePreview);
 	}
 
 	return {

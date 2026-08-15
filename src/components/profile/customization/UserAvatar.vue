@@ -17,8 +17,10 @@
       />
     </div>
 
-    <!-- Pass the static prop down -->
+    <!-- Not rendered at all in `plain` mode, rather than rendered-and-empty:
+         the point of plain is that a credit row costs one <img>. -->
     <AvatarDecoration
+      v-if="!plain"
       :decoration-id="customization?.decorationId"
       :def="decorationDef"
       :static="static"
@@ -39,25 +41,40 @@ const props = defineProps<{
 	user?: any;
 	customization?: Partial<Customization>;
 	decorationDef?: Decoration;
-	size?: "xs" | "sm" | "md" | "lg" | "xl";
+	size?: "xxs" | "xs" | "sm" | "md" | "lg" | "xl";
 	img?: string;
 	static?: boolean; // <-- NEW PROP
+	/**
+	 * Identity only — no decoration layer, no themed border ring. Below ~24px a
+	 * decoration is illegible anyway, and each one is a promoted compositor
+	 * layer (see the note in the style block); a row of them on every feed card
+	 * is the difference between a credit line and a second header.
+	 */
+	plain?: boolean;
 }>();
 
 const containerStyle = computed(() => {
-	const sizes = { xs: "32px", sm: "48px", md: "64px", lg: "96px", xl: "128px" };
+	const sizes = {
+		xxs: "20px",
+		xs: "32px",
+		sm: "48px",
+		md: "64px",
+		lg: "96px",
+		xl: "128px",
+	};
 	const dim = sizes[props.size || "md"];
 	return { width: dim, height: dim };
 });
 
 const borderClass = computed(() => {
+	if (props.size === "xxs") return "border";
 	if (props.size === "sm" || props.size === "xs") return "border-2";
 	if (props.size === "md") return "border-[3px]";
 	return "border-4";
 });
 
 const borderColor = computed(() => {
-	if (!props.customization?.themeId) return "rgba(0,0,0,0.1)";
+	if (props.plain || !props.customization?.themeId) return "rgba(0,0,0,0.1)";
 	return resolveTheme(props.customization.themeId).accentColor;
 });
 </script>

@@ -4,14 +4,32 @@ import type { MaybeRefOrGetter } from "vue";
 import { toValue } from "vue";
 import type { DrawAction } from "@/draw/actions/drawAction.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { resolveFabricViewportPoint } from "@/draw/canvas/fabricPointer";
+import { getRenderDpr } from "@/draw/config/renderQuality.config";
 import { ERASERS, PENMENUTOOLS } from "@/draw/config/tools.config";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { exitColorPickerMode } from "@/draw/tools/colorActions";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { isMobile } from "@/helper/platform.helper";
+import { readCanvasPixel } from "@/draw/utils/canvasPixelRead";
 
 type SelectColor = (color: string) => void | Promise<void>;
+
+/**
+ * The picking session that is currently armed, so the overlay's Cancel control
+ * (and the hardware back button) can end it without owning any of this state.
+ * At most one can exist: `activateExclusiveEvents` is a single slot.
+ */
+let activeSession: { cancel: () => void } | null = null;
+
+/** Newest un-sampled move, and the frame that will sample it. See scheduleProbe. */
+let pendingProbeOptions: any = null;
+let probeFrame = 0;
+
+/** Abandon the armed picking session, if any, restoring the previous tool. */
+export function cancelColorPicking(): void {
+	activeSession?.cancel();
+}
 
 export function useCanvasEyedropper(
 	selectColor: SelectColor,
@@ -21,36 +39,89 @@ export function useCanvasEyedropper(
 		const { getCanvas, selectAction } = useDrawStore();
 		const { activateExclusiveEvents } = useDrawEventManager();
 		const { selectedTool } = useToolSelection();
-		const { colorPickerMode } = storeToRefs(useDrawUIStore());
+		const { colorPickerMode, colorPickerProbe } = storeToRefs(useDrawUIStore());
 		const canvas = getCanvas();
+		if (!canvas) return;
 		const lastSelectedObject = canvas.getActiveObject();
+		const previousCursor = canvas.defaultCursor;
+
+		activeSession?.cancel();
 
 		colorPickerMode.value = true;
+		colorPickerProbe.value = null;
 		canvas.selection = false;
 		canvas.skipTargetFind = true;
 		if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
 			canvas.isDrawingMode = false;
 		}
+		// A crosshair, plus the overlay banner. The old cursor was a generated
+		// data-URL swatch, which said nothing on touch — where there is no cursor
+		// at all — so on a phone the mode was completely invisible.
+		canvas.defaultCursor = "crosshair";
+		canvas.setCursor("crosshair");
+
+		function finish() {
+			activeSession = null;
+			if (probeFrame) {
+				cancelAnimationFrame(probeFrame);
+				probeFrame = 0;
+			}
+			pendingProbeOptions = null;
+			colorPickerProbe.value = null;
+			canvas.defaultCursor = previousCursor;
+			canvas.freeDrawingCursor = "default";
+			exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject });
+		}
+
+		activeSession = { cancel: finish };
+
+		/** Sample under the pointer and publish it for the loupe overlay. */
+		function probe(options: any): string | null {
+			const point = resolveFabricViewportPoint(canvas as any, options);
+			if (!point) return null;
+			const hex = colorAt(canvas, point.x, point.y);
+			colorPickerProbe.value = hex ? { x: point.x, y: point.y, hex } : null;
+			return hex;
+		}
+
+		/**
+		 * Coalesce move sampling to one read per FRAME.
+		 *
+		 * Every probe is a `getImageData`, i.e. a GPU→CPU readback with a driver
+		 * fence on the composited canvas. `mouse:move` fires several times per
+		 * frame on a dragging finger, and the loupe can only show the newest
+		 * sample anyway — so the extra reads bought nothing and produced a burst of
+		 * sync objects per second on exactly the Adreno/Mali stacks that show up in
+		 * the `gsl_syncobj_destroy` crashes.
+		 */
+		function scheduleProbe(options: any): void {
+			pendingProbeOptions = options;
+			if (probeFrame) return;
+			probeFrame = requestAnimationFrame(() => {
+				probeFrame = 0;
+				const queued = pendingProbeOptions;
+				pendingProbeOptions = null;
+				// The session may have ended between the schedule and the frame.
+				if (queued && activeSession) probe(queued);
+			});
+		}
 
 		activateExclusiveEvents([
+			// down as well as move: on touch there is no hover, so without this the
+			// loupe would only ever appear once the finger had already travelled.
+			{ on: "mouse:down", handler: (options: any) => void probe(options) },
+			{ on: "mouse:move", handler: (options: any) => scheduleProbe(options) },
 			{
 				on: "mouse:up",
 				handler: (options: any) => {
-					exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject });
-					const color = colorAtPointer(canvas, options);
-					void selectColor(color);
+					// The committed pick reads immediately — the frame-coalesced sample
+					// may be one move behind, and this is the value the user keeps.
+					const hex = probe(options) ?? colorPickerProbe.value?.hex ?? null;
+					finish();
+					if (!hex) return;
+					void selectColor(hex);
 					const action = toValue(colorPickerAction);
-					if (action) selectAction(action, { color });
-					canvas.freeDrawingCursor = "default";
-					canvas.contextTop?.clearRect(0, 0, canvas.width, canvas.height);
-				},
-			},
-			{
-				on: "mouse:move",
-				handler: (options: any) => {
-					const pixel = pixelAtPointer(canvas, options);
-					const color = `rgba(${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3] / 255})`;
-					updateColorIndicator(canvas, color, options);
+					if (action) selectAction(action, { color: hex });
 				},
 			},
 		]);
@@ -61,16 +132,49 @@ export function useCanvasEyedropper(
 	return { pickColor };
 }
 
-function pixelAtPointer(canvas: any, options: any): Uint8ClampedArray {
-	const pointer = canvas.getViewportPoint(options.e);
-	const dpr = window.devicePixelRatio || 1;
-	return canvas
-		.getContext()
-		.getImageData(pointer.x * dpr, pointer.y * dpr, 1, 1).data;
-}
+const clamp = (value: number, max: number) =>
+	Math.max(0, Math.min(Math.round(value), max));
 
-function colorAtPointer(canvas: any, options: any): string {
-	const pixel = pixelAtPointer(canvas, options);
+/**
+ * The composited pixel under a VIEWPORT point, as `#RRGGBBAA`.
+ *
+ * `getRenderDpr()`, never `window.devicePixelRatio`: the backing store is sized
+ * from fabric's `config.devicePixelRatio`, which the engine caps at
+ * MAX_RENDER_SCALE. On a 3x phone the raw ratio reads 1.5x past the intended
+ * pixel — usually straight off the backing store, which answers transparent
+ * black. That is what "the picker stopped working" was.
+ */
+function colorAt(canvas: any, viewportX: number, viewportY: number) {
+	const element: HTMLCanvasElement | undefined = canvas.getElement?.();
+	const context = canvas.getContext?.();
+	if (!element || !context) return null;
+
+	const dpr = getRenderDpr();
+	const x = clamp(viewportX * dpr, element.width - 1);
+	const y = clamp(viewportY * dpr, element.height - 1);
+
+	let pixel: Uint8ClampedArray | null = readCanvasPixel(element, x, y);
+	if (!pixel) {
+		try {
+			// Scratch unavailable or tainted. The direct read is the same pixel; if
+			// the drawing itself is tainted this throws too, and there is nothing to
+			// pick and nothing the user can do about it.
+			pixel = context.getImageData(x, y, 1, 1).data;
+		} catch {
+			return null;
+		}
+	}
+	if (!pixel) return null;
+
+	// Nothing painted here — the engine composites the background itself, so a
+	// hole means genuinely empty. Answer the background rather than black.
+	if (!pixel[3]) {
+		const background = canvas.backgroundColor;
+		return typeof background === "string" && /^#[\da-f]{6}/i.test(background)
+			? `${background.slice(0, 7).toUpperCase()}FF`
+			: null;
+	}
+
 	return (
 		"#" +
 		((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2])
@@ -79,86 +183,4 @@ function colorAtPointer(canvas: any, options: any): string {
 			.toUpperCase() +
 		pixel[3].toString(16).toUpperCase().padStart(2, "0")
 	);
-}
-
-function updateColorIndicator(
-	canvas: any,
-	color: string,
-	event?: any,
-	size = isMobile() ? 80 : 32,
-) {
-	const zoom = canvas.getZoom();
-	const adjustedSize = size * zoom;
-	if (isMobile() && event) {
-		drawMobileIndicator(canvas, event.pointer, color, adjustedSize, zoom);
-		return;
-	}
-	if (isMobile()) return;
-
-	const cursorCanvas = document.createElement("canvas");
-	cursorCanvas.width = adjustedSize;
-	cursorCanvas.height = adjustedSize;
-	const context = cursorCanvas.getContext("2d");
-	if (!context) return;
-	const center = adjustedSize / 2;
-	const radius = center - 1;
-
-	context.beginPath();
-	context.arc(center, center, radius, 0, Math.PI * 2);
-	context.fillStyle = color;
-	context.fill();
-	context.strokeStyle = "#000";
-	context.lineWidth = 2;
-	context.stroke();
-	drawCrosshair(context, center, adjustedSize, "#000", 2);
-	drawCrosshair(context, center, adjustedSize, "#fff", 1);
-
-	canvas.freeDrawingCursor = `url(${cursorCanvas.toDataURL("image/png")}) ${center} ${center}, crosshair`;
-	canvas.setCursor(canvas.freeDrawingCursor);
-}
-
-function drawCrosshair(
-	context: CanvasRenderingContext2D,
-	center: number,
-	size: number,
-	color: string,
-	width: number,
-) {
-	context.lineWidth = width;
-	context.strokeStyle = color;
-	context.beginPath();
-	context.moveTo(center, 0);
-	context.lineTo(center, size);
-	context.moveTo(0, center);
-	context.lineTo(size, center);
-	context.stroke();
-}
-
-function drawMobileIndicator(
-	canvas: any,
-	pointer: { x: number; y: number },
-	color: string,
-	size: number,
-	zoom: number,
-) {
-	const context = canvas.contextTop;
-	context.clearRect(0, 0, canvas.width, canvas.height);
-	const centerX = pointer.x;
-	const centerY = pointer.y - 60 * zoom;
-	const radius = size / 2;
-
-	for (const [stroke, width] of [
-		["#000", 3],
-		["#fff", 1.5],
-	] as const) {
-		context.beginPath();
-		context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-		context.strokeStyle = stroke;
-		context.lineWidth = width;
-		context.stroke();
-	}
-	context.beginPath();
-	context.arc(centerX, centerY, radius - 2, 0, Math.PI * 2);
-	context.fillStyle = color;
-	context.fill();
 }

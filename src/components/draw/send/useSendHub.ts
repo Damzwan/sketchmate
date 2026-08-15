@@ -3,10 +3,14 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import { storeToRefs } from "pinia";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { formatRemaining, resolveAccent } from "@/config/competition.config";
 import { useDocumentStore } from "@/draw/document/document.store";
 import { useDrawStore } from "@/draw/session/draw.store";
-import { useShareService } from "@/draw/sharing/shareService.store";
+import {
+	type PostSettings,
+	useShareService,
+} from "@/draw/sharing/shareService.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { masterAnimation } from "@/helper/animation.helper";
@@ -16,14 +20,19 @@ import { useCompetitionStore } from "@/store/competition.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useParentalStore } from "@/store/parental.store";
 import { useQuotaStore } from "@/store/quota.store";
+import { useSessionStore } from "@/store/session.store";
 import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useCollaboratorPicker } from "./useCollaboratorPicker";
+import { useMentionPicker } from "./useMentionPicker";
 import { useSendMatePicker } from "./useSendMatePicker";
 
 dayjs.extend(duration);
 
 export function useSendHub() {
 	const router = useIonRouter();
+	const route = useRoute();
+	const sessionStore = useSessionStore();
 	const auth = useAuthStore();
 	const { user, isUnderAge } = storeToRefs(auth);
 	const parental = useParentalStore();
@@ -34,6 +43,8 @@ export function useSendHub() {
 	const drawUI = useDrawUIStore();
 	const competitionStore = useCompetitionStore();
 	const matePicker = useSendMatePicker();
+	const mentionPicker = useMentionPicker();
+	const collaboratorPicker = useCollaboratorPicker();
 	const { selected, resetMates, hasMates } = matePicker;
 
 	const competitionPreselected = shareService.preSelected === "competition";
@@ -185,10 +196,28 @@ export function useSendHub() {
 		const wantsPost = isPublicPost.value && !isUnderAge.value;
 		const wantsBalloon = isBalloon.value && !isUnderAge.value;
 		const wantsCompetition = isCompetition.value && showCompetition.value;
-		const postOptions = {
+		// Same two-source read DrawMain uses for `canvas_url` — the deep-link path
+		// parks the params on the session store rather than the route.
+		const originPostId =
+			route.query.remix_of || sessionStore.queryParams?.get("remix_of");
+		// The picker's confirmed subset, not the raw contributor list: the room
+		// records who drew anywhere on the canvas, and this may be a crop of one
+		// corner of it. The picker holds its own copy, so this no longer depends
+		// on being read before the room teardown below.
+		const collaboratorIds = collaboratorPicker.collaboratorIds.value;
+		// Annotated, not inferred: an unannotated object is not an object literal
+		// at the call site, so TypeScript skips excess-property checking and a
+		// field the share service does not forward gets dropped in silence.
+		// That is exactly how `mention_ids` went missing.
+		const postOptions: PostSettings = {
 			caption: postCaption.value,
 			enable_comments: postEnableComments.value,
 			enable_remix: postEnableRemix.value,
+			...(originPostId ? { remix_of_post_id: String(originPostId) } : {}),
+			...(collaboratorIds.length && { collaborator_ids: collaboratorIds }),
+			...(mentionPicker.mentionIds.value.length && {
+				mention_ids: mentionPicker.mentionIds.value,
+			}),
 		};
 		const balloonMessage = balloonNote.value;
 		const competitionOptions = { caption: competitionCaption.value };
@@ -212,6 +241,7 @@ export function useSendHub() {
 		drawUI.isForceExiting = true;
 		leaveShare();
 		resetMates();
+		mentionPicker.resetMentions();
 
 		setTimeout(async () => {
 			try {
@@ -254,6 +284,8 @@ export function useSendHub() {
 		quotaStore,
 		competitionStore,
 		matePicker,
+		mentionPicker,
+		collaboratorPicker,
 		isSaveAndSend,
 		isBalloon,
 		isCompetition,

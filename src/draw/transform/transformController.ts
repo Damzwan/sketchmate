@@ -463,6 +463,9 @@ let vacatedGeneration = 0;
  * full-quality cache makes it a no-op.
  */
 export function prewarm(c: Canvas): void {
+	// No bitmap layer can be produced on these legacy WebViews. Avoid scheduling
+	// idle work that can only fall back to null; Fabric remains the renderer.
+	if (typeof OffscreenCanvas !== "function") return;
 	if (prewarmHandle !== null) cancelIdle(prewarmHandle);
 	const target = c.getActiveObject();
 	if (target) prewarmVacated(c, target);
@@ -660,6 +663,7 @@ async function renderVacatedLocally(
 	height: number,
 	isCancelled: () => boolean,
 ): Promise<ImageBitmap | null> {
+	if (typeof OffscreenCanvas !== "function") return null;
 	const off = new OffscreenCanvas(width, height);
 	const ctx = off.getContext("2d", { alpha: true });
 	if (!ctx) return null;
@@ -1051,6 +1055,9 @@ function bakeSelectionBitmap(
 	target: FabricObject,
 	fast = false,
 ): { bitmap: ImageBitmap; origin: Origin } | null {
+	// The bitmap drag layer is an optimization. Legacy Android WebViews without
+	// OffscreenCanvas keep Fabric's normal live transform path instead.
+	if (typeof OffscreenCanvas !== "function") return null;
 	const PAD = 8;
 	const b = target.getBoundingRect();
 	const zoom = c.viewportTransform![0];
@@ -1245,6 +1252,7 @@ function vacatedObjects(target: FabricObject, origin: Origin): FabricObject[] {
 }
 
 function transparentBitmap(): ImageBitmap | null {
+	if (typeof OffscreenCanvas !== "function") return null;
 	try {
 		return new OffscreenCanvas(1, 1).transferToImageBitmap();
 	} catch {

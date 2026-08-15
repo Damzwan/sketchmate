@@ -1,4 +1,5 @@
 import {
+	ActiveSelection,
 	Canvas,
 	type CanvasOptions,
 	config,
@@ -54,6 +55,7 @@ export function configureFabric(): void {
 	installObjectMetadata();
 	installZoomCalculation();
 	installControlRenderer();
+	installSelectionBorderPolicy();
 	applyInteractionDefaults();
 }
 
@@ -173,6 +175,60 @@ function installControlRenderer(): void {
 		if (style.hasBorders) this.drawBorders(context, transform, styleOverride);
 		if (style.hasControls) this.drawControls(context, styleOverride);
 		context.restore();
+	};
+}
+
+/**
+ * Members above which a multi-selection shows ONLY its own bounding box.
+ *
+ * Fabric draws a border around EVERY member of an `ActiveSelection` on top of
+ * the selection's own box. For two or three objects that is useful — it says
+ * exactly what is selected. For thirty it is a thicket of rectangles over the
+ * user's artwork, and the one box that actually matters is lost in it.
+ *
+ * 8 is the point where naming the individual members stops being the useful
+ * information and "this region is selected" starts being it.
+ */
+export const SELECTION_MEMBER_BORDER_LIMIT = 8;
+
+/**
+ * Draw one box instead of N for a large selection.
+ *
+ * Fabric already provides the seam: `ActiveSelection._renderControls` takes a
+ * `childrenOverride` it merges into the per-member style. But suppressing the
+ * borders that way still walks every member and still pays
+ * `calcTransformMatrix` + `qrDecompose` per member — and this runs on EVERY
+ * composited frame while a selection exists (see `rerenderActiveObjectControls`,
+ * wired into `afterComposite`). On a large selection that is per-frame matrix
+ * math for borders nobody is going to see.
+ *
+ * So the large case skips the member loop entirely and renders just the
+ * selection's own box, which is what `super._renderControls` does — here
+ * resolved explicitly through `InteractiveFabricObject.prototype`, the same
+ * function `super` reaches, and the one `installControlRenderer` replaced.
+ * Looked up per call rather than captured, so install order does not matter.
+ */
+export function installSelectionBorderPolicy(): void {
+	const withMembers = ActiveSelection.prototype._renderControls;
+
+	ActiveSelection.prototype._renderControls = function (
+		this: any,
+		ctx: CanvasRenderingContext2D,
+		styleOverride?: any,
+		childrenOverride?: any,
+	) {
+		const members = this._objects?.length ?? 0;
+		if (members <= SELECTION_MEMBER_BORDER_LIMIT) {
+			return withMembers.call(this, ctx, styleOverride, childrenOverride);
+		}
+		ctx.save();
+		ctx.globalAlpha = this.isMoving ? this.borderOpacityWhenMoving : 1;
+		InteractiveFabricObject.prototype._renderControls.call(
+			this,
+			ctx,
+			styleOverride,
+		);
+		ctx.restore();
 	};
 }
 

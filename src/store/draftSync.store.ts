@@ -387,6 +387,13 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		documents: ReturnType<typeof useDocumentStore>,
 	): Promise<void> {
 		const id = summary.draft_id;
+		// Treat network payloads as untrusted at the persistence boundary. Passing
+		// undefined/null to an IndexedDB key-path put throws a synchronous DataError
+		// from inside the request callback, which escapes normal promise handling.
+		if (typeof id !== "string" || id.trim().length === 0) {
+			console.warn("[draftSync] ignored cloud draft without a valid id");
+			return;
+		}
 		const [localRevision, state] = await Promise.all([
 			documents.getDraftRevision(id),
 			documents.readDraftSyncState(id),
@@ -499,6 +506,7 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 
 			for (const summary of page.drafts) await applyRemote(summary, documents);
 			for (const id of page.deleted) {
+				if (typeof id !== "string" || id.trim().length === 0) continue;
 				remoteDocuments.delete(id);
 				remoteOnlyIds.value.delete(id);
 				remoteDraftMetadata.value.delete(id);

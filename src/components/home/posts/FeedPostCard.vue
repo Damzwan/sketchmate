@@ -101,6 +101,19 @@
           </div>
         </div>
 
+        <!-- Credits sit between the author block and the caption: they are part
+             of who made this, not part of what the artist wrote about it. Kept
+             off the artwork on purpose — its four corners are already spoken
+             for by the competition badge, the fullscreen control and the
+             signature. -->
+        <PostCredits
+          :post="post"
+          :label-color="headerPalette.desc"
+          :ring-color="theme.isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.75)'"
+          :text-shadow="headerTextShadow"
+          @open-user="openUser"
+        />
+
         <!-- The artist's own words, so this is prose the reader has to get
              through, not a label to glance at. It stays in the UI face: the
              display faces measure 40-76% single-pixel stems at this size, and
@@ -274,6 +287,7 @@ import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
 import type { FeedPost } from "@/types/server.types";
 import FeedPostFooter from "./FeedPostFooter.vue";
+import PostCredits from "./PostCredits.vue";
 import { useFeedPostCard } from "./useFeedPostCard";
 
 const props = defineProps<{

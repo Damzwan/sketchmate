@@ -75,6 +75,44 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 	const isLobby = computed(() => !!roomId.value);
 
 	/**
+	 * Peers who have actually put marks on this canvas, in the order they first
+	 * did — the basis for the collaboration credit on a post made in a room.
+	 *
+	 * Deliberately NOT `roomMembers`: that is a live presence list, so it would
+	 * credit someone who wandered in a second before the export and drop the
+	 * person who drew half the picture and left. This is keyed off the server's
+	 * `creator` stamp on each incoming draw event, which is set from the socket's
+	 * authenticated user and never from the sending client.
+	 *
+	 * The member snapshot is kept alongside the id because credit outlives
+	 * presence: by publish time the contributor may well be gone from the room.
+	 */
+	const contributors = ref<Map<string, Mate>>(new Map());
+
+	/**
+	 * A hard ceiling on credit, not on the room. Public lobbies are open, so
+	 * without a cap a busy canvas would carry a credit list longer than the
+	 * caption — and the row only ever shows three faces regardless.
+	 */
+	const MAX_CONTRIBUTORS = 12;
+
+	function noteContributor(userId: string | undefined) {
+		if (!userId || contributors.value.has(userId)) return;
+		if (contributors.value.size >= MAX_CONTRIBUTORS) return;
+
+		const member = roomMembers.value.find((m) => m._id === userId);
+		if (!member) return;
+
+		// Replaced rather than mutated: a Map mutation is not reactive.
+		contributors.value = new Map(contributors.value).set(userId, member);
+	}
+
+	function resetContributors() {
+		if (contributors.value.size === 0) return;
+		contributors.value = new Map();
+	}
+
+	/**
 	 * Lobby chat is session-scoped and has NO history endpoint — ChatMessageFlow
 	 * deliberately renders no top sentinel for it, so anything scrolled past is
 	 * already unrecoverable. The array was nonetheless unbounded: five socket
@@ -159,6 +197,9 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 		lastProcessedSequenceId,
 		currentSessionId,
 		isLobby,
+		contributors,
+		noteContributor,
+		resetContributors,
 		addOptimisticLobbyMessage,
 		resolveOptimisticLobbyMessage,
 		updateLobbyMessageStatus,

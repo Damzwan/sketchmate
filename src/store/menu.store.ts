@@ -31,6 +31,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const reportMenuOpen = ref(false);
 	const balloonMenuOpen = ref(false);
 	const textEditMenuOpen = ref(false);
+	const referenceMenuOpen = ref(false);
 	const isShopOpen = ref(false);
 	const isOnlineUpgradeMenuOpen = ref(false);
 	const isPaywallOpen = ref(false);
@@ -78,6 +79,7 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.TextEditMenu]: textEditMenuOpen,
 		[Menu.Shop]: isShopOpen,
 		[Menu.UpgradeOnline]: isOnlineUpgradeMenuOpen,
+		[Menu.Reference]: referenceMenuOpen,
 	};
 
 	const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -158,6 +160,7 @@ export const useMenuStore = defineStore("menu", () => {
 		closeMenu,
 		reportMenuOpen,
 		textEditMenuOpen,
+		referenceMenuOpen,
 		isShopOpen,
 		isOnlineUpgradeMenuOpen,
 		isPaywallOpen,

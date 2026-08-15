@@ -36,6 +36,12 @@
           <p class="pl-2 text-base">Camera</p>
         </ion-item>
 
+        <ion-item color="tertiary" :button="true" @click="openReferenceMenu" :detail="true">
+          <ion-icon :icon="svg(mdiImageSearchOutline)" />
+          <p class="pl-2 text-base">References</p>
+          <p v-if="referenceCount" class="pl-2 text-sm opacity-60">{{ referenceCount }}</p>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="onTextClick" :detail="true">
           <ion-icon :icon="svg(mdiFormatText)" />
           <p class="pl-2 text-base">Text</p>
@@ -96,6 +102,7 @@ import {
 	mdiFormatText,
 	mdiImage,
 	mdiImagePlusOutline,
+	mdiImageSearchOutline,
 	mdiPaletteOutline,
 	mdiSelectionDrag,
 	mdiSelectionRemove,
@@ -108,6 +115,7 @@ import ImageCropper from "@/components/draw/ImageCropper.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { createSketchFromDataURL } from "@/draw/document/export";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { svg } from "@/helper/general.helper";
@@ -121,6 +129,9 @@ const claimArea = useClaimArea();
 const { roomId } = storeToRefs(useDrawSyncer());
 const inLobby = computed(() => !!roomId.value);
 const myAreaCount = computed(() => claimArea.myAreas.length);
+const referenceCount = computed(
+	() => useDrawingReferenceStore().references.length,
+);
 
 function onClaimArea() {
 	closePopover();
@@ -157,6 +168,11 @@ watch(shapesMenuOpen, () => {
 function openSavedMenu() {
 	openMenu(Menu.StickerEmblemSaved);
 	stickersEmblemsSavedSelectedTab.value = "saved";
+	closePopover();
+}
+
+function openReferenceMenu() {
+	openMenu(Menu.Reference);
 	closePopover();
 }
 

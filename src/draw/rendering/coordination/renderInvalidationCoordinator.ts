@@ -33,7 +33,18 @@ export abstract class RenderInvalidationCoordinator<
 		if (canStamp) {
 			this.committed.dropOtherTiers(rect, tier);
 			this.committed.additiveStamp(rect, obj, tier);
-			this.patchOverview(rect);
+			// The stamp exists only at this tier. Keep a live copy for every other
+			// tier until the async overview patch commits. The handoff is deliberately
+			// NOT queued here: a fallback add can cover several tiles and starting the
+			// overview while even one is still stale makes the low-res overview and the
+			// full live stroke overlap. demoteSettled starts it at the tile-ready seam.
+			if (this.live.add(obj, rect, "additive")) {
+				if (obj.id) this.overviewHandoffTier.set(obj.id, tier);
+			} else {
+				// Only possible for malformed objects without an id: keep the ordinary
+				// eventual-repair path as a defensive fallback.
+				this.patchOverview(rect);
+			}
 			this.requestFrame();
 			this.scheduleBake();
 			return;
@@ -52,12 +63,17 @@ export abstract class RenderInvalidationCoordinator<
 			topmost &&
 			stampSafe &&
 			this.intersectsView(rect) &&
-			this.live.add(obj, rect, "normal");
+			this.live.add(obj, rect, "additive");
 		if (willLive) {
 			this.committed.markStale(rect);
-			// Do NOT patch the overview here — the live overlay is the sole copy
-			// during the bake window, so a semi-transparent stroke stays single.
-			// The overview is folded in at demote (see demoteSettled).
+			// Only the active tier may retain its incomplete sharp tile. Once the
+			// live bridge retires, every other tier must take the updated overview
+			// rather than a stale usable tile that predates this stroke.
+			this.committed.dropOtherTiers(rect, tier);
+			if (obj.id) this.overviewHandoffTier.set(obj.id, tier);
+			// The live copy remains the only cross-tier representation until the
+			// current fine tier is complete. demoteSettled then starts an atomic,
+			// abortable overview handoff and retains this item until its commit.
 		} else {
 			// An insertion never makes the old pixels incorrect; they are only
 			// missing the new object. For a non-topmost object (a bucket fill, or a
@@ -112,6 +128,7 @@ export abstract class RenderInvalidationCoordinator<
 
 	removeLiveObject(id: string): void {
 		this.live.remove(id);
+		this.cancelOverviewHandoff(id);
 	}
 
 	onObjectChanged(obj: T, oldRect?: WorldRect): void {

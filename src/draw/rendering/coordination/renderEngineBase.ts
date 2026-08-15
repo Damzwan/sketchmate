@@ -117,6 +117,12 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected baking = false;
 	protected bakeAgain = false;
 	protected pendingDemote = false;
+	/** Additive live objects whose overview handoff is queued or running. */
+	protected readonly overviewHandoffPending = new Set<string>();
+	protected readonly overviewHandoffRebuild = new Set<string>();
+	/** Tier that first received (or started baking) the additive object. */
+	protected readonly overviewHandoffTier = new Map<string, number>();
+	protected readonly overviewHandoffRect = new Map<string, WorldRect>();
 	protected frameCounter = 0;
 
 	/**
@@ -213,4 +219,6 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected abstract mergeRects(rects: WorldRect[]): WorldRect[];
 	protected abstract growContentBounds(rect: WorldRect): void;
 	protected abstract additiveInvalidate(rect: WorldRect): void;
+	protected abstract queueOverviewHandoff(obj: T, rect: WorldRect): void;
+	protected abstract cancelOverviewHandoff(id: string): void;
 }

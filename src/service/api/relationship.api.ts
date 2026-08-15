@@ -27,12 +27,23 @@ export async function toggleFollow(targetId: string) {
 export async function fetchNetworkType(
 	userId: string,
 	type: "mates" | "following" | "followers" | "blocked",
-	params: { page?: number; limit?: number; search?: string },
+	params: {
+		page?: number;
+		limit?: number;
+		search?: string;
+		/**
+		 * `mates` only. Narrows to PERMANENT mates, dropping live 24h trials and
+		 * pending requests. Opt-in — omit it for the broad list every existing
+		 * caller expects.
+		 */
+		status?: "mate";
+	},
 ) {
 	const query = new URLSearchParams({
 		page: (params.page || 1).toString(),
 		limit: (params.limit || 20).toString(),
 		...(params.search && { search: params.search }),
+		...(params.status && { status: params.status }),
 	});
 
 	return await request<{ total: number; data: NetworkUser[] }>(

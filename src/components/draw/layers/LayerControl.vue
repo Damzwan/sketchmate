@@ -2,11 +2,7 @@
   <!-- Bottom-right corner. Rendered inside the draw page (NOT teleported) so it
        stays under SendHub / RoomMenu / ChatWidget in the page's stacking context. -->
   <button
-    class="fixed z-40 pointer-events-auto cursor-pointer max-w-[9rem] h-10 flex items-center gap-1.5 pl-2 pr-2.5 rounded-2xl border border-primary/60 bg-primary/40 backdrop-blur-md shadow-lg active:scale-95 transition-all"
-    :style="{
-      right: 'calc(0.75rem + env(safe-area-inset-right))',
-      bottom: 'calc(6rem + env(safe-area-inset-bottom))',
-    }"
+    class="relative pointer-events-auto cursor-pointer max-w-[9rem] h-10 flex items-center gap-1.5 pl-2 pr-2.5 rounded-2xl border border-primary/60 bg-primary/40 backdrop-blur-md shadow-lg active:scale-95 transition-all"
     :aria-label="`Layers — drawing on ${activeLayerName}`"
     @click="open()"
   >

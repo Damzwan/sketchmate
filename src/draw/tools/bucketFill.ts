@@ -1,6 +1,7 @@
 import { type Canvas, FabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { createYielder } from "@/draw/scheduling/yielder";
 import type {
 	FloodFillRequest,
 	FloodFillResponse,
@@ -48,6 +49,42 @@ const ESCALATION_BUFFERS = IS_MOBILE_FILL
 	: [MAX_OFFSCREEN_PIXELS, 2048, 2600];
 const MIN_BARRIER_PX = 3; // Barrier must render >= this many px to block the radius-2 flood
 const BASE_BLEED = 1.5; // Fill bleed (world units) tucked under surrounding strokes
+
+/**
+ * ONE reusable offscreen buffer for every fill attempt in the session.
+ *
+ * Each attempt used to `createElement("canvas")` and then drop it — 5.8 MB at
+ * 1200², 16.8 MB at 2048², and a mobile fill runs BOTH levels when the first
+ * reaches the border. That is two GPU surfaces created and destroyed per bucket
+ * click, which is precisely the Adreno texture-lifecycle churn behind the Scudo
+ * `invalid chunk state` crash (docs/DRAW_ENGINE_HARDENING_PLAN.md → F2).
+ *
+ * Grown, never shrunk: the escalation ladder only goes up within a fill, and
+ * the next fill starts at the base size again but can reuse the bigger surface
+ * as-is by drawing into a sub-rect... except that it cannot, because pxScale
+ * maps world to the FULL buffer edge. So the buffer is resized to the attempt's
+ * edge, which still reuses one canvas object and one driver surface slot rather
+ * than allocating a new one each time.
+ */
+let fillBuffer: HTMLCanvasElement | null = null;
+
+function acquireFillBuffer(edge: number): HTMLCanvasElement {
+	if (!fillBuffer) fillBuffer = document.createElement("canvas");
+	// Assigning dimensions also RESETS the canvas (clears pixels, resets the 2D
+	// context state), which this path relies on: every attempt repaints the
+	// background and the transform from scratch.
+	fillBuffer.width = edge;
+	fillBuffer.height = edge;
+	return fillBuffer;
+}
+
+/** Drop the buffer's backing store. The session is over; do not hold 16 MB. */
+export function releaseFillBuffer(): void {
+	if (!fillBuffer) return;
+	fillBuffer.width = 0;
+	fillBuffer.height = 0;
+	fillBuffer = null;
+}
 
 // ── Flood-fill worker (lazy singleton) ──────────────────────────────────────
 // The flood fill scan + contour tracing run off the main thread so big fills
@@ -164,12 +201,13 @@ function thinnestStroke(objs: FabricObject[]): number {
  * Hairline strokes → high res + small region; thick / no strokes → base res +
  * full region. No stroke bump needed: barriers are real at every scale.
  */
-function buildSmartOffscreenCanvas(
+async function buildSmartOffscreenCanvas(
 	c: Canvas,
 	clickPoint: Point,
 	/** Buffer edge in px. Larger = more world coverage at the SAME pxScale (see
 	 *  ESCALATION_BUFFERS), i.e. more reach with unchanged barrier legibility. */
 	bufferPx: number = MAX_OFFSCREEN_PIXELS,
+	signal?: AbortSignal,
 ) {
 	const { query, getZIndexMap } = useDrawObjectManager();
 
@@ -200,9 +238,13 @@ function buildSmartOffscreenCanvas(
 
 	const expandLeft = clickPoint.x - worldDim / 2;
 	const expandTop = clickPoint.y - worldDim / 2;
-	const offscreen = document.createElement("canvas");
-	offscreen.width = off;
-	offscreen.height = off;
+	const offscreen = acquireFillBuffer(off);
+	// NOT `willReadFrequently`. It looks right for a buffer whose whole purpose
+	// is one `getImageData`, and it is 10x SLOWER here: measured on this exact
+	// shape (1200 strokes, then read back), 5.8 ms GPU-backed vs 135 ms
+	// CPU-backed at 1200², and 12 ms vs 171 ms at 2048². The buffer is DRAWN to
+	// far more than it is read from, so the accelerated surface wins by an order
+	// of magnitude even counting the readback.
 	const ctx = offscreen.getContext("2d", { alpha: false })!;
 
 	ctx.fillStyle = (c.backgroundColor as string) || "#ffffff";
@@ -235,11 +277,27 @@ function buildSmartOffscreenCanvas(
 	// upscales a blurry, thinned barrier — the flood then leaks or stops short and
 	// the fill loses accuracy. Disable caching for this pass so objects draw their
 	// vectors directly at our controlled pxScale, crisp at any zoom. Restore after.
-	for (const obj of objectsToRender) {
+	// YIELDED. This is an unbounded O(objects in region) render — the region is
+	// up to 2500 world units across and a dense board puts thousands of objects
+	// in it — and it was the last synchronous render loop in the engine without
+	// a yielder or a cost gate. Measured on desktop at 1200 objects: 8.7 ms draw
+	// + 5.8 ms readback at 1200², plus 6.6 + 12.4 at 2048² when the fill
+	// escalates, i.e. ~33 ms un-yielded per click before the low-end multiplier.
+	// The breadcrumb trail on the SIGABRT is a user clicking bucket repeatedly.
+	const yielder = createYielder({ budgetMs: 4, signal, label: "bucket-fill" });
+	yielder.reset();
+	for (let i = 0; i < objectsToRender.length; i++) {
+		const obj = objectsToRender[i];
 		const cached = obj.objectCaching;
 		obj.objectCaching = false;
 		obj.render(ctx);
 		obj.objectCaching = cached;
+		if (yielder.shouldYield()) {
+			await yielder.yield();
+			if (signal?.aborted) {
+				throw new DOMException("Bucket fill aborted", "AbortError");
+			}
+		}
 	}
 
 	return {
@@ -277,7 +335,12 @@ export async function bucketFill(
 	for (let level = 0; level < ESCALATION_BUFFERS.length; level++) {
 		if (signal?.aborted)
 			throw new DOMException("Bucket fill aborted", "AbortError");
-		const built = buildSmartOffscreenCanvas(c, p, ESCALATION_BUFFERS[level]);
+		const built = await buildSmartOffscreenCanvas(
+			c,
+			p,
+			ESCALATION_BUFFERS[level],
+			signal,
+		);
 		const offscreen = built.offscreen;
 		worldRect = built.worldRect;
 		pxScale = built.pxScale;

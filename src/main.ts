@@ -1,3 +1,4 @@
+import "./polyfills";
 import { IonicVue } from "@ionic/vue";
 import { createApp } from "vue";
 import router from "./router";
@@ -29,7 +30,14 @@ import { addNotificationListeners } from "@/helper/notification.helper";
 import { isMobile } from "@/helper/platform.helper";
 
 const pinia = createPinia();
-void initFirebase();
+
+// Started at module eval so the `firebase/app` chunk is already in flight, but
+// AWAITED before mount (see bootstrap). On web the auth store registers its
+// `authStateChange` listener synchronously during setup, and that goes through
+// the Firebase web SDK — which throws `app/no-app` if `initializeApp` has not
+// run yet. Mounting without waiting is a race against a dynamic import, and it
+// is lost whenever the chunk fetch is slow (cold dev server, cache miss).
+const firebaseReady = initFirebase();
 
 export const EventBus = mitt();
 
@@ -51,6 +59,10 @@ if (Capacitor.getPlatform() === "android") {
 }
 
 async function bootstrap() {
+	// Native resolves this immediately (the helper returns before its import), so
+	// only the PWA pays anything, and only for a chunk already being fetched.
+	await firebaseReady;
+
 	const app = createApp(App).use(IonicVue).use(pinia).use(router);
 
 	app.mount("#app");

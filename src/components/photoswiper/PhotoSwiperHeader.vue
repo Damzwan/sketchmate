@@ -37,6 +37,18 @@
       <p v-if="currItem.description" class="text-[13px] opacity-85 line-clamp-2 leading-snug">
         {{ currItem.description }}
       </p>
+
+      <!-- Same credit rows as the feed card, so opening a post fullscreen never
+           drops an attribution the smaller view showed. Fixed light-on-dark
+           colours rather than the card's palette: this toolbar is its own
+           surface (a flat black scrim), not the artist's themed card. -->
+      <PostCredits
+        v-if="type === 'post'"
+        :post="currItem"
+        label-color="rgba(255,255,255,0.85)"
+        ring-color="rgba(0,0,0,0.6)"
+        @open-user="openCreditedUser"
+      />
     </div>
 
     <ion-buttons slot="end" class="self-start mt-1">
@@ -77,6 +89,7 @@
 <script setup lang="ts">
 import { IonButton, IonButtons, IonIcon, IonToolbar } from "@ionic/vue";
 import { arrowBack } from "ionicons/icons";
+import PostCredits from "@/components/home/posts/PostCredits.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { senderImg } from "@/helper/general.helper";
@@ -98,6 +111,8 @@ const openAuthor = () => {
 	if (!id) return;
 	openUserActions({ _id: id, name: author?.name, img: author?.img });
 };
+
+const openCreditedUser = (userId: string) => openUserActions({ _id: userId });
 
 function resolveUser(userId: string) {
 	return props.userLookup ? props.userLookup(userId) : userId;

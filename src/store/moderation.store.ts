@@ -36,6 +36,13 @@ export interface ReportTarget {
 	 * option can be offered.
 	 */
 	blockUserId?: string;
+	/**
+	 * Set when the report is raised inside a lobby. Lobby chat lives only in the
+	 * room's server-side buffer, so this is what lets the report carry the
+	 * exchange it was about — without it the moderator sees an account flag with
+	 * nothing behind it.
+	 */
+	contextRoomId?: string;
 }
 export const useModerationStore = defineStore("moderation", () => {
 	const restriction = ref<UserRestriction | null>(null);
@@ -206,7 +213,7 @@ export const useModerationStore = defineStore("moderation", () => {
 
 		isSubmittingReport.value = true;
 		const { toast } = useToast();
-		const { id, type } = targetToReport.value;
+		const { id, type, contextRoomId } = targetToReport.value;
 		const userToBlock = alsoBlock ? blockableUserId.value : null;
 
 		try {
@@ -221,7 +228,7 @@ export const useModerationStore = defineStore("moderation", () => {
 					await reportBalloon(id, reason, details);
 					break;
 				case "user":
-					await reportUser(id, reason, details);
+					await reportUser(id, reason, details, contextRoomId);
 					break;
 				case "dm_message":
 					await reportDmMessage(id, reason, details);

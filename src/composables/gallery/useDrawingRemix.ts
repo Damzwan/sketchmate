@@ -10,6 +10,14 @@ interface DrawingRemixOptions {
 	header: string;
 	message: string;
 	confirmText: string;
+	/**
+	 * The community post this canvas came from, when there is one. Rides the
+	 * route query next to `canvas_url` so it survives a reload of the draw page
+	 * the same way the canvas itself does, and SendHub reads it back at publish
+	 * time. Absent for inbox items and competition entries — those aren't posts,
+	 * so there is nothing to link back to.
+	 */
+	originPostId?: string;
 	replaceCurrent?: {
 		subHeader: string;
 		message: string;
@@ -43,6 +51,7 @@ export function useDrawingRemix() {
 		const query = {
 			canvas_url: options.canvasUrl,
 			mode: "solo",
+			...(options.originPostId ? { remix_of: options.originPostId } : {}),
 			...(options.replaceCurrent ? { id: crypto.randomUUID() } : {}),
 		};
 		if (!replacement) {

@@ -27,44 +27,67 @@ export function createDrawEventManager() {
 	}
 
 	function addEventsOfService(name: string, events: FabricEvent[]) {
+		const canvas = c;
+		if (!canvas) return;
+		// Re-registering a service is allowed (the room/loading watcher does this),
+		// but it must replace rather than leak the previous handlers.
+		removeEventsOfService(name);
 		eventsMapping[name] = events;
-		events.forEach((ev) => c!.on(ev.on, ev.handler));
+		if (deactivationStack === 0) {
+			events.forEach((ev) => canvas.on(ev.on, ev.handler));
+		}
 	}
 
 	function addPermanentEvents(events: FabricEvent[]) {
+		const canvas = c;
+		if (!canvas) return;
 		permanentEvents.push(...events);
-		events.forEach((ev) => c!.on(ev.on, ev.handler));
+		events.forEach((ev) => canvas.on(ev.on, ev.handler));
 	}
 
 	function activateExclusiveEvents(events: FabricEvent[]) {
+		const canvas = c;
+		if (!canvas) return;
 		for (const key in eventsMapping) {
-			eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler));
+			eventsMapping[key].forEach((ev) => canvas.off(ev.on, ev.handler));
 		}
-		events.forEach((ev) => c!.on(ev.on, ev.handler));
+		events.forEach((ev) => canvas.on(ev.on, ev.handler));
 		eventsMapping["exclusive"] = events;
 	}
 
 	function deActivateExclusiveEvents() {
+		const canvas = c;
+		if (!canvas) {
+			delete eventsMapping["exclusive"];
+			return;
+		}
 		for (const key in eventsMapping) {
-			eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler));
+			eventsMapping[key].forEach((ev) => canvas.off(ev.on, ev.handler));
 		}
 		removeEventsOfService("exclusive");
 		for (const key in eventsMapping) {
-			eventsMapping[key].forEach((ev) => c!.on(ev.on, ev.handler));
+			eventsMapping[key].forEach((ev) => canvas.on(ev.on, ev.handler));
 		}
 	}
 
 	function removeEventsOfService(name: string) {
 		if (!eventsMapping[name]) return;
 		const events = eventsMapping[name];
-		events.forEach((ev) => c!.off(ev.on, ev.handler));
+		const canvas = c;
+		if (canvas) events.forEach((ev) => canvas.off(ev.on, ev.handler));
 		delete eventsMapping[name];
 	}
 
 	function switchToolEvents(newTool: ToolService) {
-		eventsMapping["tool"].forEach((ev) => c!.off(ev.on, ev.handler));
+		const canvas = c;
+		if (!canvas) return;
+		(eventsMapping["tool"] ?? []).forEach((ev) =>
+			canvas.off(ev.on, ev.handler),
+		);
 		eventsMapping["tool"] = newTool.events;
-		eventsMapping["tool"].forEach((ev) => c!.on(ev.on, ev.handler));
+		if (deactivationStack === 0) {
+			eventsMapping["tool"].forEach((ev) => canvas.on(ev.on, ev.handler));
+		}
 	}
 
 	let deactivationStack = 0;
@@ -77,22 +100,36 @@ export function createDrawEventManager() {
 	}
 
 	async function actionWithoutEvents(action: () => Promise<void> | void) {
+		const canvas = c;
+		// Initial document loading intentionally happens before the event manager is
+		// attached. There are no listeners to suspend yet, but the load action must
+		// still run. This also keeps late teardown work harmless without silently
+		// dropping its callback.
+		if (!canvas) {
+			await action();
+			return;
+		}
 		deactivationStack++;
 
 		if (deactivationStack === 1) {
 			for (const key in eventsMapping) {
-				eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler));
+				eventsMapping[key].forEach((ev) => canvas.off(ev.on, ev.handler));
 			}
 		}
 
 		try {
 			await action();
 		} finally {
-			deactivationStack--;
+			// destroy() resets the shared stack. Do not let a suspension belonging
+			// to the disposed canvas decrement the new session to -1 when its async
+			// action eventually settles.
+			if (c === canvas) {
+				deactivationStack = Math.max(0, deactivationStack - 1);
 
-			if (deactivationStack === 0) {
-				for (const key in eventsMapping) {
-					eventsMapping[key].forEach((ev) => c!.on(ev.on, ev.handler));
+				if (deactivationStack === 0) {
+					for (const key in eventsMapping) {
+						eventsMapping[key].forEach((ev) => canvas.on(ev.on, ev.handler));
+					}
 				}
 			}
 		}

@@ -28,6 +28,7 @@ export enum Menu {
 	TextEditMenu,
 	Shop,
 	UpgradeOnline,
+	Reference,
 }
 
 export type StickersEmblemsSavedTabOptions = "sticker" | "emblem" | "saved";

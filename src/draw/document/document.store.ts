@@ -12,6 +12,7 @@ import {
 	notifyDraftSaved,
 	notifyDrawSession,
 } from "@/draw/document/draftEvents";
+import { assertValidDraftStorageId } from "@/draw/document/draftStorageId";
 import { renderDraftThumbnailInWorker } from "@/draw/document/draftThumbnailWorker";
 import {
 	listNativeDraftMetadata,
@@ -321,6 +322,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	async function putDraftMetadata(
 		metadata: DrawingDraftMetadata,
 	): Promise<void> {
+		assertValidDraftStorageId(metadata.id);
 		if (!db.value) return;
 		const tx = db.value.transaction([metadataStoreName], "readwrite");
 		tx.objectStore(metadataStoreName).put(metadata);
@@ -425,6 +427,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	}
 
 	async function putRecoveredDraft(draft: DrawingDraft): Promise<void> {
+		assertValidDraftStorageId(draft.id);
 		if (!db.value) return;
 		const tx = db.value.transaction(
 			[objectStoreName, metadataStoreName],
@@ -690,6 +693,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		signal: AbortSignal,
 		options: { forceMirror?: boolean } = {},
 	): Promise<void> {
+		assertValidDraftStorageId(snapshot.draftId);
 		await initDB();
 		if (!db.value) throw new Error("DB not available");
 		if (signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -1197,6 +1201,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	async function putRemoteDraftPlaceholder(
 		metadata: DrawingDraftMetadata,
 	): Promise<void> {
+		assertValidDraftStorageId(metadata.id);
 		await initDB();
 		const tx = db.value!.transaction([metadataStoreName], "readwrite");
 		tx.objectStore(metadataStoreName).put({
@@ -1214,6 +1219,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	 * that is newer, so a slow download can never undo edits made while it ran.
 	 */
 	async function putRemoteDraft(draft: DrawingDraft): Promise<boolean> {
+		assertValidDraftStorageId(draft.id);
 		await initDB();
 		const existing = await readStoredDraft(objectStoreName, draft.id);
 		if (existing && existing.updatedAt >= draft.updatedAt) return false;
@@ -1250,6 +1256,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	}
 
 	async function writeDraftSyncState(state: DraftSyncState): Promise<void> {
+		assertValidDraftStorageId(state.id);
 		await initDB();
 		const tx = db.value!.transaction([syncStoreName], "readwrite");
 		tx.objectStore(syncStoreName).put(state);
@@ -1269,6 +1276,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		pushedUpdatedAt: number,
 		remoteUpdatedAt: number,
 	): Promise<void> {
+		assertValidDraftStorageId(id);
 		await initDB();
 		const tx = db.value!.transaction([syncStoreName], "readwrite");
 		const store = tx.objectStore(syncStoreName);

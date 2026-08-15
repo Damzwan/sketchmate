@@ -11,6 +11,7 @@ import {
 import { applyObjectModificationsBulk } from "@/draw/history/operations/objectHistory";
 import { useLayersStore } from "@/draw/layers/layers.store";
 import { mergeHelper } from "@/draw/objects/objectActions";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import {
 	DrawSyncingEvent,
@@ -371,6 +372,26 @@ async function syncLayerDocument(
 	useLayersStore().applyRemoteOp(params.op);
 }
 
+function syncReferenceAdded(
+	params: DrawSyncingParams<DrawSyncingEvent.ReferenceAdded>,
+) {
+	if (!params?.reference) return;
+	useDrawingReferenceStore().applyRemoteReference(
+		params.reference,
+		params.creator,
+	);
+}
+
+function syncReferenceRemoved(
+	params: DrawSyncingParams<DrawSyncingEvent.ReferenceRemoved>,
+) {
+	if (!params?.referenceId) return;
+	useDrawingReferenceStore().applyRemoteRemoval(
+		params.referenceId,
+		params.creator,
+	);
+}
+
 export const drawSyncingMapping: {
 	[K in DrawSyncingEvent]: (
 		params: DrawSyncingParams<K>,
@@ -397,4 +418,6 @@ export const drawSyncingMapping: {
 	[DrawSyncingEvent.ErasingEnd]: syncErasingEnd,
 	[DrawSyncingEvent.TextChanged]: syncTextChanged,
 	[DrawSyncingEvent.LayerDocument]: syncLayerDocument,
+	[DrawSyncingEvent.ReferenceAdded]: syncReferenceAdded,
+	[DrawSyncingEvent.ReferenceRemoved]: syncReferenceRemoved,
 };

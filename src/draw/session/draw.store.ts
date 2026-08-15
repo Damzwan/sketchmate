@@ -15,11 +15,13 @@ import { computeBounds } from "@/draw/document/export";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { destroyGestures, enableGestures } from "@/draw/input/gestures";
 import { useShortcutManager } from "@/draw/input/shortcutManager";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useEraser } from "@/draw/tools/eraser.store";
 import { shutdownErasureAnalysisWorker } from "@/draw/tools/erasureAnalysisClient";
 import { useGestureStore } from "@/draw/tools/gesture.store";
+import { useInstrumentStore } from "@/draw/tools/instruments/instrument.store";
 import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
@@ -72,6 +74,8 @@ export const useDrawStore = defineStore("draw", () => {
 		drawHistory.destroy();
 		drawSyncEngine.destroy();
 		toolSelection.destroy();
+		useInstrumentStore().destroy();
+		useDrawingReferenceStore().resetRuntimeState();
 		useClaimArea().destroy();
 		shortcutManager.destroy();
 		destroyGestures();
@@ -118,6 +122,7 @@ export const useDrawStore = defineStore("draw", () => {
 			canvasController.backgroundColor.value = c.backgroundColor as string;
 
 			drawEventManager.init(c);
+			useInstrumentStore().init(c);
 			enableGestures(c);
 			toolSelection.init(c);
 			drawHistory.init(c);

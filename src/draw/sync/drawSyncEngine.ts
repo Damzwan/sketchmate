@@ -2,6 +2,7 @@ import type { FabricObject } from "fabric";
 import { storeToRefs } from "pinia";
 import { ref, watch } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
@@ -104,6 +105,7 @@ export function createDrawSyncEngine() {
 	let queueGeneration = 0;
 	let queuedBytes = 0;
 	let queueOverloaded = false;
+	let roomLoadController: AbortController | null = null;
 
 	function queuedActionCount(): number {
 		return actionQueue.length - queueHead;
@@ -191,12 +193,14 @@ export function createDrawSyncEngine() {
 			// previous room drain into the next canvas, and invalidate an in-progress
 			// drain so it stops after its current awaited action.
 			if (oldValues && newRoomId !== oldRoomId) {
+				roomLoadController?.abort();
+				roomLoadController = null;
 				queueOverloaded = false;
 				clearActionQueue();
 			}
 
 			// CASE 1: Joined a room and FINISHED loading the canvas
-			if (newRoomId && !loading) {
+			if (newRoomId && !loading && useCanvasController().getCanvasIfReady()) {
 				// Only attach the 'actionSyncer' events (drawing, moving, etc.)
 				// now that the canvas is quiet and ready for input
 				addEventsOfService("actionSyncer", events);
@@ -455,6 +459,8 @@ export function createDrawSyncEngine() {
 	function init() {}
 
 	function destroy() {
+		roomLoadController?.abort();
+		roomLoadController = null;
 		clearActionQueue();
 		queueOverloaded = false;
 		EventBus.off("undo", handleUndo);
@@ -465,17 +471,44 @@ export function createDrawSyncEngine() {
 	async function loadRoomCanvas(
 		canvasJSON: any,
 		isInitialSync: boolean,
-	): Promise<void> {
+	): Promise<boolean> {
 		const { reset } = useDrawStore();
 		const { loadCanvas } = useDocumentStore();
-		const { getCanvas } = useDrawStore();
+		const canvasController = useCanvasController();
+		const canvas = canvasController.getCanvasIfReady();
+		const loadingRoomId = roomId.value;
+		if (!canvas || !loadingRoomId) return false;
 
-		if (isInitialSync) reset();
-		await loadCanvas(getCanvas(), { json: canvasJSON, isLobby: true });
+		roomLoadController?.abort();
+		const controller = new AbortController();
+		roomLoadController = controller;
+		const loadIsCurrent = () =>
+			!controller.signal.aborted &&
+			roomId.value === loadingRoomId &&
+			canvasController.getCanvasIfReady() === canvas;
 
-		// Drains everything queued while the canvas was loading.
-		if (queuedActionCount() > 0) {
-			await processActionQueue();
+		try {
+			if (isInitialSync) reset();
+			if (!loadIsCurrent()) return false;
+			await loadCanvas(canvas, {
+				json: canvasJSON,
+				isLobby: true,
+				signal: controller.signal,
+			});
+			if (!loadIsCurrent()) return false;
+
+			// Drains everything queued while the canvas was loading.
+			if (queuedActionCount() > 0) {
+				await processActionQueue();
+			}
+			return loadIsCurrent();
+		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") {
+				return false;
+			}
+			throw error;
+		} finally {
+			if (roomLoadController === controller) roomLoadController = null;
 		}
 	}
 
@@ -486,9 +519,17 @@ export function createDrawSyncEngine() {
 	async function executeDrawSyncingAction(
 		action: DrawSyncingAction,
 	): Promise<void> {
+		// A late socket packet from a room we already left must not be retained and
+		// replayed into a later session.
+		if (!roomId.value) return;
 		if (!enqueueAction(action)) return;
 
-		if (!isProcessingQueue.value) {
+		const { getCanvasIfReady } = useCanvasController();
+		if (
+			!isLoadingCanvas.value &&
+			getCanvasIfReady() &&
+			!isProcessingQueue.value
+		) {
 			await processActionQueue();
 		}
 	}
@@ -521,12 +562,19 @@ export function createDrawSyncEngine() {
 	 */
 	async function processActionQueue(): Promise<void> {
 		if (isProcessingQueue.value) return;
+		const canvasController = useCanvasController();
+		const canvas = canvasController.getCanvasIfReady();
+		if (!canvas || !roomId.value || isLoadingCanvas.value) return;
+
 		isProcessingQueue.value = true;
 		const drainGeneration = queueGeneration;
 		const { actionWithoutEvents } = useDrawEventManager();
 		const objMgr = useDrawObjectManager();
-		const { getCanvas } = useDrawStore();
-		const canvas = getCanvas();
+		const drainIsCurrent = () =>
+			drainGeneration === queueGeneration &&
+			!!roomId.value &&
+			!isLoadingCanvas.value &&
+			canvasController.getCanvasIfReady() === canvas;
 
 		canvas.fire("sync:queue:start" as any);
 
@@ -535,14 +583,11 @@ export function createDrawSyncEngine() {
 			label: "sync-action-queue",
 		});
 		try {
-			while (queuedActionCount() > 0 && drainGeneration === queueGeneration) {
+			while (queuedActionCount() > 0 && drainIsCurrent()) {
 				objMgr.beginBatch();
 				try {
 					yielder.reset();
-					while (
-						queuedActionCount() > 0 &&
-						drainGeneration === queueGeneration
-					) {
+					while (queuedActionCount() > 0 && drainIsCurrent()) {
 						const queued = dequeueAction();
 						if (!queued || queued.generation !== drainGeneration) continue;
 						const action = queued.action;
@@ -562,6 +607,7 @@ export function createDrawSyncEngine() {
 						await actionWithoutEvents(async () => {
 							await handler(action.params);
 						});
+						if (!drainIsCurrent()) break;
 						canvas.fire("sync:action:done" as any, {
 							type: action.type,
 							duration: performance.now() - start,
@@ -575,18 +621,25 @@ export function createDrawSyncEngine() {
 					objMgr.endBatch();
 				}
 				compactActionQueue();
-				if (queuedActionCount() > 0 && drainGeneration === queueGeneration) {
+				if (queuedActionCount() > 0 && drainIsCurrent()) {
 					await yielder.yield();
 				}
 			}
 		} finally {
 			compactActionQueue();
 			isProcessingQueue.value = false;
-			canvas.fire("sync:queue:end" as any);
+			if (canvasController.getCanvasIfReady() === canvas) {
+				canvas.fire("sync:queue:end" as any);
+			}
 			// If the room generation changed while an action was awaiting, its drain
 			// stops intentionally. A non-loading replacement room can safely start a
 			// fresh drain now; a loading room is resumed by loadRoomCanvas/watcher.
-			if (queuedActionCount() > 0 && !isLoadingCanvas.value) {
+			if (
+				queuedActionCount() > 0 &&
+				!isLoadingCanvas.value &&
+				roomId.value &&
+				canvasController.getCanvasIfReady()
+			) {
 				queueMicrotask(() => void processActionQueue());
 			}
 		}

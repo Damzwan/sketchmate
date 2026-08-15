@@ -705,6 +705,10 @@ export class WorldOverview<T extends Bounded> {
 			1,
 			Math.round(aspect >= 1 ? maxSize / aspect : maxSize),
 		);
+		// The caller already has a vector-render fallback for thumbnails. Old
+		// Android WebViews do not expose OffscreenCanvas, so decline this cheap
+		// overview-copy path instead of crashing the draw page.
+		if (typeof OffscreenCanvas !== "function") return Promise.resolve(null);
 		const output = new OffscreenCanvas(width, height);
 		const ctx = output.getContext("2d");
 		if (!ctx) {

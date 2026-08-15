@@ -3,6 +3,8 @@ package ninja.sketchmate.app;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.view.Window;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
@@ -83,6 +85,48 @@ public class MainActivity extends BridgeActivity {
             "nativeTrimMemory",
             "{ \"detail\": { \"level\": " + level + " } }"
         );
+    }
+
+    /**
+     * Drop every window-insets callback BEFORE the window view is detached.
+     *
+     * @capacitor/keyboard installs a WindowInsetsAnimation callback on the decor
+     * root and, in its `onEnd`, calls
+     * `ViewCompat.getRootWindowInsets(rootView).isVisible(...)` with no null
+     * check. Tearing an activity down while the IME animation is live runs
+     * ViewRootImpl.dispatchDetachedFromWindow -> cancelExistingAnimations ->
+     * dispatchAnimationEnd, i.e. that `onEnd` fires on a view that no longer has
+     * a root — `getRootWindowInsets` returns null and the process dies with
+     * "Attempt to invoke virtual method 'boolean ...p(int)' on a null object
+     * reference". The reported path is a configuration RELAUNCH (rotation), but
+     * any destroy during the animation reaches it.
+     *
+     * onDestroy runs before the window is removed (ActivityThread destroys the
+     * activity, then calls removeViewImmediate), so clearing the callbacks here
+     * means there is nothing left to dispatch into. Nothing is lost: the
+     * activity is going away.
+     */
+    @Override
+    public void onDestroy() {
+        detachWindowInsetsCallbacks();
+        super.onDestroy();
+    }
+
+    private void detachWindowInsetsCallbacks() {
+        try {
+            Window window = getWindow();
+            if (window != null) {
+                View root = window.getDecorView().getRootView();
+                ViewCompat.setWindowInsetsAnimationCallback(root, null);
+                ViewCompat.setOnApplyWindowInsetsListener(root, null);
+            }
+            View content = findViewById(android.R.id.content);
+            if (content != null) {
+                ViewCompat.setOnApplyWindowInsetsListener(content, null);
+            }
+        } catch (Throwable ignored) {
+            // Teardown hardening must never itself break teardown.
+        }
     }
 
     @Override

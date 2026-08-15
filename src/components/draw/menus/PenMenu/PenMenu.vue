@@ -69,15 +69,42 @@
         <div class="control_card shadow-sm">
           <div class="control_row">
             <label class="control_label">Width</label>
-            <!-- Max raised 50 → 120. Filling areas with the pencil is a normal
-                 workflow now that layers make block-fills worth doing, and 50
-                 forced dozens of overlapping passes where one should do. The
-                 eraser already went to 150, so this is not a new extreme for
-                 the engine. Stroke geometry cost no longer scales badly with
-                 width either — see strokeSimplification.ts. -->
-            <ion-range aria-label="Stroke width" v-model="brushSize"
-                       :min="0.1" :step="0.1" :max="120" color="secondary" />
-            <span class="value_pill">{{ brushSize }}</span>
+            <PrecisionRange
+              v-model="brushSize"
+              label="Stroke width"
+              :min="0.1"
+              :max="120"
+              :step="0.1"
+              :curve="STROKE_WIDTH_CURVE"
+              :snap-value="snapStrokeWidth"
+              :ticks="[1, 5, 20, 50]"
+              :format-value="formatStrokeWidth"
+            />
+            <button
+              v-if="!editingWidth"
+              type="button"
+              class="value_pill width-value-button"
+              aria-label="Enter exact stroke width"
+              @click="startWidthEdit"
+            >
+              <span>{{ formatStrokeWidth(brushSize) }}</span>
+              <ion-icon :icon="svg(mdiPencilOutline)" aria-hidden="true" />
+            </button>
+            <input
+              v-else
+              ref="widthInput"
+              v-model="widthDraft"
+              class="value_pill width-value-input"
+              aria-label="Exact stroke width"
+              type="number"
+              inputmode="decimal"
+              min="0.1"
+              max="120"
+              step="0.1"
+              @blur="commitWidthEdit"
+              @keydown.enter.prevent="commitWidthEdit"
+              @keydown.esc.prevent="cancelWidthEdit"
+            />
           </div>
 
           <div class="control_row">
@@ -141,7 +168,7 @@
 
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
-import { mdiArrowRight, mdiCreation, mdiLock } from "@mdi/js";
+import { mdiArrowRight, mdiCreation, mdiLock, mdiPencilOutline } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref, watch } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
@@ -156,6 +183,8 @@ import { svg } from "@/helper/general.helper";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
 import BrushTile from "./BrushTile.vue";
+import PrecisionRange from "./PrecisionRange.vue";
+import { STROKE_WIDTH_CURVE, snapStrokeWidth } from "./precisionRange";
 import { usePenBrushPreview } from "./usePenBrushPreview";
 
 const { selectTool } = useToolSelection();
@@ -173,6 +202,33 @@ const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 const inventoryStore = useInventoryStore();
 const brushTrial = useBrushTrial();
 const { purchasing, unlockItem } = useUnlockItem();
+const editingWidth = ref(false);
+const widthDraft = ref("");
+const widthInput = ref<HTMLInputElement | null>(null);
+
+function formatStrokeWidth(width: number): string {
+	return Math.max(0.1, Math.min(120, width)).toFixed(1).replace(/\.0$/, "");
+}
+
+async function startWidthEdit() {
+	widthDraft.value = formatStrokeWidth(brushSize.value);
+	editingWidth.value = true;
+	await nextTick();
+	widthInput.value?.select();
+}
+
+function commitWidthEdit() {
+	if (!editingWidth.value) return;
+	const value = Number(widthDraft.value);
+	if (Number.isFinite(value)) {
+		brushSize.value = Math.round(Math.max(0.1, Math.min(120, value)) * 10) / 10;
+	}
+	editingWidth.value = false;
+}
+
+function cancelWidthEdit() {
+	editingWidth.value = false;
+}
 
 const {
 	previewCanvas: preview_canvas,
@@ -264,6 +320,7 @@ const buyBrush = async (type: BrushType) => {
 function onDismiss() {
 	penMenuOpen.value = false;
 	previewedLockedBrush.value = null;
+	editingWidth.value = false;
 }
 
 function selectBrushType(newBrushType: BrushType) {
@@ -379,5 +436,42 @@ watch(penMenuOpen, async (open) => {
   @apply mt-1.5 w-full px-2.5 py-1.5 rounded-xl bg-secondary text-white border-0
   flex items-center justify-between cursor-pointer
   active:scale-[0.99] transition-transform disabled:opacity-70;
+}
+
+.width-value-button,
+.width-value-input {
+  width: 3.5rem;
+  min-width: 3.5rem;
+  height: 30px;
+  border: 1px solid rgba(var(--ion-color-secondary-rgb), 0.3);
+  border-radius: 0.625rem;
+}
+
+.width-value-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.width-value-button ion-icon {
+  width: 11px;
+  height: 11px;
+  opacity: 0.7;
+}
+
+.width-value-input {
+  padding: 0.125rem 0.3rem;
+  outline: 2px solid rgba(var(--ion-color-secondary-rgb), 0.35);
+  background: #fff;
+  appearance: textfield;
+}
+
+.width-value-input::-webkit-inner-spin-button,
+.width-value-input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
 }
 </style>

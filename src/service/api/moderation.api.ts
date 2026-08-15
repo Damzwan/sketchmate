@@ -60,12 +60,14 @@ export function reportUser(
 	user_id: string,
 	reason: ReportReason,
 	details?: string,
+	context_room_id?: string,
 ) {
 	return submitReport({
 		target_id: user_id,
 		target_type: "user",
 		reason,
 		details,
+		context_room_id,
 	});
 }
 

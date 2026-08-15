@@ -49,7 +49,7 @@ function cancelPendingSettle() {
 	clearTimeout(visibilityTimeout);
 }
 
-function syncVisuals(_c: Canvas) {
+function syncVisuals(c: Canvas) {
 	// renderViewportNow, NOT renderViewport. We are already inside a RAF callback
 	// here, and renderViewport() only *schedules* another one — so the composite
 	// for this gesture frame landed on the NEXT frame, putting every pan and zoom
@@ -59,6 +59,7 @@ function syncVisuals(_c: Canvas) {
 
 	const { recalculateAvatarPositions } = useDrawUIStore();
 	recalculateAvatarPositions();
+	c.fire("viewport:changed");
 }
 
 function endViewportGesture(c: Canvas) {

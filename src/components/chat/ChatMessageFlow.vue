@@ -9,6 +9,7 @@
     @pointermove="messageActions.onPointerMove"
     @pointerup="messageActions.onPointerUp"
     @pointercancel="messageActions.onPointerCancel"
+    @click="messageActions.onClick"
     class="space-y-3 pb-1 flex flex-col justify-end min-h-full animate-tab-in"
   >
 
@@ -134,6 +135,7 @@ const messageActions = useMessageActions({
 	messages: () => props.messages,
 	currentUserId: () => user.value?._id,
 	isLobby: () => activeTab.value === "lobby",
+	roomId: () => drawSyncer.roomId,
 });
 
 useIntersectionObserver(
@@ -205,6 +207,7 @@ const onInspectProfile = (ev: Event, info: any) =>
 
 const isMe = (msg: any) =>
 	msg.sender_id === user.value?._id || msg.member?._id === user.value?._id;
+
 const isCompact = (msg: any, index: number) => {
 	if (index === 0) return false;
 	const prev = props.messages[index - 1];

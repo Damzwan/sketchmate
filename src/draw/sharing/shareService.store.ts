@@ -33,6 +33,12 @@ export interface PostSettings {
 	caption: string;
 	enable_comments: boolean;
 	enable_remix: boolean;
+	/** Origin post id, when this canvas was opened as a remix of one. */
+	remix_of_post_id?: string;
+	/** Peers who drew on this canvas, when it was made in a room. */
+	collaborator_ids?: string[];
+	/** Shoutouts the artist picked in the composer. */
+	mention_ids?: string[];
 }
 
 export interface CompetitionSettings {
@@ -191,6 +197,15 @@ export const useShareService = defineStore("shareService", () => {
 			description: settings.caption,
 			enable_comments: settings.enable_comments,
 			enable_remix: settings.enable_remix,
+			...(settings.remix_of_post_id && {
+				remix_of_post_id: settings.remix_of_post_id,
+			}),
+			...(settings.collaborator_ids?.length && {
+				collaborator_ids: settings.collaborator_ids,
+			}),
+			...(settings.mention_ids?.length && {
+				mention_ids: settings.mention_ids,
+			}),
 		});
 
 		const postStore = usePostStore();

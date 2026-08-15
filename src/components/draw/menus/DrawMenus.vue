@@ -5,6 +5,7 @@
   <SelectMenu />
   <ShapesMenu />
   <MoreToolsMenu />
+  <DrawingReferenceMenu />
   <SavedDrawingMenu/>
   <SelectExtraOptionsMenu />
   <SelectImgStyleMenu :img="selectedObjectsRef[0] as any"
@@ -33,6 +34,7 @@
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import BucketMenu from "@/components/draw/menus/BucketMenu.vue";
+import DrawingReferenceMenu from "@/components/draw/menus/DrawingReferenceMenu.vue";
 import EraserMenu from "@/components/draw/menus/EraserMenu.vue";
 import FontMenu from "@/components/draw/menus/FontMenu.vue";
 import HelpMenu from "@/components/draw/menus/HelpMenu.vue";

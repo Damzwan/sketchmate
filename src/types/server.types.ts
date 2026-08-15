@@ -424,6 +424,17 @@ export interface BasePost {
 	};
 }
 
+/**
+ * The trimmed author shape a credit renders with. Deliberately no
+ * `customization`: credits are 20px plain avatars, and the decorated variant is
+ * what would make a feed card expensive.
+ */
+export interface PostCreditUser {
+	_id: string;
+	name: string;
+	img: string;
+}
+
 export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
 	author: {
 		_id: string;
@@ -431,6 +442,28 @@ export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
 		img: string;
 		customization?: Partial<UserCustomization>;
 	};
+	/**
+	 * Lineage, stamped by the server at publish time when the drawing was
+	 * started from another post's canvas. Absent when the origin author had
+	 * remixes switched off, when the origin is gone, and when you remixed
+	 * yourself — the server decides all three, the client only sends an id.
+	 */
+	remix_of?: {
+		post_id: string;
+		author: PostCreditUser;
+	};
+	/**
+	 * Room peers who actually drew on this canvas, in the order they first did.
+	 * Proposed by the publisher's client (only it saw the session) and verified
+	 * server-side: unknown ids and under-13 accounts are dropped.
+	 */
+	collaborators?: PostCreditUser[];
+	/**
+	 * Shoutouts the artist picked in the composer, in that order. Structured
+	 * ids rather than text parsed out of the caption, so a tag can't be forged
+	 * by typing a name and the tagged person has something concrete to remove.
+	 */
+	mentions?: PostCreditUser[];
 	user_reaction: string | null;
 	/**
 	 * Preview slice only — the feed ships the latest two, hydrated with their
@@ -984,6 +1017,12 @@ export interface SubmitReportParams {
 	target_type: ReportableType;
 	reason: ReportReason;
 	details?: string;
+	/**
+	 * The lobby the report was raised in. Lobby chat is never persisted, so the
+	 * server can only attach the surrounding exchange to the report if it knows
+	 * which room's live buffer to read at submit time.
+	 */
+	context_room_id?: string;
 }
 
 export interface SubmitReportRes {
@@ -1023,6 +1062,7 @@ export interface QuotaSummary {
 export type NotificationKind =
 	| "post_reaction"
 	| "post_comment"
+	| "post_mention"
 	| "inbox_drawing"
 	| "inbox_comment"
 	| "dm_message"

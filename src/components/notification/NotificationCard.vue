@@ -105,6 +105,7 @@
 import { IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountPlus,
+	mdiAt,
 	mdiBullhorn,
 	mdiChatOutline,
 	mdiHeart,
@@ -146,6 +147,12 @@ const typeConfig = computed(() => {
 				color: "var(--ion-color-secondary)",
 				icon: mdiChatOutline,
 				verb: () => "commented on your post",
+			};
+		case "post_mention":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon: mdiAt,
+				verb: () => "gave you a shoutout",
 			};
 		case "inbox_comment":
 			return {

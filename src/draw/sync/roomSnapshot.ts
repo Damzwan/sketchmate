@@ -1,5 +1,6 @@
 import type { Canvas } from "fabric";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 
 /**
  * Snapshot the live room canvas together with the mutable layer document.
@@ -15,6 +16,9 @@ export function createRoomCanvasSnapshot(canvas: Canvas): any {
 	const json = canvas.toJSON() as any;
 	const layers = useLayersStore().serialize();
 	if (layers) json.layers = layers;
+	const sharedReferences =
+		useDrawingReferenceStore().serializeSharedReferences();
+	if (sharedReferences.length) json.sharedReferences = sharedReferences;
 	return json;
 }
 
@@ -50,6 +54,9 @@ export async function createRoomCanvasSnapshotBytes(
 			import("@/service/draftSync.service"),
 		]);
 	const json = await generateChunkedJSON(canvas, signal);
+	const sharedReferences =
+		useDrawingReferenceStore().serializeSharedReferences();
+	if (sharedReferences.length) json.sharedReferences = sharedReferences;
 	const blob = await documentJsonToBlob(json, signal);
 	const { body } = await gzipBlob(blob);
 	return await body.arrayBuffer();

@@ -692,6 +692,20 @@ export class TileLayerBase<T extends Bounded> {
 					if (t.tx >= r.tx0 && t.tx <= r.tx1 && t.ty >= r.ty0 && t.ty <= r.ty1)
 						this.invalidateKey(k, rect, true);
 				}
+				// A newly exposed cell can be baking without having a stored tile yet.
+				// The map-walk fast path used to miss those keys, so a bake whose object
+				// query happened before this additive stroke could land afterward with an
+				// unchanged generation and be labelled FRESH. A fast zoom then suppressed
+				// the live stroke against a tile that did not actually contain it.
+				for (const k of this.inFlight) {
+					if (this.tiles.has(k)) continue; // already invalidated above
+					if (keyTier(k) !== tier) continue;
+					const tx = keyTx(k);
+					const ty = keyTy(k);
+					if (tx >= r.tx0 && tx <= r.tx1 && ty >= r.ty0 && ty <= r.ty1) {
+						this.invalidateKey(k, rect, true);
+					}
+				}
 				continue;
 			}
 			for (let ty = r.ty0; ty <= r.ty1; ty++)

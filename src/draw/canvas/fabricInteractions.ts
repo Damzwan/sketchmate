@@ -17,7 +17,13 @@ function suppressHiddenLayerStrokePreview(canvas: Canvas): void {
 	if (!isLayerHidden(activeLayerId())) return;
 	const state = canvas as any;
 	const upper = state.upperCanvasEl as HTMLCanvasElement | undefined;
-	if (!upper || Object.hasOwn(state, HIDDEN_STROKE_OPACITY)) return;
+	if (
+		!upper ||
+		Reflect.apply(Object.prototype.hasOwnProperty, state, [
+			HIDDEN_STROKE_OPACITY,
+		])
+	)
+		return;
 	state[HIDDEN_STROKE_OPACITY] = upper.style.opacity;
 	// Opacity preserves pointer events, so Fabric continues collecting the real
 	// stroke while its temporary top-canvas preview remains invisible.
@@ -26,7 +32,12 @@ function suppressHiddenLayerStrokePreview(canvas: Canvas): void {
 
 function restoreHiddenLayerStrokePreview(canvas: Canvas): void {
 	const state = canvas as any;
-	if (!Object.hasOwn(state, HIDDEN_STROKE_OPACITY)) return;
+	if (
+		!Reflect.apply(Object.prototype.hasOwnProperty, state, [
+			HIDDEN_STROKE_OPACITY,
+		])
+	)
+		return;
 	const upper = state.upperCanvasEl as HTMLCanvasElement | undefined;
 	canvas.clearContext(canvas.getTopContext());
 	if (upper) upper.style.opacity = state[HIDDEN_STROKE_OPACITY];

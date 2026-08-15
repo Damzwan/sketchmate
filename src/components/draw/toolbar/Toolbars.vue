@@ -2,7 +2,9 @@
   <div
     class="absolute inset-0 pointer-events-none flex flex-col justify-between pt-[env(safe-area-inset-top,16px)] pb-[env(safe-area-inset-bottom,16px)] px-4 z-10">
 
-    <div class="flex justify-between items-start pointer-events-none mt-3">
+    <!-- data-draw-chrome marks the edges a floating panel (references) must not
+         be dropped under; measured by measureDrawChrome(). -->
+    <div data-draw-chrome="top" class="flex justify-between items-start pointer-events-none mt-3">
 
       <Transition name="hud-fade">
         <div v-if="!isFullscreen" class="pointer-events-auto">
@@ -42,7 +44,7 @@
       </div>
     </div>
 
-    <div class="flex justify-center pointer-events-none w-full mb-6">
+    <div data-draw-chrome="bottom" class="flex justify-center pointer-events-none w-full mb-6">
       <div class="pointer-events-auto">
         <Transition name="dock-morph" mode="out-in">
           <component :is="activeDockComponent" :key="activeDockComponent.__name" />
@@ -53,9 +55,20 @@
     <!-- A/B color slots — bottom-right, active only in pen/bucket mode. -->
     <ColorSwatches />
 
-    <!-- Layers. Owns the bottom-right corner slot; ColorSwatches sits one step
-         higher so the two controls can never overlap. -->
-    <LayerControl />
+    <!-- Persistent canvas utilities. Instruments are independent of the active
+         brush; placing them beside Layers keeps them visible without widening
+         the already-dense primary tool dock. -->
+    <div
+      data-draw-chrome="right"
+      class="fixed z-40 flex flex-col items-end gap-2 pointer-events-auto"
+      :style="{
+        right: 'calc(0.75rem + env(safe-area-inset-right))',
+        bottom: 'calc(6rem + env(safe-area-inset-bottom))',
+      }"
+    >
+      <InstrumentControl />
+      <LayerControl />
+    </div>
 
   </div>
 </template>
@@ -64,10 +77,12 @@
 import { mdiChevronLeft, mdiFullscreenExit } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
+import InstrumentControl from "@/components/draw/instruments/InstrumentControl.vue";
 import LayerControl from "@/components/draw/layers/LayerControl.vue";
 import ColorSwatches from "@/components/draw/toolbar/ColorSwatches.vue";
 import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
 import ToolDockClaimArea from "@/components/draw/toolbar/ToolDockClaimArea.vue";
+import ToolDockColorPicker from "@/components/draw/toolbar/ToolDockColorPicker.vue";
 import ToolDockDraw from "@/components/draw/toolbar/ToolDockDraw.vue";
 import ToolDockSelect from "@/components/draw/toolbar/ToolDockSelect.vue";
 import ToolDockText from "@/components/draw/toolbar/ToolDockText.vue";
@@ -79,7 +94,9 @@ import { svg } from "@/helper/general.helper";
 
 const emit = defineEmits(["start-benchmark"]);
 
-const { addTextMode, isFullscreen } = storeToRefs(useDrawUIStore());
+const { addTextMode, colorPickerMode, isFullscreen } = storeToRefs(
+	useDrawUIStore(),
+);
 const { triggerManualExit } = useDrawUIStore();
 const { isSelectActive } = storeToRefs(useSelect());
 const { isClaiming } = storeToRefs(useClaimArea());
@@ -87,6 +104,10 @@ const { isClaiming } = storeToRefs(useClaimArea());
 const goBack = () => triggerManualExit();
 
 const activeDockComponent = computed(() => {
+	// Picking is a modal state over whatever tool was active, so it outranks
+	// every other dock — the only controls that make sense are cancel and the
+	// live reading.
+	if (colorPickerMode.value) return ToolDockColorPicker;
 	if (isClaiming.value) return ToolDockClaimArea;
 	if (addTextMode.value) return ToolDockText;
 	if (isSelectActive.value) return ToolDockSelect;

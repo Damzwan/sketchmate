@@ -30,6 +30,80 @@ import {
 export const TEXTURE_SUPERSAMPLE = 2;
 
 /**
+ * Hard ceiling on ONE procedural brush raster.
+ *
+ * Neon, Crayon and Spray each allocate a single canvas covering the WHOLE
+ * stroke bounding box at `TEXTURE_SUPERSAMPLE`, with no clamp of any kind:
+ *
+ *   off.width  = ceil(worldWidth  * 2)
+ *   off.height = ceil(worldHeight * 2)
+ *
+ * The canvas is infinite, so the bounding box is unbounded. A stroke dragged
+ * 5,000 world units across asks for 10,000 x 10,000 RGBA — 400 MB — and past
+ * the browser's own canvas limits the allocation simply fails, which is a dead
+ * stroke or a dead renderer rather than a slow one.
+ *
+ * It is not only a draw-time cost either. These bitmaps are deliberately NOT
+ * serialized ("deterministic, so the bitmap can be dropped from the payload and
+ * rebuilt"), so every such stroke re-allocates its full-bbox canvas on every
+ * document LOAD. That is the shape of "either drawing opens fine, opening both
+ * crashes" (docs/DRAW_ENGINE_STABILITY_AUDIT.md → DRAW-05).
+ *
+ * 2048² = 4.2 Mpx = 16 MB, which is a full-quality 1024 x 1024 world-unit
+ * stroke at 2x supersample. Anything larger degrades in SHARPNESS instead of
+ * failing — for a glow, a spray or a crayon texture at that scale, invisible.
+ */
+const MAX_TEXTURE_PIXELS = 2048 * 2048;
+const MAX_TEXTURE_DIMENSION = 4096;
+
+export interface TextureRaster {
+	/** Effective supersample. Equals `TEXTURE_SUPERSAMPLE` when nothing is
+	 *  clamped, so the common stroke is bit-identical to before. */
+	scale: number;
+	width: number;
+	height: number;
+}
+
+/**
+ * Pick the backing-store size for a procedural stroke raster covering
+ * `worldWidth` x `worldHeight`.
+ *
+ * DEVICE-INDEPENDENT, exactly like `TEXTURE_SUPERSAMPLE` and for the same
+ * reason: the same stroke is rasterized on the main thread AND in the tile
+ * bakery worker, and on every device that opens the document. A budget that
+ * varied by device would make a worker-baked tile disagree with the live
+ * render, and two devices disagree about the same drawing — the precise bug
+ * that pinning the supersample was introduced to fix. So this is a constant,
+ * sized for the weakest target rather than measured per device.
+ *
+ * Returns `null` for a degenerate box, matching what the callers already do.
+ */
+export function fitTextureRaster(
+	worldWidth: number,
+	worldHeight: number,
+): TextureRaster | null {
+	if (
+		!(worldWidth > 0) ||
+		!(worldHeight > 0) ||
+		!Number.isFinite(worldWidth) ||
+		!Number.isFinite(worldHeight)
+	) {
+		return null;
+	}
+	const scale = Math.min(
+		TEXTURE_SUPERSAMPLE,
+		MAX_TEXTURE_DIMENSION / worldWidth,
+		MAX_TEXTURE_DIMENSION / worldHeight,
+		Math.sqrt(MAX_TEXTURE_PIXELS / (worldWidth * worldHeight)),
+	);
+	return {
+		scale,
+		width: Math.max(1, Math.ceil(worldWidth * scale)),
+		height: Math.max(1, Math.ceil(worldHeight * scale)),
+	};
+}
+
+/**
  * Ensures that nested properties like clipPath and shadow are converted
  * from raw JSON objects into real Fabric class instances before
  * the parent object is instantiated.
@@ -109,6 +183,53 @@ export function toObjectWithoutPath(
 	// Drop everything still at its default. Symmetric with restoreStrokeDefaults
 	// in enlivenStrokeProps below — the two must always ship together.
 	stripStrokeDefaults(out);
+	return out;
+}
+
+/**
+ * Run a `FabricImage` subclass's `super.toObject()` WITHOUT paying for the
+ * bitmap encode it is about to throw away.
+ *
+ * `Image.toObject` sets `src: this.getSrc()`, and `getSrc()` checks
+ * `element.toDataURL` FIRST — which every procedural stroke's element is,
+ * because these classes are rasterized into an offscreen CANVAS. So the base
+ * call runs a synchronous PNG encode of the stroke's whole bounding box, and
+ * the caller's very next line is `delete baseObj.src`, because the stroke is
+ * rebuilt from its compressed trace in `fromObject`.
+ *
+ * That encode is not marginal: it is a single ATOMIC, un-yieldable block, and
+ * the raster is the stroke's full bbox at TEXTURE_SUPERSAMPLE — a long stroke
+ * across a phone screen is megapixels. Serialization runs on the MAIN thread
+ * (draft save, sync payload, history entry) and yields BETWEEN objects, so one
+ * such stroke is one long task no scheduler can split. This is the shape of the
+ * multi-hundred-ms `documentSerializeObject` stalls in the ANR reports.
+ *
+ * Suppressing `getSrc` for the duration makes it `''` — and the result is then
+ * deleted anyway, so no persisted byte changes.
+ *
+ * @param self the stroke instance
+ * @param superToObject a bound reference to `super.toObject`
+ * @param props extra properties to serialize
+ */
+export function toObjectWithoutSrc(
+	self: any,
+	superToObject: (props?: string[]) => any,
+	props: string[] = [],
+): any {
+	const hadOwnGetSrc = Object.hasOwn(self, "getSrc");
+	const ownGetSrc = self.getSrc;
+	self.getSrc = () => "";
+	let out: any;
+	try {
+		out = superToObject(props);
+	} finally {
+		// Restore exactly what was there — an own override (see the eraser's baked
+		// clip image) must survive, and everything else must fall back through to
+		// the prototype rather than keep a stub.
+		if (hadOwnGetSrc) self.getSrc = ownGetSrc;
+		else delete self.getSrc;
+	}
+	delete out.src;
 	return out;
 }
 

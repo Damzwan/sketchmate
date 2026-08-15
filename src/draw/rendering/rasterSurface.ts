@@ -94,7 +94,8 @@ function isGecko(): boolean {
 
 /**
  * Should main-thread rasterization use a DOM `<canvas>` rather than an
- * `OffscreenCanvas`?
+ * `OffscreenCanvas`? This is required when OffscreenCanvas is unavailable and
+ * preferred on Gecko for performance.
  *
  * Resolved once. A mid-session flip would leave tiles of both kinds in the
  * cache, which is harmless (both composite) but makes the memory budget — sized
@@ -103,10 +104,14 @@ function isGecko(): boolean {
 export const RASTER_PREFERS_DOM_CANVAS: boolean =
 	typeof document !== "undefined" &&
 	typeof document.createElement === "function" &&
-	// Off-DOM — the headless test environment, and the bakery worker if this
-	// module ever reaches it — there is no DOM canvas to prefer, and an
-	// `OffscreenCanvas` inside a worker is accelerated on Gecko anyway.
-	isGecko();
+	// Older Android System WebViews have no OffscreenCanvas at all. A detached
+	// DOM canvas is slower than the modern worker path, but it keeps the main
+	// renderer functional instead of throwing on every tile/overview bake.
+	(typeof OffscreenCanvas !== "function" ||
+		// Off-DOM — the headless test environment, and the bakery worker if this
+		// module ever reaches it — there is no DOM canvas to prefer, and an
+		// `OffscreenCanvas` inside a worker is accelerated on Gecko anyway.
+		isGecko());
 
 /** Is this surface a DOM canvas rather than an `OffscreenCanvas`? */
 export function isDomCanvas(
@@ -129,6 +134,11 @@ export function createRasterSurface(
 		canvas.width = width;
 		canvas.height = height;
 		return canvas;
+	}
+	if (typeof OffscreenCanvas !== "function") {
+		throw new Error(
+			"No canvas raster surface is available in this environment",
+		);
 	}
 	return new OffscreenCanvas(width, height);
 }

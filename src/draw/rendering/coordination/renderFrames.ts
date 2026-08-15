@@ -1,4 +1,4 @@
-import type { Bounded } from "../committedLayer";
+import type { Bounded, WorldRect } from "../committedLayer";
 import { PROGRESS_FRAME_MS, RenderEngineBase } from "./renderEngineBase";
 
 export abstract class RenderFrames<
@@ -79,7 +79,7 @@ export abstract class RenderFrames<
 			);
 			const vw = this.committed.viewWorld(vpt, size, dpr);
 			this.live.composite(ctx, vpt, dpr, this.liveRender, vw, (r) =>
-				this.committed.isRegionTileBacked(r, vpt[0]),
+				this.liveItemAlreadyPainted(r, vpt[0]),
 			);
 			this.afterComposite?.();
 		});
@@ -170,7 +170,7 @@ export abstract class RenderFrames<
 		// top: at alpha < 1 the overlap reads as a one-frame darkening every time
 		// a bake lands mid-stroke (the low-opacity brush flicker).
 		this.live.composite(ctx, vpt, dpr, this.liveRender, vw, (r) =>
-			this.committed.isRegionTileBacked(r, vpt[0]),
+			this.liveItemAlreadyPainted(r, vpt[0]),
 		);
 
 		if (this.pendingDemote && !needsBake && canRetireOverlays) {
@@ -188,5 +188,9 @@ export abstract class RenderFrames<
 			this.scheduleBake();
 		}
 		this.afterComposite?.();
+	}
+
+	private liveItemAlreadyPainted(rect: WorldRect, zoom: number): boolean {
+		return this.committed.isRegionTileBacked(rect, zoom);
 	}
 }

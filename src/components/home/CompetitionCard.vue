@@ -19,10 +19,11 @@
       </div>
     </div>
 
-    <!-- First-ever load only: after that the localStorage card cache means the
-         real card paints on frame one. This is the card's own silhouette in the
-         accent gradient rather than a grey slab, so the fetch resolving is a
-         text swap instead of a block turning into a card. -->
+    <!-- First-ever load only: after that the localStorage card cache decides on
+         frame one — the real card, or nothing at all on a week with no
+         competition. This is the card's own silhouette in the accent gradient
+         rather than a grey slab, so the fetch resolving is a text swap instead
+         of a block turning into a card. -->
     <div
       v-else-if="!store.cardReady"
       class="rounded-3xl p-3.5 border shadow-sm relative overflow-hidden"

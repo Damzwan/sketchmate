@@ -123,8 +123,9 @@
         <!-- Offered on EVERY row, not just the active one: fading the layer you
              are not drawing on (a sketch under your ink) is the whole point.
              Hidden layers are excluded — a fade slider on invisible content
-             says nothing. -->
-        <div v-if="layer.visible" class="flex items-center gap-2 pl-1 pr-1">
+             says nothing. Public lobbies are excluded too: opacity replicates,
+             so there it would restyle the whole room's drawing. -->
+        <div v-if="layer.visible && canSetOpacity" class="flex items-center gap-2 pl-1 pr-1">
           <span class="text-[11px] font-bold opacity-60 w-9 shrink-0 tabular-nums">
             {{ Math.round((layer.opacity ?? 1) * 100) }}%
           </span>
@@ -237,6 +238,7 @@ const {
 	canEditStructure,
 	canAddLayer,
 	canDeleteLayer,
+	canSetOpacity,
 	shared,
 	maxLayers,
 	atTierLimit,

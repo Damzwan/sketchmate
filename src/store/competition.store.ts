@@ -59,7 +59,14 @@ const MAX_LOADED_ENTRIES = 180;
 const THEMES_TTL_MS = 60_000;
 
 const CARD_CACHE_KEY = "competition_card_v1";
-/** Past this the cached week is more likely to mislead than to help. */
+/**
+ * Past this the cached week is more likely to mislead than to help.
+ *
+ * Applies to a cached COMPETITION only. A cached "there is no competition" never
+ * goes stale in a way that hurts: the worst it can do is render nothing for the
+ * one frame before `refresh()` answers, which is the same thing an empty cache
+ * does — minus the skeleton.
+ */
 const CARD_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 interface CardCache {
@@ -73,7 +80,12 @@ function readCardCache(): CardCache | null {
 		const raw = localStorage.getItem(CARD_CACHE_KEY);
 		if (!raw) return null;
 		const parsed = JSON.parse(raw) as CardCache;
-		if (Date.now() - parsed.saved_at > CARD_CACHE_TTL_MS) return null;
+		if (
+			parsed.competition &&
+			Date.now() - parsed.saved_at > CARD_CACHE_TTL_MS
+		) {
+			return null;
+		}
 		return parsed;
 	} catch {
 		return null;
@@ -119,12 +131,15 @@ export const useCompetitionStore = defineStore("competition", () => {
 	 *  rather than flashing an empty state on every cold start. */
 	const hydrated = ref(false);
 	/**
-	 * The card has something real to draw: either this session's fetch landed, or
-	 * the localStorage cache gave it last week's shape to paint immediately.
-	 * Separate from `hydrated`, which still means "the server has answered" and
-	 * is what the entry grid and the vote budget key off.
+	 * The card knows what to draw: either this session's fetch landed, or the
+	 * localStorage cache answered — including when its answer is "no competition",
+	 * which is a result like any other. Keying this on the cache ENTRY rather than
+	 * on a cached competition is what stops a quiet week from shimmering a
+	 * skeleton on every cold start only to collapse into nothing a round trip
+	 * later. Separate from `hydrated`, which still means "the server has answered"
+	 * and is what the entry grid and the vote budget key off.
 	 */
-	const cardReady = ref(!!cached?.competition);
+	const cardReady = ref(!!cached);
 	let inFlight: Promise<void> | null = null;
 	let themesCache: { fetched_at: number; data: ThemesResponse } | null = null;
 	let themesInFlight: Promise<ThemesResponse | null> | null = null;

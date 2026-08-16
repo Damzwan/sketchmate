@@ -97,6 +97,14 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	const canDeleteLayer = computed(
 		() => canEditStructure.value && layers.value.length > 1,
 	);
+	/**
+	 * Opacity is artwork, not view state: it replicates and it is undoable. In a
+	 * public lobby the layer set is not our document (`fixed` policy), so fading
+	 * one would silently restyle everyone else's drawing. Same distinction as
+	 * `canEditStructure`, named separately because opacity is a property of a
+	 * layer rather than the shape of the layer list.
+	 */
+	const canSetOpacity = computed(() => canEditStructure.value);
 	const activeLayer = computed(
 		() => layers.value.find((l) => l.id === activeId.value) ?? layers.value[0],
 	);
@@ -280,6 +288,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	 * dragging and `true` once on release, so one gesture is one undo step.
 	 */
 	function setOpacity(id: string, opacity: number) {
+		if (!canSetOpacity.value) return;
 		const layer = layers.value.find((l) => l.id === id);
 		if (!layer) return;
 		const next = clampLayerOpacity(opacity);
@@ -297,6 +306,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	 * frame instead of to where the gesture started.
 	 */
 	function commitOpacity(id: string, previousOpacity: number, opacity: number) {
+		if (!canSetOpacity.value) return;
 		const from = clampLayerOpacity(previousOpacity);
 		const to = clampLayerOpacity(opacity);
 		setOpacity(id, to);
@@ -832,6 +842,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		canEditStructure,
 		canAddLayer,
 		canDeleteLayer,
+		canSetOpacity,
 		maxLayers,
 		atTierLimit,
 		init,

@@ -55,13 +55,22 @@ export interface DrawMemoryPressureHandlers {
  * moment later costs far more than it saves: on a 7,000-object board the
  * re-bake is seconds of work the user watches happen.
  *
- * Android's native `TRIM_MEMORY_UI_HIDDEN` signal does not use this delay: it
- * is the platform telling us the UI-backed bitmaps are no longer visible, and
- * field evidence ties retaining a full cache across that transition to an
- * Adreno allocator abort. This grace remains for browser visibility changes
- * and platforms where a transient dialog is the only signal.
+ * Android's native `TRIM_MEMORY_UI_HIDDEN` uses a much shorter grace below.
+ * It is a lifecycle notification, not a low-memory emergency, and Android can
+ * emit it for a share sheet, notification shade or another very short window
+ * transition. Closing every ImageBitmap immediately in those transitions made
+ * the app destroy and recreate dozens of GPU buffers while SurfaceFlinger was
+ * still retiring the previous window buffers. Field traces tie that churn to
+ * `gsl_syncobj_destroy` and `popReleaseBufferCallbackLocked` native crashes.
  */
 export const HIDE_GRACE_MS = 20_000;
+
+/**
+ * Long enough to cover the transient 0.6–3.2 s hide/resume bursts seen in the
+ * native crash trail, short enough to return a large tile cache during a real
+ * background stay. Actual `low` and `critical` signals bypass this delay.
+ */
+export const UI_HIDDEN_GRACE_MS = 5_000;
 
 let handlers: DrawMemoryPressureHandlers | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -112,9 +121,20 @@ function releaseNow(reason: GraphicsReleaseReason): void {
 	}
 }
 
-function scheduleRelease(): void {
-	if (released || hideTimer !== null) return;
-	hideTimer = setTimeout(() => releaseNow("hidden-grace"), HIDE_GRACE_MS);
+function scheduleRelease(
+	reason: Extract<GraphicsReleaseReason, "hidden-grace" | "memory-uiHidden">,
+	delayMs: number,
+): void {
+	if (released) return;
+
+	// `visibilitychange` / app-state normally arrives before Android's
+	// UI_HIDDEN callback. Replace that 20 s browser grace with the shorter native
+	// one, but never let a later generic hidden event postpone native cleanup.
+	if (hideTimer !== null) {
+		if (reason === "hidden-grace") return;
+		cancelHideTimer();
+	}
+	hideTimer = setTimeout(() => releaseNow(reason), delayMs);
 }
 
 function restoreNow(): void {
@@ -135,7 +155,7 @@ function bindNativeListeners(): void {
 	// outlives the canvas that created it.
 	void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
 		if (isActive) restoreNow();
-		else scheduleRelease();
+		else scheduleRelease("hidden-grace", HIDE_GRACE_MS);
 	})
 		.then((handle) => {
 			if (handlers) appStateListener = handle;
@@ -149,15 +169,17 @@ function bindNativeListeners(): void {
 	// `service/memoryPressure.ts`. `moderate` is the system asking politely
 	// while it still has room; from `low` upwards it is already choosing a
 	// process to kill, so release immediately rather than waiting out the grace
-	// period. `uiHidden` is exactly the point at which Android recommends
-	// releasing UI-only bitmap resources. Do it immediately: preserving a warm
-	// tile cache across WebView/Adreno surface transitions is less important than
-	// avoiding a native graphics allocator failure.
+	// period. `uiHidden` is only a lifecycle notification, so give the compositor
+	// a few seconds to retire the window buffers and cancel if the app returns.
+	// This avoids a destroy/recreate storm during transient window switches while
+	// retaining immediate emergency cleanup for real memory pressure.
 	installMemoryPressureBridge();
 	unsubscribeMemoryPressure = onMemoryPressure((level) => {
-		if (level === "uiHidden" || level === "low" || level === "critical") {
-			releaseNow(`memory-${level}`);
+		if (level === "uiHidden") {
+			scheduleRelease("memory-uiHidden", UI_HIDDEN_GRACE_MS);
+			return;
 		}
+		if (level === "low" || level === "critical") releaseNow(`memory-${level}`);
 	});
 }
 
@@ -171,7 +193,8 @@ export function installDrawMemoryPressure(
 
 	if (typeof document !== "undefined") {
 		onVisibility = () => {
-			if (document.visibilityState === "hidden") scheduleRelease();
+			if (document.visibilityState === "hidden")
+				scheduleRelease("hidden-grace", HIDE_GRACE_MS);
 			else restoreNow();
 		};
 		document.addEventListener("visibilitychange", onVisibility);

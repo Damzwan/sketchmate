@@ -8,6 +8,27 @@ const COMPRESSION_ATTEMPTS = [
 	{ size: 850, quality: 0.56 },
 ] as const;
 
+/** The widest a reference card can be drawn (see MAX_REFERENCE_WIDTH). */
+const MAX_CARD_CSS_WIDTH = 560;
+
+/**
+ * The largest edge worth keeping on THIS device.
+ *
+ * The data-url cap bounds the bytes on the wire; it does nothing about the
+ * decoded bitmap, which is what a cheap phone actually runs out of: a 1400px
+ * image is ~7MB of RGBA whatever the file size, and six of them open at once is
+ * the difference between a slow session and a killed WebView. Nothing above the
+ * card's own pixel size can ever be seen, so that is the budget — dropped again
+ * on devices that report little memory.
+ */
+function decodeBudget(): number {
+	if (typeof window === "undefined") return 1_400;
+	const ratio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+	const memory = (navigator as { deviceMemory?: number }).deviceMemory;
+	const ceiling = memory !== undefined && memory <= 4 ? 900 : 1_400;
+	return Math.min(ceiling, Math.round(MAX_CARD_CSS_WIDTH * ratio));
+}
+
 function blobToDataUrl(blob: Blob): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
@@ -49,9 +70,10 @@ export async function prepareReferenceImage(
 	}
 
 	let dataUrl = "";
+	const budget = decodeBudget();
 	for (const attempt of COMPRESSION_ATTEMPTS) {
 		const compressed = await compressImg(file, {
-			size: attempt.size,
+			size: Math.min(attempt.size, budget),
 			quality: attempt.quality,
 			returnType: "blob",
 		});

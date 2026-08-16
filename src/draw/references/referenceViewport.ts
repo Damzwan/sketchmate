@@ -15,6 +15,30 @@ export interface ReferenceScreenPlacement {
 
 const REFERENCE_HEADER_HEIGHT = 38;
 
+export interface ReferenceOverlaySize {
+	width: number;
+	height: number;
+}
+
+/**
+ * Clamping pulls every card back inside the overlay box, which is right when
+ * the box itself changed (rotation, split view) and wrong otherwise — a card
+ * panned or zoomed off-screen is off-screen on purpose. A hidden draw page
+ * measures 0x0 and then measures its old size again on return, so without this
+ * the round trip through SendHub reads as two resizes and drags the card back.
+ */
+export function overlayResized(
+	previous: ReferenceOverlaySize | null,
+	next: ReferenceOverlaySize,
+	tolerance = 1,
+): boolean {
+	if (!previous) return true;
+	return (
+		Math.abs(previous.width - next.width) > tolerance ||
+		Math.abs(previous.height - next.height) > tolerance
+	);
+}
+
 function applyTransform(
 	transform: ReferenceViewportTransform,
 	point: { x: number; y: number },

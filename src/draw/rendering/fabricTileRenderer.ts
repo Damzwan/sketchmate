@@ -3,6 +3,7 @@ import {
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
 } from "@/draw/config/renderQuality.config";
+import { layerOpacity } from "@/draw/layers/layerRegistry";
 import { shouldTimeRenderObject } from "@/draw/rendering/renderMetrics";
 
 /**
@@ -339,6 +340,15 @@ export const isolatedTileRenderer = (
 	// meant to stay hidden (e.g. private/claimed areas).
 	obj.visible = true;
 
+	// LAYER OPACITY, applied here rather than in `prepareForBake` because that
+	// one recurses into groups and clip paths: multiplying at every level would
+	// compound the fade once per nesting depth. One multiply, on the top-level
+	// object, exactly like the visibility override above — and restored the same
+	// way, or the object's own opacity would drift on every bake.
+	const origOpacity = obj.opacity;
+	const fade = layerOpacity((obj as any).layerId);
+	if (fade < 1) obj.opacity = (origOpacity ?? 1) * fade;
+
 	// Do NOT force obj.dirty / clipPath.dirty here. Objects with a ClippingGroup
 	// are force-cached by fabric (needsItsOwnCache); forcing dirty made every
 	// tile render re-rasterize the whole clip stack — the super-linear erase
@@ -363,6 +373,7 @@ export const isolatedTileRenderer = (
 		// entries nobody will unwind.
 		unwindUndo(undoMark);
 		obj.visible = origVisible;
+		obj.opacity = origOpacity;
 		obj.isOnScreen = origIsOnScreen;
 		console.warn("[TileRenderer] Prepare failed:", err);
 		return;
@@ -378,6 +389,7 @@ export const isolatedTileRenderer = (
 
 		// Restore original states so baking never permanently mutates the object.
 		obj.visible = origVisible;
+		obj.opacity = origOpacity;
 		obj.isOnScreen = origIsOnScreen;
 		unwindUndo(undoMark);
 	}

@@ -60,7 +60,7 @@
         </div>
       </div>
 
-      <div class="px-1 mb-2 flex items-center justify-between gap-2">
+      <div class="px-1 mb-2 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-baseline gap-2 min-w-0">
           <!-- The stacked-shadow effects (jawbreaker/puffy/velvet) paint up to
                ~12px right and ~16px below the glyphs. Reserve that in the span's
@@ -90,6 +90,21 @@
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            class="h-8 flex items-center gap-1.5 px-3 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer disabled:cursor-wait disabled:opacity-70"
+            :style="networkButtonStyle"
+            :aria-label="`Visibility: ${currentPresenceOption.label}`"
+            aria-haspopup="dialog"
+            :aria-expanded="presencePopoverOpen"
+            :disabled="presenceUpdating"
+            @click="openPresencePopover"
+          >
+            <ion-spinner v-if="presenceUpdating" name="crescent" class="w-3.5 h-3.5" />
+            <span v-else class="w-2.5 h-2.5 rounded-full border border-white shadow-sm" :class="currentPresenceOption.dotClass"></span>
+            <span class="text-xs font-black uppercase tracking-wide">Visibility</span>
+          </button>
+
           <button
             type="button"
             class="h-8 flex items-center gap-1.5 px-3 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer"
@@ -187,6 +202,43 @@
       </div>
     </div>
 
+    <ion-popover
+      :is-open="presencePopoverOpen"
+      :event="presencePopoverEvent"
+      side="bottom"
+      alignment="end"
+      :show-backdrop="true"
+      class="presence-popover"
+      @didDismiss="presencePopoverOpen = false"
+    >
+      <div class="w-[290px] p-3 rounded-[1.75rem] border shadow-xl" :style="presencePopoverStyle">
+        <div class="px-2 pt-1 pb-2">
+          <p class="text-[10px] font-black uppercase tracking-widest" :style="{ color: 'var(--chat-widget-desc, rgba(0,0,0,.65))' }">Visibility</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <button
+            v-for="option in presenceOptions"
+            :key="option.status"
+            type="button"
+            class="w-full cursor-pointer flex items-center gap-3 p-3 rounded-[1.25rem] text-left border transition-all active:scale-[0.98] disabled:opacity-60"
+            :class="presenceStatus === option.status ? 'ring-2 ring-secondary/30' : ''"
+            :style="presenceOptionStyle"
+            :disabled="presenceUpdating"
+            @click="selectPresenceStatus(option.status)"
+          >
+            <span class="w-3 h-3 rounded-full border-2 border-white shadow-sm shrink-0" :class="option.dotClass"></span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-black" :style="{ color: 'var(--chat-widget-name, #18181b)' }">{{ option.label }}</span>
+              <span class="block text-[11px] leading-snug mt-0.5" :style="{ color: 'var(--chat-widget-desc, rgba(0,0,0,.65))' }">{{ option.description }}</span>
+            </span>
+            <ion-spinner v-if="presenceUpdating && presenceStatus === option.status" name="crescent" class="w-4 h-4 shrink-0" />
+            <ion-icon v-else-if="presenceStatus === option.status" :icon="svg(mdiCheck)" class="text-secondary text-lg shrink-0" />
+          </button>
+        </div>
+      </div>
+    </ion-popover>
+
     <ion-fab v-show="!isCreatingChat" slot="fixed" vertical="bottom" horizontal="end" class="absolute bottom-6 right-2">
       <ion-fab-button color="secondary" @click="isCreatingChat = true">
         <ion-icon :icon="svg(mdiChatPlusOutline)" class="text-xl text-white" />
@@ -196,10 +248,18 @@
 </template>
 
 <script setup lang="ts">
-import { IonFab, IonFabButton, IonIcon, useIonRouter } from "@ionic/vue";
+import {
+	IonFab,
+	IonFabButton,
+	IonIcon,
+	IonPopover,
+	IonSpinner,
+	useIonRouter,
+} from "@ionic/vue";
 import {
 	mdiAccountGroupOutline,
 	mdiChatPlusOutline,
+	mdiCheck,
 	mdiChevronDown,
 	mdiChevronRight,
 	mdiShieldAlertOutline,
@@ -213,11 +273,13 @@ import { masterAnimation } from "@/helper/animation.helper";
 import { compareConversationActivity } from "@/helper/chat.helper";
 import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { PresenceStatus } from "@/types/server.types";
 import ChatFriendPicker from "./ChatFriendPicker.vue";
 import ChatOverviewEmptyState from "./ChatOverviewEmptyState.vue";
 import ConversationItem from "./ConversationItem.vue";
@@ -230,10 +292,12 @@ const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
 const friendStore = useFriendStore();
 const drawSyncer = useDrawSyncer();
+const authStore = useAuthStore();
 
 const { activeChats, typingStatuses, chatsHydrated } = storeToRefs(chatStore);
 const { isExpanded } = storeToRefs(chatWidget);
-const { user, isUnderAge } = storeToRefs(useAuthStore());
+const { user, isUnderAge, presenceStatus, presenceUpdating } =
+	storeToRefs(authStore);
 const { isFriendOnline, pendingRequests, onlineFriends } =
 	storeToRefs(friendStore);
 const { lobbyChatMessages, roomMembers, invitations } = storeToRefs(drawSyncer);
@@ -344,6 +408,68 @@ const networkButtonStyle = {
 	color: "var(--chat-widget-utility, rgba(0,0,0,.72))",
 };
 
+const presenceOptions: Array<{
+	status: PresenceStatus;
+	label: string;
+	description: string;
+	dotClass: string;
+}> = [
+	{
+		status: "online",
+		label: "Online",
+		description: "Mates can see when you're active.",
+		dotClass: "bg-green-500",
+	},
+	{
+		status: "busy",
+		label: "Busy",
+		description: "Stay visible; mute chat popups",
+		dotClass: "bg-amber-400",
+	},
+	{
+		status: "invisible",
+		label: "Invisible",
+		description: "Appear offline; chat and rooms still work.",
+		dotClass: "bg-zinc-700",
+	},
+];
+
+const currentPresenceOption = computed(
+	() =>
+		presenceOptions.find((option) => option.status === presenceStatus.value) ??
+		presenceOptions[0],
+);
+const presencePopoverOpen = ref(false);
+const presencePopoverEvent = ref<Event | null>(null);
+const presencePopoverStyle = {
+	background: "var(--chat-widget-scrim, var(--ion-color-background))",
+	borderColor: "var(--chat-widget-border, rgba(0,0,0,.12))",
+};
+const presenceOptionStyle = {
+	background: "var(--chat-widget-control-bg, rgba(255,255,255,.72))",
+	borderColor: "var(--chat-widget-border, rgba(0,0,0,.10))",
+};
+
+const openPresencePopover = (event: Event) => {
+	presencePopoverEvent.value = event;
+	presencePopoverOpen.value = true;
+};
+
+const selectPresenceStatus = async (status: PresenceStatus) => {
+	if (presenceUpdating.value || status === presenceStatus.value) {
+		presencePopoverOpen.value = false;
+		return;
+	}
+	try {
+		await authStore.setPresenceStatus(status);
+		if (status === "busy") chatStore.clearPrivateNotifications();
+		presencePopoverOpen.value = false;
+	} catch (error) {
+		console.error("Failed to update presence status", error);
+		useToast().toast("Couldn't update your status", { color: "danger" });
+	}
+};
+
 // Leaves the panel first — routing under an open sheet lands the user on a page
 // with the chat modal still covering it.
 const openNetwork = (tab: "mates" | "followers" | "following" = "mates") => {
@@ -356,6 +482,11 @@ const openNetwork = (tab: "mates" | "followers" | "following" = "mates") => {
 .hide-scrollbar::-webkit-scrollbar { display: none !important; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .animate-fade-in { animation: fadeIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+ion-popover.presence-popover {
+  --background: transparent;
+  --box-shadow: none;
+  --width: 290px;
+}
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

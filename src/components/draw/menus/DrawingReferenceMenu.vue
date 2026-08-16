@@ -1,7 +1,9 @@
 <template>
+  <!-- Not `scrollable`: that pins the sheet at full height, so an empty or
+       one-image list opened as a full-screen panel. Auto height grows with the
+       rows and the inner scroller takes over at the 95vh cap. -->
   <BaseSheetModal
     :is-open="referenceMenuOpen"
-    scrollable
     @close="closeMenu(Menu.Reference)"
   >
     <template #header>
@@ -18,17 +20,25 @@
 
     <div class="space-y-3 pb-3">
       <section class="reference-actions">
+        <!-- At the TIER limit the button sells the upgrade instead of sitting
+             disabled; at the hard cap there is nothing to sell, so it disables.
+             Same contract as the layer sheet. -->
         <ion-button
           expand="block"
-          color="secondary"
+          :color="atTierLimit ? 'warning' : 'secondary'"
           class="add-reference-button"
-          :disabled="isAdding || references.length >= MAX_DRAWING_REFERENCES"
-          @click="fileInput?.click()"
+          :disabled="isAdding || (!canAddReference && !atTierLimit)"
+          @click="atTierLimit ? upgrade() : fileInput?.click()"
         >
           <ion-spinner v-if="isAdding" name="crescent" slot="start" />
-          <ion-icon v-else :icon="svg(mdiImagePlusOutline)" slot="start" />
-          {{ isAdding ? 'Preparing…' : 'Add reference images' }}
+          <ion-icon v-else :icon="svg(atTierLimit ? mdiStar : mdiImagePlusOutline)" slot="start" />
+          {{ isAdding ? 'Preparing…' : atTierLimit ? 'More references' : 'Add reference images' }}
         </ion-button>
+
+        <p class="reference-quota">
+          {{ localCount }} of {{ maxReferences }} references used<span v-if="atTierLimit">
+            · Pro gets {{ maxPro }}</span>
+        </p>
 
         <label v-if="inRoom" class="share-new-row">
           <span>Share new images</span>
@@ -105,14 +115,30 @@
             >
               <ion-icon :icon="svg(reference.hidden ? mdiEyeOutline : mdiEyeOffOutline)" slot="icon-only" />
             </ion-button>
+            <!-- Owner: removes it for the room. Everyone else: removes it for
+                 THEMSELVES, permanently — no confirm, and no waiting on the
+                 owner or on a moderator. Someone who just got an unwanted image
+                 pushed at them gets it off their screen in one tap. -->
             <ion-button
               size="small"
               fill="clear"
               color="danger"
-              :aria-label="reference.isLocal ? 'Remove reference' : 'Dismiss reference'"
+              :aria-label="reference.isLocal ? 'Remove reference' : 'Remove for me'"
               @click="removeReference(reference)"
             >
-              <ion-icon :icon="svg(reference.isLocal ? mdiDeleteOutline : mdiClose)" slot="icon-only" />
+              <!-- Same delete icon for both: the eye-with-a-slash variant read
+                   as another hide toggle sitting next to the actual one. -->
+              <ion-icon :icon="svg(mdiDeleteOutline)" slot="icon-only" />
+            </ion-button>
+            <ion-button
+              v-if="!reference.isLocal"
+              size="small"
+              fill="clear"
+              color="dark"
+              aria-label="Report reference"
+              @click="reportReference(reference)"
+            >
+              <ion-icon :icon="svg(mdiFlagOutline)" slot="icon-only" />
             </ion-button>
           </div>
         </div>
@@ -134,14 +160,15 @@ import {
 	IonToggle,
 } from "@ionic/vue";
 import {
-	mdiClose,
 	mdiDeleteOutline,
 	mdiEyeOffOutline,
 	mdiEyeOutline,
+	mdiFlagOutline,
 	mdiFlipHorizontal,
 	mdiImageMultipleOutline,
 	mdiImagePlusOutline,
 	mdiOpacity,
+	mdiStar,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
@@ -156,6 +183,8 @@ import { useDrawSyncer } from "@/draw/sync/session.store";
 import { svg } from "@/helper/general.helper";
 import { useToast } from "@/service/toast.service";
 import { useMenuStore } from "@/store/menu.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 import { Menu } from "@/types/menu.types";
 
 const menuStore = useMenuStore();
@@ -164,7 +193,9 @@ const { referenceMenuOpen } = storeToRefs(menuStore);
 const drawSyncer = useDrawSyncer();
 const { roomId, roomMembers } = storeToRefs(drawSyncer);
 const referencesStore = useDrawingReferenceStore();
-const { references } = storeToRefs(referencesStore);
+const { references, localCount, maxReferences, canAddReference, atTierLimit } =
+	storeToRefs(referencesStore);
+const maxPro = MAX_DRAWING_REFERENCES;
 const fileInput = ref<HTMLInputElement>();
 const isAdding = ref(false);
 const shareNewReferences = ref(true);
@@ -174,6 +205,22 @@ const { confirm } = useConfirm();
 watch(inRoom, (active) => {
 	shareNewReferences.value = active;
 });
+
+function reportReference(reference: DrawingReference) {
+	closeMenu(Menu.Reference);
+	useModerationStore().openReport({
+		type: "lobby_reference",
+		id: reference.id,
+		blockUserId: reference.ownerId,
+		// The image lives in the room, not in any database.
+		contextRoomId: roomId.value,
+	});
+}
+
+function upgrade() {
+	closeMenu(Menu.Reference);
+	useSubscriptionStore().openPaywall();
+}
 
 function ownerName(ownerId: string) {
 	return (
@@ -216,21 +263,23 @@ function setShared(id: string, shared: boolean) {
 }
 
 async function removeReference(reference: DrawingReference) {
-	if (!reference.isLocal) {
-		referencesStore.updateAppearance(reference.id, { hidden: true });
-		return;
-	}
-
+	// A peer's image is removed for YOU only — same confirm dialog as every
+	// other destructive action in the app, different copy about the scope.
 	const confirmed = await confirm({
 		header: "Remove reference?",
-		subHeader: reference.shared
-			? "It will also disappear for everyone in the room."
-			: undefined,
+		subHeader: !reference.isLocal
+			? "It stays visible for everyone else in the room."
+			: reference.shared
+				? "It will also disappear for everyone in the room."
+				: undefined,
 		message: "This reference cannot be restored after removal.",
 		confirmText: "Remove",
 		destructive: true,
 	});
-	if (confirmed) referencesStore.remove(reference.id);
+	if (!confirmed) return;
+
+	if (reference.isLocal) referencesStore.remove(reference.id);
+	else referencesStore.dismiss(reference.id);
 }
 </script>
 
@@ -246,6 +295,15 @@ async function removeReference(reference: DrawingReference) {
 
 .reference-actions {
   padding: 2px;
+}
+
+.reference-quota {
+  padding: 6px 8px 0;
+  color: var(--ion-color-dark);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+  opacity: 0.66;
 }
 
 .share-new-row {

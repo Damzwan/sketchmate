@@ -11,6 +11,10 @@ import {
 	layerOrderOf,
 } from "@/draw/layers/layerRegistry";
 import {
+	type SelectionScope,
+	selectionScope,
+} from "@/draw/layers/selectionScope";
+import {
 	bakeryClipSet,
 	bakeryMarkDirty,
 	bakeryZOrder,
@@ -541,17 +545,31 @@ export function createDrawingSpatialIndex(
 	}
 
 	/**
-	 * SELECTION targets — the active layer only, the standard layer-editor rule
-	 * ("you edit the layer you are on"). Without it, tapping picks whatever is
-	 * under the finger and the active layer stops meaning anything for every
-	 * operation except drawing.
+	 * SELECTION targets — the active layer only by default, the standard
+	 * layer-editor rule ("you edit the layer you are on"). Without it, tapping
+	 * picks whatever is under the finger and the active layer stops meaning
+	 * anything for every operation except drawing.
+	 *
+	 * `scope` widens that to every layer the user can touch, driven by the
+	 * "Select across layers" switch (see `layers/selectionScope.ts`). It defaults
+	 * to that switch so all four selection paths — tap, Fabric's marquee, lasso,
+	 * select-all — follow one rule without each having to remember to ask. The
+	 * ERASER passes `"activeLayer"` explicitly: erasing is not selecting, and it
+	 * must stay on the active layer whatever the switch says.
+	 *
+	 * Hidden and locked layers are already gone by the time this runs
+	 * (`queryInteractiveObjects`), so "all layers" means "all visible, unlocked
+	 * layers" with no extra rule here.
 	 *
 	 * Single-layer drawings (every legacy document, and most new ones) skip the
 	 * filter entirely, so this changes nothing for them.
 	 */
-	function querySelectableObjects(rect: WorldRect): FabricObject[] {
+	function querySelectableObjects(
+		rect: WorldRect,
+		scope: SelectionScope = selectionScope(),
+	): FabricObject[] {
 		const objs = queryInteractiveObjects(rect);
-		if (layerCount() < 2) return objs;
+		if (scope === "allLayers" || layerCount() < 2) return objs;
 		const active = activeLayerId();
 		return objs.filter((o) => ((o as any).layerId ?? BASE_LAYER_ID) === active);
 	}

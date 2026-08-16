@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { PENMENUTOOLS, SELECTMENUTOOLS } from "@/draw/config/tools.config";
+import { resetSelectionScope } from "@/draw/layers/selectionScope";
 import {
 	DrawTool,
 	type PenMenuTool,
@@ -53,6 +54,11 @@ export const useToolSelection = defineStore("toolSelection", () => {
 		} else if (SELECTMENUTOOLS.includes(selectedTool.value)) {
 			lastSelectedSelectTool.value = selectedTool.value as SelectTool;
 		}
+		// Cross-layer selection lasts only as long as the user is selecting.
+		// Switching BETWEEN Select and Lasso keeps it — they are two ways to do
+		// the same thing, and having them disagree would be the surprise this
+		// switch exists to remove. Leaving for a brush or the eraser drops it.
+		if (!SELECTMENUTOOLS.includes(selectedTool.value)) resetSelectionScope();
 	});
 
 	return {

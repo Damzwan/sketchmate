@@ -83,6 +83,8 @@ export type ChatStatus =
 // Standardized ConversationStatus to match ChatStatus for UI consistency
 export type ConversationStatus = ChatStatus;
 
+export type PresenceStatus = "online" | "busy" | "invisible";
+
 export interface Mate {
 	_id: string;
 	name: string;
@@ -133,6 +135,7 @@ export type ReportableType =
 	| "inbox_comment"
 	| "lobby_message"
 	| "lobby_drawing"
+	| "lobby_reference"
 	| "competition_entry"
 	| "competition_comment";
 
@@ -254,6 +257,10 @@ export interface User {
 	};
 	/** Render the server's censored twin of user text. Defaults on (undefined = on). */
 	profanity_filter?: boolean;
+	/** Private presence preference. Invisible users remain connected but are shown as offline. */
+	presence_invisible?: boolean;
+	/** Account-wide presence mode. `presence_invisible` remains as a legacy mirror. */
+	presence_status?: PresenceStatus;
 	stats: UserStats;
 
 	// Moderation — both optional so legacy clients don't crash if absent.

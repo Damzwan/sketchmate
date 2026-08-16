@@ -3,7 +3,7 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
 import { fitBitmapDimensions } from "@/draw/config/drawMemoryProfile";
 import { getRenderDpr } from "@/draw/config/renderQuality.config";
-import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { compareRenderOrder, layerOpacity } from "@/draw/layers/layerRegistry";
 import {
 	bakeryRenderSelection,
 	isBakeryActive,
@@ -1229,10 +1229,16 @@ function bakeSelectionBitmap(
 	const origCaching = prep.objectCaching;
 	const origDirty = prep.dirty;
 	const origVisible = prep.visible;
+	const origOpacity = prep.opacity;
+	// Layer fade, same as isolatedTileRenderer applies. An ActiveSelection has no
+	// layerId of its own and resolves to 1, which is correct: its CHILDREN carry
+	// their own ids and each renders through its own fade.
+	const fade = layerOpacity(prep.layerId);
 	prep.isOnScreen = () => true;
 	prep.objectCaching = false;
 	prep.dirty = true;
 	prep.visible = true;
+	if (fade < 1) prep.opacity = (origOpacity ?? 1) * fade;
 	const renderStartedAt = performance.now();
 	try {
 		target.render(ctx as any);
@@ -1243,6 +1249,7 @@ function bakeSelectionBitmap(
 		prep.objectCaching = origCaching;
 		prep.dirty = origDirty;
 		prep.visible = origVisible;
+		prep.opacity = origOpacity;
 		recordPhase("selectionBake", performance.now() - renderStartedAt);
 	}
 

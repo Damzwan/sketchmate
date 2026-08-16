@@ -14,6 +14,7 @@ import {
 	recordWorkerQueueDepth,
 	recordWorkerTiming,
 	resetDrawMetrics,
+	setLongTaskSink,
 	setWorkerProtocolVersion,
 	shouldTimeRenderObject,
 	snapshotDrawMetrics,
@@ -252,6 +253,56 @@ describe("draw worker cancellation metrics", () => {
 			expect(metrics.longTaskMsMax).toBe(2_500);
 		} finally {
 			stopDrawMetrics();
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("does not attribute a long task to a stale draw phase", () => {
+		const observers: {
+			callback: (list: { getEntries: () => any[] }) => void;
+			options?: { type: string };
+		}[] = [];
+		class FakePerformanceObserver {
+			private readonly observer: (typeof observers)[number];
+
+			constructor(callback: (list: { getEntries: () => any[] }) => void) {
+				this.observer = { callback };
+				observers.push(this.observer);
+			}
+
+			observe(options: { type: string }) {
+				this.observer.options = options;
+			}
+
+			disconnect() {}
+		}
+
+		let now = 100;
+		const nowSpy = vi.spyOn(performance, "now").mockImplementation(() => now);
+		vi.stubGlobal("PerformanceObserver", FakePerformanceObserver);
+		try {
+			stopDrawMetrics();
+			initDrawMetrics(() => 1);
+			recordPhase("localBakeObject", 4.4);
+			now = 5_100;
+
+			const reports: Array<{
+				durationMs: number;
+				phase: string;
+				phaseMs: number;
+				phaseAgeMs: number;
+			}> = [];
+			setLongTaskSink((report) => reports.push(report));
+			observers
+				.find((candidate) => candidate.options?.type === "longtask")!
+				.callback({ getEntries: () => [{ duration: 6_624 }] });
+
+			expect(reports).toEqual([
+				{ durationMs: 6_624, phase: "", phaseMs: 0, phaseAgeMs: 5_000 },
+			]);
+		} finally {
+			stopDrawMetrics();
+			nowSpy.mockRestore();
 			vi.unstubAllGlobals();
 		}
 	});

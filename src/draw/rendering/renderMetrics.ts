@@ -968,6 +968,9 @@ export const LONG_TASK_REPORT_MS = 250;
 /** One task this long consumed most of Android's 5 s input timeout budget. */
 export const SEVERE_LONG_TASK_MS = 2_000;
 
+/** A completed phase older than this is context, not attribution. */
+export const LONG_TASK_PHASE_MAX_AGE_MS = 1_000;
+
 export interface LongTaskReport {
 	durationMs: number;
 	/** Phase that was running when the block started, if any. */
@@ -1002,11 +1005,13 @@ function startLongTaskObserver(): void {
 				if (entry.duration > m.longTaskMsMax) m.longTaskMsMax = entry.duration;
 				if (longTaskSink && entry.duration >= LONG_TASK_REPORT_MS) {
 					const phase = lastDrawPhase();
+					const phaseIsRecent =
+						phase.ageMs >= 0 && phase.ageMs <= LONG_TASK_PHASE_MAX_AGE_MS;
 					try {
 						longTaskSink({
 							durationMs: Math.round(entry.duration),
-							phase: phase.phase,
-							phaseMs: phase.ms,
+							phase: phaseIsRecent ? phase.phase : "",
+							phaseMs: phaseIsRecent ? phase.ms : 0,
 							phaseAgeMs: phase.ageMs,
 						});
 					} catch {

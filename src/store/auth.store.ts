@@ -21,6 +21,7 @@ import router from "@/router";
 import {
 	getUser,
 	onLoginEvent,
+	updatePresenceStatus,
 	updateUserTimezone,
 } from "@/service/api/user.api";
 import {
@@ -37,7 +38,7 @@ import { useNotificationStore } from "@/store/notification.store";
 import { resetAllStores } from "@/store/resetStores";
 import { useSessionStore } from "@/store/session.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import type { User } from "@/types/server.types";
+import type { PresenceStatus, User } from "@/types/server.types";
 import { LocalStorage } from "@/types/storage.types";
 
 // Lazy for the same reason as in the subscription store: this module is on the
@@ -62,6 +63,7 @@ export const useAuthStore = defineStore("auth", () => {
 
 	const lastHydratedAt = ref<number>(0);
 	const isHydrating = ref(false);
+	const presenceUpdating = ref(false);
 
 	const minimum_online_version = ref<string>("");
 
@@ -82,6 +84,13 @@ export const useAuthStore = defineStore("auth", () => {
 		if (!user.value.date_of_birth) return true;
 		return !isOldEnough(user.value.date_of_birth);
 	});
+	const presenceStatus = computed<PresenceStatus>(() =>
+		user.value?.presence_status
+			? user.value.presence_status
+			: user.value?.presence_invisible
+				? "invisible"
+				: "online",
+	);
 
 	// --- INIT ---
 	Preferences.get({ key: LocalStorage.img }).then(
@@ -477,6 +486,29 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 	}
 
+	async function setPresenceStatus(status: PresenceStatus): Promise<void> {
+		if (!user.value || presenceUpdating.value) return;
+		if (presenceStatus.value === status) return;
+
+		const previousStatus = presenceStatus.value;
+		const previousInvisible = user.value.presence_invisible === true;
+		presenceUpdating.value = true;
+		user.value.presence_status = status;
+		user.value.presence_invisible = status === "invisible";
+
+		try {
+			const response = await updatePresenceStatus(status);
+			user.value.presence_status = response.presence_status;
+			user.value.presence_invisible = response.presence_invisible;
+		} catch (error) {
+			user.value.presence_status = previousStatus;
+			user.value.presence_invisible = previousInvisible;
+			throw error;
+		} finally {
+			presenceUpdating.value = false;
+		}
+	}
+
 	function initIonRouter(r: UseIonRouterResult) {
 		ionRouter = r;
 	}
@@ -609,6 +641,7 @@ export const useAuthStore = defineStore("auth", () => {
 		showTutorial.value = false;
 		lastHydratedAt.value = 0;
 		isHydrating.value = false;
+		presenceUpdating.value = false;
 	}
 
 	function onlineUpdateRequired() {
@@ -626,11 +659,13 @@ export const useAuthStore = defineStore("auth", () => {
 		isRecoveredGuestAccount,
 		isGuestAccount,
 		isHydrating,
+		presenceUpdating,
 		lastHydratedAt,
 		showForceUpdateModal,
 		showTutorial,
 		hasConfirmedAge,
 		isUnderAge,
+		presenceStatus,
 		deviceFingerprint,
 		localUserImg,
 		initIonRouter,
@@ -640,6 +675,7 @@ export const useAuthStore = defineStore("auth", () => {
 		logout,
 		completeGuestRecoveryLink,
 		refresh,
+		setPresenceStatus,
 		waitUntilInitialized,
 		onlineUpdateRequired,
 		resetRuntimeState,

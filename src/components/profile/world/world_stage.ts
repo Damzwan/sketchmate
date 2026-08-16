@@ -25,6 +25,8 @@ export interface WorldStage {
 	staticMode: Ref<boolean>;
 	/** Show fewer sprites: small preview tiles and weak devices. */
 	reduced: Ref<boolean>;
+	/** Keep CSS scenery but skip WASM decode/raster on the 2 GB-class tier. */
+	disableSprites: Ref<boolean>;
 }
 
 export const WORLD_STAGE: InjectionKey<WorldStage> = Symbol("world-stage");
@@ -60,6 +62,7 @@ export function useWorldStage() {
 		// The :ref callback can fire repeatedly for the same element; bind once.
 		if (!canvas || canvas._spriteBound) return;
 		canvas._spriteBound = true;
+		if (stage.disableSprites.value) return;
 
 		handles.add(
 			acquireSprite({

@@ -20,6 +20,7 @@ import { v4 } from "@/utils/uuid";
 
 interface Select extends ToolService {
 	unSelect: () => void;
+	selectAll: () => FabricObject[];
 	getSelectedObjects: () => FabricObject[];
 	isSelectActive: Ref<boolean>;
 	selectedObjectsRef: Ref<FabricObject[]>;
@@ -279,6 +280,60 @@ export const useSelect = defineStore("select", (): Select => {
 		selectedObjectsRef.value = [];
 	}
 
+	/**
+	 * Select everything the current scope allows.
+	 *
+	 * Goes through the spatial index rather than `canvas.getObjects()` so it
+	 * inherits every rule the other selection paths already obey — hidden and
+	 * locked layers, the "Select across layers" switch, room claim areas — and
+	 * cannot drift from them.
+	 *
+	 * Returns the objects selected so a caller can report on it; empty means
+	 * there was nothing selectable, and the existing selection is left alone
+	 * rather than being cleared for no gain.
+	 */
+	function selectAll(): FabricObject[] {
+		if (!c) return [];
+		const manager = useDrawObjectManager();
+		const claim = useClaimArea();
+		const bounds = manager.getContentBounds();
+		if (!bounds || bounds.w <= 0 || bounds.h <= 0) return [];
+
+		const candidates = manager
+			.querySelectable(bounds)
+			.filter(
+				(obj) => obj.selectable && obj.visible && !claim.isObjectProtected(obj),
+			);
+		if (candidates.length === 0) return [];
+
+		manager.getZIndexMap();
+		// Bottom-to-top, which is the order `capOrderedSelection` expects: when
+		// the cap bites it keeps the TOP of the stack, i.e. what the user can see.
+		candidates.sort(compareRenderOrder);
+		const capped = capOrderedSelection(candidates);
+		if (capped.omitted > 0) {
+			void useToast().toast(
+				`Selected the top ${DRAW_SELECTION_OBJECT_LIMIT} objects to keep this device responsive.`,
+				{ color: "warning" },
+			);
+		}
+
+		const { actionWithoutEvents } = useDrawEventManager();
+		void actionWithoutEvents(() => {
+			c!.discardActiveObject();
+			c!.setActiveObject(
+				capped.objects.length === 1
+					? capped.objects[0]
+					: new fabric.ActiveSelection(capped.objects, { canvas: c }),
+			);
+			selectedObjects = capped.objects;
+			selectedObjectsRef.value = [...capped.objects];
+		});
+		isSelectActive.value = true;
+		c.requestRenderAll();
+		return capped.objects;
+	}
+
 	function getSelectedObjects() {
 		return selectedObjects;
 	}
@@ -347,6 +402,7 @@ export const useSelect = defineStore("select", (): Select => {
 		destroy,
 		events,
 		unSelect,
+		selectAll,
 		isSelectActive,
 		getSelectedObjects,
 		selectedObjectsRef,

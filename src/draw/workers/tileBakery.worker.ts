@@ -761,6 +761,17 @@ const RASTER_SLICE_MS = 8;
  */
 let softwareRaster = false;
 
+/**
+ * Layers that are not fully opaque, mirrored from the client's `config`
+ * message. Empty in the common case, so the render loop pays one `size` check.
+ */
+let layerFades = new Map<string, number>();
+
+function layerFadeFor(layerId: unknown): number {
+	if (layerFades.size === 0) return 1;
+	return layerFades.get(typeof layerId === "string" ? layerId : "l0") ?? 1;
+}
+
 function rasterAttrs(): CanvasRenderingContext2DSettings {
 	return { willReadFrequently: softwareRaster };
 }
@@ -904,6 +915,11 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 		obj.visible = true;
 		obj.canvas = null;
 		obj.objectCaching = false;
+		// Mirror of the main renderer's layer fade (fabricTileRenderer). Applied
+		// on the top-level object only, so nesting never compounds it. The mirror
+		// object is the worker's own copy, so nothing needs restoring.
+		const fade = layerFadeFor((obj as any).layerId);
+		if (fade < 1) obj.opacity = (obj.opacity ?? 1) * fade;
 		obj.dirty = true;
 		if (obj.clipPath) obj.clipPath.dirty = true;
 		applyTierScaling(obj, scale, q);
@@ -1043,6 +1059,11 @@ async function overview(
 		obj.visible = true;
 		obj.canvas = null;
 		obj.objectCaching = false;
+		// Mirror of the main renderer's layer fade (fabricTileRenderer). Applied
+		// on the top-level object only, so nesting never compounds it. The mirror
+		// object is the worker's own copy, so nothing needs restoring.
+		const fade = layerFadeFor((obj as any).layerId);
+		if (fade < 1) obj.opacity = (obj.opacity ?? 1) * fade;
 		obj.dirty = true;
 		if (obj.clipPath) obj.clipPath.dirty = true;
 		applyTierScaling(obj, Math.max(sx, sy));
@@ -1157,6 +1178,13 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 					}
 					if (typeof msg.softwareRaster === "boolean") {
 						setWorkerSoftwareRaster(msg.softwareRaster);
+					}
+					if (msg.layerOpacity) {
+						layerFades = new Map(
+							Object.entries(msg.layerOpacity).filter(
+								([, value]) => typeof value === "number" && value < 1,
+							),
+						);
 					}
 					shrinkTo(LIVE_MAX);
 					shrinkJsonToBytes(JSON_MAX_BYTES);

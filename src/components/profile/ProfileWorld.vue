@@ -39,6 +39,7 @@ import {
 	useAmbientVisibility,
 } from "@/composables/general/useAmbientVisibility";
 import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
+import { IS_SEVERELY_CONSTRAINED_DEVICE } from "@/draw/config/renderQuality.config";
 import WorldAutumn from "./world/WorldAutumn.vue";
 import WorldCat from "./world/WorldCat.vue";
 import WorldDragon from "./world/WorldDragon.vue";
@@ -127,6 +128,7 @@ provide(WORLD_STAGE, {
 	paused,
 	freezeFrame,
 	reduced,
+	disableSprites: computed(() => IS_SEVERELY_CONSTRAINED_DEVICE),
 	staticMode: computed(() => props.staticMode),
 });
 

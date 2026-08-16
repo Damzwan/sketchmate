@@ -29,6 +29,9 @@ export enum HistoryEvent {
 	LayerDeleted = "layerDeleted",
 	LayerRenamed = "layerRenamed",
 	LayerReordered = "layerReordered",
+	// Opacity IS here, unlike visibility and lock: it is part of the artwork, so
+	// it must be undoable like any other edit to the drawing.
+	LayerOpacityChanged = "layerOpacityChanged",
 	LayerFlattened = "layerFlattened",
 }
 
@@ -124,6 +127,11 @@ export type HistoryParamsMap = {
 		layerId: string;
 		previousOrder: number;
 		order: number;
+	};
+	[HistoryEvent.LayerOpacityChanged]: {
+		layerId: string;
+		previousOpacity: number;
+		opacity: number;
 	};
 	/** Both payloads are recorded EAGERLY, unlike LayerDeleted: the flatten
 	 *  already had to serialize the originals, and the rasters have to be kept

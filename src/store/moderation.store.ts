@@ -7,6 +7,7 @@ import {
 	reportDmMessage,
 	reportInboxComment,
 	reportInboxDrawing,
+	reportLobbyReference,
 	reportPost,
 	reportUser,
 } from "@/service/api/moderation.api";
@@ -239,6 +240,11 @@ export const useModerationStore = defineStore("moderation", () => {
 				case "inbox_comment":
 					await reportInboxComment(id, reason, details);
 					break;
+				case "lobby_reference": {
+					if (!contextRoomId) return false;
+					await reportLobbyReference(id, contextRoomId, reason, details);
+					break;
+				}
 				case "lobby_message":
 				case "lobby_drawing":
 					console.warn(`Reporting ${type} not yet wired up`);

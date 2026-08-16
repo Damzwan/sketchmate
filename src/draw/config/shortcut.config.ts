@@ -5,6 +5,7 @@ export enum Shortcut {
 	moreTools = "5",
 	select = "4",
 	undoredo = "z",
+	selectAll = "a",
 	send = "Enter",
 	copy = "d",
 	delete = "Backspace",

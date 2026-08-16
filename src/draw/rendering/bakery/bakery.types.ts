@@ -23,6 +23,17 @@ export type BakeryRequest =
 			 * profile inside it.
 			 */
 			softwareRaster?: boolean;
+			/**
+			 * Per-layer opacity, as `{ layerId: 0..1 }`, carrying only layers that
+			 * are NOT fully opaque.
+			 *
+			 * The worker rasterizes from a JSON mirror and has no layer registry, so
+			 * without this a faded layer would bake at full strength and every tile
+			 * would flip opacity the moment the worker produced it. Re-sent whenever
+			 * the map changes, which is a user-initiated slider release, not a
+			 * per-frame cost.
+			 */
+			layerOpacity?: Record<string, number>;
 	  }
 	| { t: "upsert"; items: { id: string; json: any }[] }
 	| { t: "translate"; ids: string[]; dx: number; dy: number }

@@ -58,8 +58,8 @@
         :cx="-rulerView.length / 2 + 22"
         cy="0"
         r="14"
-        class="instrument-handle rotate-handle"
-        @pointerdown="startHandle('rotate', $event)"
+        class="instrument-handle ruler-transform-handle"
+        @pointerdown="startHandle('ruler-transform', $event)"
         @pointermove="updateHandle"
         @pointerup="endHandle"
         @pointercancel="endHandle"
@@ -68,6 +68,27 @@
       <circle
         :cx="rulerView.length / 2 - 22"
         cy="0"
+        r="14"
+        class="instrument-handle ruler-transform-handle"
+        @pointerdown="startHandle('ruler-transform', $event)"
+        @pointermove="updateHandle"
+        @pointerup="endHandle"
+        @pointercancel="endHandle"
+        @lostpointercapture="endHandle"
+      />
+
+      <!-- A midpoint control remains reachable when a viewport-spanning ruler
+           puts both transform handles off screen. -->
+      <line
+        x1="0"
+        :y1="-rulerView.width / 2"
+        x2="0"
+        :y2="-rulerView.width / 2 - 27"
+        class="rotate-control-stem"
+      />
+      <circle
+        cx="0"
+        :cy="-rulerView.width / 2 - 28"
         r="14"
         class="instrument-handle rotate-handle"
         @pointerdown="startHandle('rotate', $event)"
@@ -104,15 +125,15 @@
       />
       <line
         :x1="compassView.center.x"
-        :x2="compassView.center.x + compassView.radius"
+        :x2="compassView.handle.x"
         :y1="compassView.center.y"
-        :y2="compassView.center.y"
+        :y2="compassView.handle.y"
         class="instrument-tick compass-radius"
       />
 
       <circle
-        :cx="compassView.center.x + compassView.radius"
-        :cy="compassView.center.y"
+        :cx="compassView.handle.x"
+        :cy="compassView.handle.y"
         r="16"
         class="instrument-handle radius-handle"
         @pointerdown="startHandle('radius', $event)"
@@ -134,9 +155,10 @@ import type {
 	InstrumentGeometry,
 	InstrumentPoint,
 } from "@/draw/tools/instruments/instrumentGeometry";
+import { compassRadiusHandlePoint } from "@/draw/tools/instruments/instrumentViewport";
 import { forwardInstrumentWheel } from "@/draw/tools/instruments/instrumentWheel";
 
-type HandleKind = "rotate" | "radius";
+type HandleKind = "rotate" | "ruler-transform" | "radius";
 
 interface ClientSample {
 	clientX: number;
@@ -159,7 +181,12 @@ const overlayEl = ref<SVGSVGElement | null>(null);
  *  every `setCenter` forces layout. */
 const activePointers = new Map<number, ClientSample>();
 let gestureBaseline: GestureBaseline | null = null;
-let activeHandle: { kind: HandleKind; pointerId: number } | null = null;
+let activeHandle: {
+	kind: HandleKind;
+	pointerId: number;
+	geometry: InstrumentGeometry;
+	startPoint: InstrumentPoint;
+} | null = null;
 let pendingHandleSample: ClientSample | null = null;
 let frameId: number | null = null;
 let attachedCanvas: ReturnType<typeof drawStore.getCanvas> | null = null;
@@ -245,9 +272,16 @@ const compassView = computed(() => {
 	if (!state) return null;
 	const displayed = instruments.displayGeometry();
 	if (displayed?.type !== "compass") return null;
+	const center = toViewport(displayed.center);
+	const radius = displayed.radius * state.zoom;
+	const viewport = {
+		width: overlayEl.value?.clientWidth ?? 1,
+		height: overlayEl.value?.clientHeight ?? 1,
+	};
 	return {
-		center: toViewport(displayed.center),
-		radius: displayed.radius * state.zoom,
+		center,
+		radius,
+		handle: compassRadiusHandlePoint(center, radius, viewport),
 	};
 });
 
@@ -324,7 +358,15 @@ function capturePointer(event: PointerEvent) {
 
 function startHandle(kind: HandleKind, event: PointerEvent) {
 	stopInstrumentEvent(event);
-	activeHandle = { kind, pointerId: event.pointerId };
+	const point = pointFromSample(sampleFromEvent(event));
+	const displayed = instruments.displayGeometry();
+	if (!point || !displayed) return;
+	activeHandle = {
+		kind,
+		pointerId: event.pointerId,
+		geometry: copyGeometry(displayed),
+		startPoint: point,
+	};
 	capturePointer(event);
 	updateHandle(event);
 }
@@ -342,22 +384,42 @@ function applyHandle() {
 	if (!activeHandle || !sample) return;
 	const point = pointFromSample(sample);
 	if (!point || !geometry.value) return;
-	if (activeHandle.kind === "rotate" && geometry.value.type === "ruler") {
-		instruments.setRulerAngle(
-			Math.atan2(
-				point.y - geometry.value.center.y,
-				point.x - geometry.value.center.x,
-			),
-		);
-	} else if (
-		activeHandle.kind === "radius" &&
-		geometry.value.type === "compass"
+	const base = activeHandle.geometry;
+	const startVector = {
+		x: activeHandle.startPoint.x - base.center.x,
+		y: activeHandle.startPoint.y - base.center.y,
+	};
+	const currentVector = {
+		x: point.x - base.center.x,
+		y: point.y - base.center.y,
+	};
+	if (
+		(activeHandle.kind === "rotate" ||
+			activeHandle.kind === "ruler-transform") &&
+		base.type === "ruler"
 	) {
+		const angleDelta =
+			Math.atan2(currentVector.y, currentVector.x) -
+			Math.atan2(startVector.y, startVector.x);
+		if (activeHandle.kind === "ruler-transform") {
+			const startDistance = Math.max(
+				0.001,
+				Math.hypot(startVector.x, startVector.y),
+			);
+			const currentDistance = Math.hypot(currentVector.x, currentVector.y);
+			instruments.setRulerLength(
+				base.length * (currentDistance / startDistance),
+			);
+		}
+		instruments.setRulerAngle(base.angle + angleDelta);
+	} else if (activeHandle.kind === "radius" && base.type === "compass") {
+		const startDistance = Math.max(
+			0.001,
+			Math.hypot(startVector.x, startVector.y),
+		);
+		const currentDistance = Math.hypot(currentVector.x, currentVector.y);
 		instruments.setCompassRadius(
-			Math.hypot(
-				point.x - geometry.value.center.x,
-				point.y - geometry.value.center.y,
-			),
+			base.radius * (currentDistance / startDistance),
 		);
 	}
 }
@@ -523,6 +585,12 @@ function endGesture(event: PointerEvent) {
   stroke-dasharray: 4 5;
 }
 
+.rotate-control-stem {
+  stroke: var(--ion-color-secondary);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
 .instrument-handle {
   pointer-events: auto;
   touch-action: none;
@@ -545,6 +613,7 @@ function endGesture(event: PointerEvent) {
 }
 
 .rotate-handle,
+.ruler-transform-handle,
 .radius-handle {
   fill: var(--ion-color-secondary);
   stroke: var(--ion-color-tertiary);

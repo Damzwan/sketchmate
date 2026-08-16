@@ -40,17 +40,17 @@
 
 <script setup lang="ts">
 import { IonIcon } from "@ionic/vue";
-import { DotLottie } from "@lottiefiles/dotlottie-web";
 import { mdiHeart } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { nextTick, onUnmounted, ref, watch } from "vue";
 import confetti from "@/assets/lottie/confetti.lottie";
 import { svg } from "@/helper/general.helper";
+import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
 
 const { showConfetti } = storeToRefs(useSubscriptionStore());
 const confettiCanvas = ref<HTMLCanvasElement | null>(null);
-let playerInstance: DotLottie | null = null;
+let playerInstance: LottiePlayer | null = null;
 
 const hide = () => {
 	showConfetti.value = false;
@@ -70,7 +70,7 @@ const initLottie = async () => {
 
 	if (!confettiCanvas.value) return;
 
-	playerInstance = new DotLottie({
+	playerInstance = createLottie({
 		canvas: confettiCanvas.value,
 		src: confetti,
 		loop: false,

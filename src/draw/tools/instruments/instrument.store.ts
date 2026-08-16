@@ -7,6 +7,10 @@ import {
 	type InstrumentPoint,
 	type StrokeConstraint,
 } from "@/draw/tools/instruments/instrumentGeometry";
+import {
+	maxCompassRadiusPx,
+	maxRulerLengthPx,
+} from "@/draw/tools/instruments/instrumentViewport";
 
 export type InstrumentType = "ruler" | "compass";
 
@@ -76,6 +80,8 @@ export const useInstrumentStore = defineStore("instrument", () => {
 			rect,
 			zoom: Math.max(canvas.getZoom(), 0.001),
 			minDimension: Math.max(1, Math.min(rect.width, rect.height)),
+			width: Math.max(1, rect.width),
+			height: Math.max(1, rect.height),
 		};
 	}
 
@@ -113,7 +119,7 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		if (!current || !viewport) return current;
 
 		if (current.type === "ruler") {
-			const maxLengthPx = Math.max(48, viewport.minDimension * 0.78);
+			const maxLengthPx = maxRulerLengthPx(viewport);
 			const preferred = rulerScreenSize.value ?? {
 				length: current.length * viewport.zoom,
 				width: current.width * viewport.zoom,
@@ -131,7 +137,7 @@ export const useInstrumentStore = defineStore("instrument", () => {
 			};
 		}
 
-		const maxRadiusPx = Math.max(24, viewport.minDimension * 0.34);
+		const maxRadiusPx = maxCompassRadiusPx(viewport);
 		const radiusPx = Math.min(
 			compassScreenRadius.value ?? current.radius * viewport.zoom,
 			maxRadiusPx,
@@ -202,7 +208,9 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		if (geometry.value?.type !== "ruler") return;
 		const viewport = viewportMetrics();
 		const zoom = viewport?.zoom ?? 1;
-		const maxLengthPx = Math.max(48, (viewport?.minDimension ?? 600) * 0.78);
+		const maxLengthPx = maxRulerLengthPx(
+			viewport ?? { width: 600, height: 600 },
+		);
 		const previous = rulerScreenSize.value ?? {
 			length: geometry.value.length * zoom,
 			width: geometry.value.width * zoom,
@@ -227,7 +235,9 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		if (geometry.value?.type !== "compass") return;
 		const viewport = viewportMetrics();
 		const zoom = viewport?.zoom ?? 1;
-		const maxRadiusPx = Math.max(24, (viewport?.minDimension ?? 600) * 0.34);
+		const maxRadiusPx = maxCompassRadiusPx(
+			viewport ?? { width: 600, height: 600 },
+		);
 		const radiusPx = clamp(
 			radius * zoom,
 			Math.min(36, maxRadiusPx),
@@ -255,7 +265,8 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		let halfHeight: number;
 		if (displayed.type === "ruler") {
 			const length = displayed.length * viewport.zoom;
-			const width = displayed.width * viewport.zoom;
+			// Reserve room for the midpoint rotation knob as well as the body.
+			const width = displayed.width * viewport.zoom + 84;
 			halfWidth =
 				(Math.abs(Math.cos(displayed.angle)) * length +
 					Math.abs(Math.sin(displayed.angle)) * width) /

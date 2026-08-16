@@ -104,6 +104,22 @@ watch(
 		if (activeTab.value === "lobby" && isExpanded.value) return;
 		if (latest.member?._id === user.value?._id) return;
 
+		// A shared reference has no message text — the row in the chat is the
+		// thing to go and look at, so the toast points at it.
+		if (latest.type === "reference") {
+			chatStore.addNotification({
+				tabId: `lobby-${senderId}-reference`,
+				subtitle: latest.member?.name || "Lobby",
+				text: "shared a reference — open it from the lobby chat",
+				img: latest.member?.img || "",
+				senderId: latest.member?._id,
+				isTrial: false,
+				isRequest: false,
+				customization: latest.member?.customization,
+			});
+			return;
+		}
+
 		chatStore.addNotification({
 			tabId: `lobby-${senderId}`,
 			subtitle: latest.member?.name || "Lobby",

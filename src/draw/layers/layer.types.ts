@@ -39,6 +39,29 @@ export interface DrawLayer {
 	visible: boolean;
 	/** Local view state — blocks hit-testing, not rendering. */
 	locked: boolean;
+	/**
+	 * 0–1 multiplier applied to every object on the layer at render time.
+	 *
+	 * DOCUMENT state, unlike `visible` and `locked`. Those two are how you look
+	 * at the drawing; this one is what the drawing IS — it survives save, it
+	 * appears in the export, and a peer in a private room has to see the same
+	 * thing you do. That is why it rides a `LayerOp` and the other two do not.
+	 *
+	 * Applied PER OBJECT, not as a group composite. True group opacity would
+	 * mean rendering the layer to its own buffer and compositing that once, and a
+	 * layer never owns pixels here (see the note at the top of this file). The
+	 * visible difference is confined to strokes that overlap INSIDE one layer:
+	 * they show through each other rather than fading as a single silhouette.
+	 * For a sketch/ink/colour split — what layers are actually used for — the two
+	 * are indistinguishable, and the alternative costs a second tile cache.
+	 */
+	opacity: number;
+}
+
+/** Anything outside this is a rendering bug waiting to happen, not a preference. */
+export function clampLayerOpacity(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+	return Math.min(1, Math.max(0, value));
 }
 
 /**
@@ -52,10 +75,31 @@ export type LayerPolicy = "mutable" | "fixed";
 
 /** Ids are constants so peers agree without exchanging a single message. */
 export const FIXED_ROOM_LAYERS: readonly DrawLayer[] = [
-	{ id: "l0", name: "Background", order: 0, visible: true, locked: false },
-	{ id: "l1", name: "Base", order: 1, visible: true, locked: false },
-	{ id: "l2", name: "Detail", order: 2, visible: true, locked: false },
-	{ id: "l3", name: "Top", order: 3, visible: true, locked: false },
+	{
+		id: "l0",
+		name: "Background",
+		order: 0,
+		visible: true,
+		locked: false,
+		opacity: 1,
+	},
+	{
+		id: "l1",
+		name: "Base",
+		order: 1,
+		visible: true,
+		locked: false,
+		opacity: 1,
+	},
+	{
+		id: "l2",
+		name: "Detail",
+		order: 2,
+		visible: true,
+		locked: false,
+		opacity: 1,
+	},
+	{ id: "l3", name: "Top", order: 3, visible: true, locked: false, opacity: 1 },
 ];
 
 /**
@@ -96,7 +140,8 @@ export type LayerOp =
 	| { kind: "add"; layer: DrawLayer; at: number; by: string }
 	| { kind: "remove"; id: string; at: number; by: string }
 	| { kind: "rename"; id: string; name: string; at: number; by: string }
-	| { kind: "reorder"; id: string; order: number; at: number; by: string };
+	| { kind: "reorder"; id: string; order: number; at: number; by: string }
+	| { kind: "opacity"; id: string; opacity: number; at: number; by: string };
 
 export const MAX_LAYER_NAME = 24;
 
@@ -105,7 +150,7 @@ export function createLayer(
 	name: string,
 	order: number,
 ): DrawLayer {
-	return { id, name, order, visible: true, locked: false };
+	return { id, name, order, visible: true, locked: false, opacity: 1 };
 }
 
 export function defaultSoloLayers(): DrawLayer[] {

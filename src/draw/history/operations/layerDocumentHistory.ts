@@ -206,6 +206,25 @@ export async function redoLayerRenamed(
 	return action;
 }
 
+export async function undoLayerOpacityChanged(
+	_ctx: HistoryContext,
+	action: HistoryAction<HistoryEvent.LayerOpacityChanged>,
+) {
+	useLayersStore().applyOpacity(
+		action.params.layerId,
+		action.params.previousOpacity,
+	);
+	return action;
+}
+
+export async function redoLayerOpacityChanged(
+	_ctx: HistoryContext,
+	action: HistoryAction<HistoryEvent.LayerOpacityChanged>,
+) {
+	useLayersStore().applyOpacity(action.params.layerId, action.params.opacity);
+	return action;
+}
+
 export async function undoLayerReordered(
 	_ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerReordered>,

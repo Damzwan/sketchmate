@@ -10,6 +10,7 @@ import { HistoryEvent } from "@/draw/history/history.types";
 import {
 	BASE_LAYER_ID,
 	byLayerOrder,
+	clampLayerOpacity,
 	createLayer,
 	type DrawLayer,
 	defaultSoloLayers,
@@ -28,6 +29,7 @@ import {
 	syncLayerFlags,
 } from "@/draw/layers/layerRegistry";
 import { toJSON } from "@/draw/objects/objectSerialization";
+import { bakerySyncLayerOpacity } from "@/draw/rendering/bakery/tileBakeryClient";
 import { drawBakePressure } from "@/draw/rendering/renderMetrics";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
@@ -220,6 +222,10 @@ export const useLayersStore = defineStore("drawLayers", () => {
 				// drawing must never open with content silently missing.
 				visible: true,
 				locked: false,
+				// Opacity IS restored — it is part of the artwork, not of how you
+				// were looking at it. Documents written before it existed have no
+				// field and clamp to a fully opaque layer.
+				opacity: clampLayerOpacity(raw.opacity),
 			});
 		}
 		out.sort(byLayerOrder);
@@ -237,6 +243,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			order: l.order,
 			visible: true,
 			locked: false,
+			opacity: clampLayerOpacity(l.opacity),
 		}));
 	}
 
@@ -262,6 +269,51 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		layer.visible = visible;
 		commitFlags();
 		useDrawObjectManager().invalidateLayer(id);
+	}
+
+	/**
+	 * Layer opacity. Undoable and replicated, unlike visibility and lock, because
+	 * it changes the artwork rather than the view of it (see `DrawLayer.opacity`).
+	 *
+	 * `record` exists for the slider: a drag emits a value per frame, and one
+	 * undo entry per frame would bury the stack. The UI passes `false` while
+	 * dragging and `true` once on release, so one gesture is one undo step.
+	 */
+	function setOpacity(id: string, opacity: number) {
+		const layer = layers.value.find((l) => l.id === id);
+		if (!layer) return;
+		const next = clampLayerOpacity(opacity);
+		if (layer.opacity === next) return;
+		applyOp({ kind: "opacity", id, opacity: next, ...stamp() }, "local");
+	}
+
+	/**
+	 * End of an opacity gesture: apply the final value and record ONE undo step
+	 * covering the whole drag.
+	 *
+	 * `previousOpacity` is passed in rather than read from the layer because by
+	 * the time this runs the layer already holds an intermediate value from the
+	 * live drag — recording against that would make undo step back one slider
+	 * frame instead of to where the gesture started.
+	 */
+	function commitOpacity(id: string, previousOpacity: number, opacity: number) {
+		const from = clampLayerOpacity(previousOpacity);
+		const to = clampLayerOpacity(opacity);
+		setOpacity(id, to);
+		if (from === to) return;
+		useDrawHistoryManager().addToUndoStackWithResetRedo({
+			type: HistoryEvent.LayerOpacityChanged,
+			params: { layerId: id, previousOpacity: from, opacity: to },
+		});
+	}
+
+	/**
+	 * History-facing applier. `"local"` rather than `"history"` deliberately, and
+	 * for the same reason `applyRename` does it: an undo has to reach the other
+	 * peers in a private room, or their copy silently diverges from yours.
+	 */
+	function applyOpacity(id: string, opacity: number) {
+		applyOp({ kind: "opacity", id, opacity, ...stamp() }, "local");
 	}
 
 	function setLocked(id: string, locked: boolean) {
@@ -349,6 +401,21 @@ export const useLayersStore = defineStore("drawLayers", () => {
 				layer.order = op.order;
 				restacked = true;
 				break;
+			}
+			case "opacity": {
+				const layer = layers.value.find((l) => l.id === op.id);
+				const next = clampLayerOpacity(op.opacity);
+				if (!layer || layer.opacity === next) return false;
+				layer.opacity = next;
+				commitFlags();
+				// The worker keeps its own copy of the fade map (it has no registry).
+				// No-op while the bakery is off, which is the production default.
+				bakerySyncLayerOpacity();
+				// Only this layer's own footprint changed — the stack is untouched,
+				// so this is the cheap targeted invalidation, not the full-cache one.
+				useDrawObjectManager().invalidateLayer(op.id);
+				if (origin === "local") replicate(op);
+				return true; // no restack, no relayout
 			}
 		}
 
@@ -774,6 +841,8 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		setActive,
 		setVisible,
 		setLocked,
+		setOpacity,
+		commitOpacity,
 		addLayer,
 		deleteLayer,
 		renameLayer,
@@ -794,5 +863,6 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		applyRemoveLayer,
 		applyRename,
 		applyReorder,
+		applyOpacity,
 	};
 });

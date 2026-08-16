@@ -36,4 +36,36 @@ describe("Sentry breadcrumb filtering", () => {
 
 		expect(filterCapacitorBridgeBreadcrumb(error)).toBe(error);
 	});
+
+	it("drops embedded URLs before native scope sync", () => {
+		expect(
+			filterCapacitorBridgeBreadcrumb({
+				category: "fetch",
+				data: {
+					status_code: 200,
+					url: "data:application/octet-stream;base64,UEsDBBQAAAAI",
+				},
+			}),
+		).toBeNull();
+		expect(
+			filterCapacitorBridgeBreadcrumb({
+				category: "fetch",
+				data: { status_code: 200, url: "blob:https://localhost/id" },
+			}),
+		).toBeNull();
+	});
+
+	it("drops successful packaged lottie loads but keeps failures", () => {
+		const success = {
+			category: "fetch",
+			data: { status_code: "200", url: "https://localhost/cat.lottie" },
+		};
+		const failure = {
+			category: "fetch",
+			data: { status_code: 500, url: "https://localhost/cat.lottie" },
+		};
+
+		expect(filterCapacitorBridgeBreadcrumb(success)).toBeNull();
+		expect(filterCapacitorBridgeBreadcrumb(failure)).toBe(failure);
+	});
 });

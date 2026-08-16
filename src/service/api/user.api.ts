@@ -16,6 +16,7 @@ import {
 	type Mate,
 	type NetworkUser,
 	type OnLoginEventParams,
+	type PresenceStatus,
 	type PublicUser,
 	type RegisterNotificationParams,
 	type Res,
@@ -105,6 +106,19 @@ export async function searchUsers(query: string) {
  */
 export async function fetchOnlineFriends(): Promise<string[]> {
 	return await request<string[]>("/user/online-friends");
+}
+
+export async function updatePresenceStatus(status: PresenceStatus): Promise<{
+	presence_status: PresenceStatus;
+	presence_invisible: boolean;
+}> {
+	return await request<{
+		presence_status: PresenceStatus;
+		presence_invisible: boolean;
+	}>("/user/presence", {
+		method: "PUT",
+		body: JSON.stringify({ status }),
+	});
 }
 
 export async function fetchUserPosts(userId: string, page = 1, limit = 20) {

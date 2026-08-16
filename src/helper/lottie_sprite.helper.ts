@@ -1,6 +1,12 @@
 import { Capacitor } from "@capacitor/core";
-import { DotLottie } from "@lottiefiles/dotlottie-web";
-import { absLottieSrc, createLottie, type LottiePlayer } from "./lottie.helper";
+import type { DotLottie } from "@lottiefiles/dotlottie-web";
+import { onMemoryPressure } from "@/service/memoryPressure";
+import {
+	absLottieSrc,
+	createLottie,
+	createMainThreadLottie,
+	type LottiePlayer,
+} from "./lottie.helper";
 
 /**
  * Shared sprite rendering for ProfileWorld (and any repeated ambient lottie).
@@ -95,6 +101,14 @@ const DETACHED_RENDER_CONFIG = {
 // null = load failed; the cache entry is dropped so the next request retries.
 const frozenFrames = new Map<string, Promise<HTMLCanvasElement | null>>();
 
+// Snapshot canvases are session caches, not user data. Together they can hold
+// several MB of GPU/renderer memory, so give them back as soon as Android says
+// the UI is hidden or memory is actually scarce. Canvases already stamped into
+// visible components keep their pixels; a later mount simply decodes again.
+onMemoryPressure((level) => {
+	if (level !== "moderate") frozenFrames.clear();
+});
+
 function getFrozenFrame(
 	src: string,
 	size: number,
@@ -106,9 +120,9 @@ function getFrozenFrame(
 		scratch.width = size;
 		scratch.height = size;
 		// Main-thread player even on web: one frame once is cheaper than a worker.
-		const player = new DotLottie({
+		const player = createMainThreadLottie({
 			canvas: scratch,
-			src: absLottieSrc(src),
+			src,
 			loop: false,
 			autoplay: false,
 			layout: { fit: "contain", align: [0.5, 0.5] },
@@ -249,9 +263,9 @@ function getPoolEntry(src: string, masterSize: number): PoolEntry {
 	master.width = masterSize;
 	master.height = masterSize;
 
-	const player = new DotLottie({
+	const player = createMainThreadLottie({
 		canvas: master,
-		src: absLottieSrc(src),
+		src,
 		loop: true,
 		autoplay: false,
 		layout: { fit: "contain", align: [0.5, 0.5] },

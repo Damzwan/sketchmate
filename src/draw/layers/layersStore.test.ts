@@ -10,6 +10,7 @@ import {
 	activeLayerId,
 	getLayers,
 	isLayerHidden,
+	layerOpacity,
 	resetLayerRegistry,
 } from "@/draw/layers/layerRegistry";
 
@@ -86,7 +87,7 @@ function object(id: string, layerId: string) {
 }
 
 function layer(id: string, order: number) {
-	return { id, name: id, order, visible: true, locked: false };
+	return { id, name: id, order, visible: true, locked: false, opacity: 1 };
 }
 
 describe("layers store", () => {
@@ -137,6 +138,7 @@ describe("layers store", () => {
 			order: i,
 			visible: true,
 			locked: false,
+			opacity: 1,
 		}));
 
 		isPro = false;
@@ -347,6 +349,7 @@ describe("layers store", () => {
 				order: 0,
 				visible: true,
 				locked: false,
+				opacity: 1,
 			},
 		]);
 	});
@@ -356,20 +359,49 @@ describe("layers store", () => {
 		layers.init({
 			isLobby: false,
 			persisted: [
-				{ id: "a", name: "Sky", order: 0, visible: false, locked: true },
+				{
+					id: "a",
+					name: "Sky",
+					order: 0,
+					visible: false,
+					locked: true,
+					opacity: 1,
+				},
 				{
 					id: "a",
 					name: "duplicate id",
 					order: 5,
 					visible: true,
 					locked: false,
+					opacity: 1,
 				},
-				{ id: "b", name: "Ground", order: 1, visible: true, locked: false },
+				{
+					id: "b",
+					name: "Ground",
+					order: 1,
+					visible: true,
+					locked: false,
+					opacity: 1,
+				},
 			] as any,
 		});
 		expect(layers.layers).toEqual([
-			{ id: "a", name: "Sky", order: 0, visible: true, locked: false },
-			{ id: "b", name: "Ground", order: 1, visible: true, locked: false },
+			{
+				id: "a",
+				name: "Sky",
+				order: 0,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
+			{
+				id: "b",
+				name: "Ground",
+				order: 1,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
 		]);
 	});
 
@@ -459,9 +491,86 @@ describe("layers store", () => {
 			order: 1,
 			visible: true,
 			locked: false,
+			opacity: 1,
 		});
 		expect(getLayers().map((l) => l.id)).toEqual([BASE_LAYER_ID, middle, top]);
 		// Re-inserting BELOW an existing layer restacks the board.
 		expect(invalidated.at(-1)).toBeNull();
+	});
+
+	describe("layer opacity", () => {
+		it("starts fully opaque and reaches the render registry", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+
+			layers.setOpacity(BASE_LAYER_ID, 0.4);
+			expect(layerOpacity(BASE_LAYER_ID)).toBeCloseTo(0.4);
+		});
+
+		it("invalidates only that layer, never the whole cache", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			const second = layers.addLayer("Second")!;
+			invalidated.length = 0;
+
+			layers.setOpacity(second, 0.5);
+			expect(invalidated).toEqual([second]);
+		});
+
+		it("clamps out-of-range values instead of trusting them", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			layers.setOpacity(BASE_LAYER_ID, 5);
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+			layers.setOpacity(BASE_LAYER_ID, -2);
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(0);
+			layers.setOpacity(BASE_LAYER_ID, Number.NaN);
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+		});
+
+		it("records ONE undo step for a whole slider drag", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			recorded.length = 0;
+
+			// A drag: several live updates, then one commit carrying the value the
+			// gesture STARTED from.
+			layers.setOpacity(BASE_LAYER_ID, 0.8);
+			layers.setOpacity(BASE_LAYER_ID, 0.6);
+			layers.commitOpacity(BASE_LAYER_ID, 1, 0.35);
+
+			expect(recorded).toHaveLength(1);
+			expect(recorded[0].params).toMatchObject({
+				layerId: BASE_LAYER_ID,
+				previousOpacity: 1,
+				opacity: 0.35,
+			});
+			expect(layerOpacity(BASE_LAYER_ID)).toBeCloseTo(0.35);
+		});
+
+		it("survives a save/load round trip, unlike visibility", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			layers.setOpacity(BASE_LAYER_ID, 0.25);
+			layers.setVisible(BASE_LAYER_ID, false);
+
+			const persisted = layers.serialize();
+			expect(persisted?.[0]).toMatchObject({ opacity: 0.25, visible: true });
+
+			layers.init({ isLobby: false, persisted });
+			expect(layerOpacity(BASE_LAYER_ID)).toBeCloseTo(0.25);
+			// A drawing must never reopen with content silently missing.
+			expect(isLayerHidden(BASE_LAYER_ID)).toBe(false);
+		});
+
+		it("defaults documents written before opacity existed to opaque", () => {
+			const layers = useLayersStore();
+			layers.init({
+				isLobby: false,
+				persisted: [{ id: BASE_LAYER_ID, name: "Layer 1", order: 0 } as any],
+			});
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+		});
 	});
 });

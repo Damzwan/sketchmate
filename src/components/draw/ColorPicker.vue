@@ -222,7 +222,7 @@ watch(props, async () => {
 }
 
 .eyedrop_btn {
-  @apply w-10 h-10 rounded-xl flex items-center justify-center shrink-0
+  @apply w-10 h-10 cursor-pointer rounded-xl flex items-center justify-center shrink-0
   bg-secondary/10 text-secondary active:scale-90 transition-transform;
 }
 

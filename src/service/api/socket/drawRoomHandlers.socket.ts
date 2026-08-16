@@ -11,6 +11,7 @@ import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
 import { createRoomCanvasSnapshotBytes } from "@/draw/sync/roomSnapshot";
 import { type LobbyChatItem, useDrawSyncer } from "@/draw/sync/session.store";
+import { DrawSyncingEvent } from "@/draw/sync/sync.types";
 import {
 	addRoomIdToUrl,
 	leaveRoom,
@@ -27,6 +28,32 @@ import { SOCKET_ENDPONTS } from "@/types/server.types";
 import { ToastDuration } from "@/types/toast.types";
 
 /**
+ * Buffered actions carry the author as a sibling `userId`; the live `draw-event`
+ * path copies it into `params.creator` and the handlers read it from there. A
+ * replayed action arrived without it, so anything that is ONLY meaningful with
+ * an author was a silent no-op on rejoin — a reference the owner deleted came
+ * back with the snapshot and the replayed `ReferenceRemoved` could not identify
+ * the owner to take it away again.
+ */
+function withCreator(item: {
+	type?: string;
+	userId?: string;
+	params?: { creator?: string };
+}) {
+	if (!item?.params || !item.userId) return;
+	// Reference events only, deliberately. `creator` also drives the peer avatar
+	// bubbles, and stamping it on a whole replayed backlog would pop an avatar
+	// per replayed stroke.
+	if (
+		item.type !== DrawSyncingEvent.ReferenceAdded &&
+		item.type !== DrawSyncingEvent.ReferenceRemoved
+	) {
+		return;
+	}
+	item.params.creator ??= item.userId;
+}
+
+/**
  * Heavy canvas-sync socket handlers. Loaded lazily by socket.service so that
  * the Fabric render engine stays out of the app-start bundle and is only
  * fetched once a real-time drawing session is established.
@@ -36,7 +63,15 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on(
 		"room-joined",
-		async ({ roomId, users, isCreator, sessionId, isPublic, claimedAreas }) => {
+		async ({
+			roomId,
+			users,
+			isCreator,
+			sessionId,
+			isPublic,
+			claimedAreas,
+			purgedReferences,
+		}) => {
 			const {
 				roomId: rm,
 				roomMembers,
@@ -53,7 +88,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
 			useClaimArea().setAreas(claimedAreas);
-			useDrawingReferenceStore().enterRoom(roomId);
+			useDrawingReferenceStore().enterRoom(
+				roomId,
+				Array.isArray(purgedReferences) ? purgedReferences : [],
+			);
 			// PUBLIC: every peer — creator or joiner — installs the fixed set here.
 			// Deriving it from `init` alone is not enough: a URL/deep-link join opens
 			// the canvas before `isPublic` is known (it is only known now), and the
@@ -84,6 +122,26 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on("areas-state", (areas) => {
 		useClaimArea().setAreas(areas);
+	});
+
+	// Someone reported a shared reference. Not a request — the image comes down
+	// on every screen in the room, the owner's included, and stays down for the
+	// session (the server also strips it from the replay buffer).
+	socket.on("reference-purged", ({ referenceId }) => {
+		const references = useDrawingReferenceStore();
+		const purged = references.references.find(
+			(reference) => reference.id === referenceId,
+		);
+		references.applyPurge([referenceId]);
+		if (!purged) return;
+		// The owner is told it was THEIRS, and told plainly: the next thing they
+		// need to know is that a moderator is now looking at it.
+		void useToast().toast(
+			purged.isLocal
+				? "Your reference was reported and removed from the room. A moderator will review it."
+				: "A reference was removed after a report",
+			{ color: "warning", duration: ToastDuration.long },
+		);
 	});
 
 	socket.on("user-joined", ({ user, timestamp, id }) => {
@@ -326,6 +384,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 						if (!stillInRoom()) return;
 						if (isBlocked(item.userId)) continue;
 						lastProcessedSequenceId.value = item.sequenceId;
+						withCreator(item);
 						await engine.executeDrawSyncingAction(item);
 					}
 				}
@@ -383,6 +442,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 				// authors of the existing canvas are skipped rather than guessed at.
 				useDrawSyncer().noteContributor(item.userId);
 				lastProcessedSequenceId.value = item.sequenceId;
+				withCreator(item);
 				await engine.executeDrawSyncingAction(item);
 			}
 

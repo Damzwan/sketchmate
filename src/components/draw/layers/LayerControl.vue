@@ -50,11 +50,12 @@
       <div
         v-for="(layer, index) in reversedLayers"
         :key="layer.id"
-        class="flex items-center gap-2 rounded-2xl border px-2 py-2 transition-colors"
+        class="flex flex-col gap-1 rounded-2xl border px-2 py-2 transition-colors"
         :class="layer.id === activeId
           ? 'border-secondary bg-secondary/10'
           : 'border-primary/40 bg-primary/10'"
       >
+       <div class="flex items-center gap-2">
         <button
           class="flex-1 min-w-0 text-left cursor-pointer disabled:opacity-40"
           :disabled="layer.locked"
@@ -117,6 +118,28 @@
             @click="flatten(layer.id)"
           />
         </template>
+       </div>
+
+        <!-- Offered on EVERY row, not just the active one: fading the layer you
+             are not drawing on (a sketch under your ink) is the whole point.
+             Hidden layers are excluded — a fade slider on invisible content
+             says nothing. -->
+        <div v-if="layer.visible" class="flex items-center gap-2 pl-1 pr-1">
+          <span class="text-[11px] font-bold opacity-60 w-9 shrink-0 tabular-nums">
+            {{ Math.round((layer.opacity ?? 1) * 100) }}%
+          </span>
+          <ion-range
+            class="layer-opacity-range flex-1"
+            color="secondary"
+            :min="0"
+            :max="100"
+            :step="1"
+            :value="Math.round((layer.opacity ?? 1) * 100)"
+            :aria-label="`Opacity of ${layer.name}`"
+            @ion-input="onOpacityInput(layer.id, $event)"
+            @ion-change="onOpacityCommit(layer.id, $event)"
+          />
+        </div>
       </div>
     </div>
 
@@ -179,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon } from "@ionic/vue";
+import { IonButton, IonIcon, IonRange } from "@ionic/vue";
 import {
 	mdiChevronDown,
 	mdiChevronUp,
@@ -222,6 +245,60 @@ const {
 
 const isOpen = ref(false);
 const mounted = ref(false);
+
+/**
+ * How often a live opacity drag is allowed to reach the engine.
+ *
+ * Each applied change invalidates that layer's content footprint — an O(objects
+ * on the layer) walk plus a re-bake of the region. Per input event that is a
+ * dropped frame on every device and an ANR risk on the ones this app already
+ * fights. ~8 updates a second reads as continuous while keeping the cost in
+ * proportion to the gesture rather than to the frame rate.
+ *
+ * The final value is ALWAYS applied on release, so a throttled-away update can
+ * never leave the layer showing something other than where the user let go.
+ */
+const OPACITY_DRAG_INTERVAL_MS = 120;
+let lastOpacityApplyAt = 0;
+/** Where the current gesture started, so one drag is one undo step. */
+let opacityDragStart: { id: string; value: number } | null = null;
+
+/**
+ * `ion-range` reports through `event.detail.value`, and for a dual-knob range
+ * that value is an object rather than a number — guarded here so a future knob
+ * change degrades to "leave it alone" instead of writing NaN into the document.
+ */
+function readOpacity(event: CustomEvent): number {
+	const raw = (event.detail as { value: number | { lower: number } }).value;
+	const percent = typeof raw === "number" ? raw : Number.NaN;
+	return Number.isFinite(percent) ? percent / 100 : 1;
+}
+
+/** Live drag: throttled, and deliberately NOT recorded — see onOpacityCommit. */
+function onOpacityInput(id: string, event: CustomEvent) {
+	if (opacityDragStart?.id !== id) {
+		const layer = layerList.value.find((l) => l.id === id);
+		opacityDragStart = { id, value: layer?.opacity ?? 1 };
+	}
+	const now = performance.now();
+	if (now - lastOpacityApplyAt < OPACITY_DRAG_INTERVAL_MS) return;
+	lastOpacityApplyAt = now;
+	layers.setOpacity(id, readOpacity(event));
+}
+
+/**
+ * Release. One history entry for the whole gesture — recording each frame would
+ * mean a dozen undo steps to get back from one slider drag.
+ */
+function onOpacityCommit(id: string, event: CustomEvent) {
+	const from =
+		opacityDragStart?.id === id
+			? opacityDragStart.value
+			: (layerList.value.find((l) => l.id === id)?.opacity ?? 1);
+	lastOpacityApplyAt = 0;
+	opacityDragStart = null;
+	layers.commitOpacity(id, from, readOpacity(event));
+}
 
 /**
  * The app's OWN selection, not `canvas.getActiveObjects()`.
@@ -390,3 +467,17 @@ function moveSelection() {
 	refreshCounts();
 }
 </script>
+
+<style scoped>
+/* Ionic pads ion-range generously for standalone form rows. Inside a layer row
+   that padding doubles the row height, so the knob is shrunk and the padding
+   removed — the row itself already supplies the touch target height. */
+.layer-opacity-range {
+  --bar-height: 4px;
+  --bar-border-radius: 8px;
+  --bar-background: rgba(0, 0, 0, 0.12);
+  --knob-size: 18px;
+  padding: 0;
+  min-height: 28px;
+}
+</style>

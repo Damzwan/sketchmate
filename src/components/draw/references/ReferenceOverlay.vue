@@ -88,6 +88,8 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { DrawingReference } from "@/draw/references/reference.store";
 import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import {
+	overlayResized,
+	type ReferenceOverlaySize,
 	type ReferenceViewportTransform,
 	transformReferencePlacement,
 } from "@/draw/references/referenceViewport";
@@ -99,6 +101,9 @@ import { Menu } from "@/types/menu.types";
 
 type GestureKind = "move" | "resize";
 
+/** Matches MIN_CLAMP_VIEWPORT in reference.store. */
+const MIN_VIEWPORT = 160;
+
 interface ActiveGesture {
 	kind: GestureKind;
 	id: string;
@@ -109,6 +114,19 @@ interface ActiveGesture {
 	startY: number;
 	startWidth: number;
 	aspectRatio: number;
+	collapsed: boolean;
+	/**
+	 * The card being dragged, written to DIRECTLY for the duration of the
+	 * gesture. Routing every frame through the store replaced the reference array
+	 * (shallowRef → new array → every card re-renders and every transform is
+	 * recomputed) sixty times a second to move ONE card — the kind of per-frame
+	 * cost a cheap Android phone pays for in dropped frames. The store gets the
+	 * final placement on pointerup, which is the only value anything else reads.
+	 */
+	element: HTMLElement | null;
+	/** Frozen at gesture start: a rect read per frame is a forced layout. */
+	viewport: { width: number; height: number };
+	latest: { x: number; y: number; width: number };
 }
 
 const referencesStore = useDrawingReferenceStore();
@@ -123,6 +141,7 @@ let pendingFrame: number | null = null;
 let pendingEvent: PointerEvent | null = null;
 let attachedCanvas: ReturnType<typeof drawStore.getCanvas> | null = null;
 let previousViewport: ReferenceViewportTransform | null = null;
+let clampedViewport: ReferenceOverlaySize | null = null;
 
 function cardStyle(reference: DrawingReference) {
 	return {
@@ -139,16 +158,29 @@ function imageStyle(reference: DrawingReference) {
 	};
 }
 
+/**
+ * Null while the overlay has no real box. Ionic hides the draw page rather than
+ * unmounting it when SendHub is pushed over it, which fires the ResizeObserver
+ * with a 0x0 rect — clamping to that would move and shrink every reference.
+ */
 function viewportSize() {
 	const rect = overlayEl.value?.getBoundingClientRect();
-	return {
-		width: Math.max(1, rect?.width ?? globalThis.innerWidth ?? 1),
-		height: Math.max(1, rect?.height ?? globalThis.innerHeight ?? 1),
-	};
+	if (!rect || rect.width < MIN_VIEWPORT || rect.height < MIN_VIEWPORT) {
+		return null;
+	}
+	return { width: rect.width, height: rect.height };
 }
 
 function clamp(value: number, min: number, max: number) {
 	return Math.max(min, Math.min(max, value));
+}
+
+function clampToOverlay() {
+	const viewport = viewportSize();
+	if (!viewport) return;
+	if (!overlayResized(clampedViewport, viewport)) return;
+	clampedViewport = viewport;
+	referencesStore.clampToViewport(viewport);
 }
 
 function startGesture(
@@ -158,6 +190,7 @@ function startGesture(
 ) {
 	event.preventDefault();
 	event.stopPropagation();
+	const target = event.currentTarget as HTMLElement;
 	activeGesture = {
 		kind,
 		id: reference.id,
@@ -168,8 +201,12 @@ function startGesture(
 		startY: reference.y,
 		startWidth: reference.width,
 		aspectRatio: reference.aspectRatio,
+		collapsed: reference.collapsed,
+		element: target.closest(".reference-card"),
+		viewport: viewportSize() ?? { width: MIN_VIEWPORT, height: MIN_VIEWPORT },
+		latest: { x: reference.x, y: reference.y, width: reference.width },
 	};
-	(event.currentTarget as Element).setPointerCapture(event.pointerId);
+	target.setPointerCapture(event.pointerId);
 }
 
 function updateGesture(event: PointerEvent) {
@@ -188,48 +225,47 @@ function commitGesture() {
 	const gesture = activeGesture;
 	if (!event || !gesture) return;
 
-	const reference = referencesStore.references.find(
-		(item) => item.id === gesture.id,
-	);
-	if (!reference) return;
-	const viewport = viewportSize();
+	const viewport = gesture.viewport;
 	const dx = event.clientX - gesture.startClientX;
 	const dy = event.clientY - gesture.startClientY;
 
 	if (gesture.kind === "move") {
-		const height = reference.collapsed
+		const height = gesture.collapsed
 			? 38
-			: reference.width / reference.aspectRatio + 38;
-		referencesStore.updatePlacement(reference.id, {
-			x: clamp(
-				gesture.startX + dx,
-				12,
-				Math.max(12, viewport.width - reference.width - 12),
+			: gesture.latest.width / gesture.aspectRatio + 38;
+		gesture.latest.x = clamp(
+			gesture.startX + dx,
+			12,
+			Math.max(12, viewport.width - gesture.latest.width - 12),
+		);
+		gesture.latest.y = clamp(
+			gesture.startY + dy,
+			12,
+			Math.max(12, viewport.height - height - 12),
+		);
+	} else {
+		const requested = Math.max(
+			gesture.startWidth + dx,
+			gesture.startWidth + dy * gesture.aspectRatio,
+		);
+		const maxWidth = Math.max(
+			120,
+			Math.min(
+				560,
+				viewport.width - gesture.latest.x - 12,
+				(viewport.height - gesture.latest.y - 50) * gesture.aspectRatio,
 			),
-			y: clamp(
-				gesture.startY + dy,
-				12,
-				Math.max(12, viewport.height - height - 12),
-			),
-		});
-		return;
+		);
+		gesture.latest.width = clamp(requested, Math.min(120, maxWidth), maxWidth);
 	}
 
-	const requested = Math.max(
-		gesture.startWidth + dx,
-		gesture.startWidth + dy * gesture.aspectRatio,
-	);
-	const maxWidth = Math.max(
-		120,
-		Math.min(
-			560,
-			viewport.width - reference.x - 12,
-			(viewport.height - reference.y - 50) * gesture.aspectRatio,
-		),
-	);
-	referencesStore.updatePlacement(reference.id, {
-		width: clamp(requested, Math.min(120, maxWidth), maxWidth),
-	});
+	// Straight to the element: no store write, no re-render, no layout read.
+	const element = gesture.element;
+	if (!element) return;
+	element.style.transform = `translate3d(${gesture.latest.x}px, ${gesture.latest.y}px, 0)`;
+	if (gesture.kind === "resize") {
+		element.style.width = `${gesture.latest.width}px`;
+	}
 }
 
 function endGesture(event: PointerEvent) {
@@ -247,6 +283,11 @@ function endGesture(event: PointerEvent) {
 	} catch {
 		// The browser may release capture first when the card is collapsed.
 	}
+	// The single store write for the whole gesture. Everything else read the
+	// element's inline style, which the re-render below now agrees with.
+	referencesStore.updatePlacement(activeGesture.id, {
+		...activeGesture.latest,
+	});
 	activeGesture = null;
 }
 
@@ -292,13 +333,26 @@ function followCanvasViewport() {
 		return;
 	}
 	if (sameViewport(previousViewport, nextViewport)) return;
+	// The common case is a canvas with no references at all, and this runs on
+	// every frame of every pan and zoom.
+	if (referencesStore.references.length === 0) {
+		previousViewport = nextViewport;
+		return;
+	}
 
+	// One store write for the whole set. Per-reference writes rebuilt the array
+	// once per reference, on every pan/zoom event.
+	const moved = new Map<
+		string,
+		ReturnType<typeof transformReferencePlacement>
+	>();
 	for (const reference of referencesStore.references) {
-		referencesStore.updatePlacement(
+		moved.set(
 			reference.id,
 			transformReferencePlacement(reference, previousViewport, nextViewport),
 		);
 	}
+	referencesStore.updatePlacements(moved);
 	previousViewport = nextViewport;
 }
 
@@ -333,11 +387,9 @@ watch(isCanvasInitialized, attachCanvas, { immediate: true });
 
 onMounted(() => {
 	if (!overlayEl.value) return;
-	resizeObserver = new ResizeObserver(() =>
-		referencesStore.clampToViewport(viewportSize()),
-	);
+	resizeObserver = new ResizeObserver(clampToOverlay);
 	resizeObserver.observe(overlayEl.value);
-	referencesStore.clampToViewport(viewportSize());
+	clampToOverlay();
 });
 
 onBeforeUnmount(() => {

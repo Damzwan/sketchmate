@@ -34,6 +34,17 @@ export type LobbyChatItem =
 	  })
 	| (BaseLobbyItem & {
 			type: "leave";
+	  })
+	/**
+	 * Someone shared a reference image. It is announced here rather than opened
+	 * on everyone's canvas: a peer's photo landing unasked on top of your drawing
+	 * is both an interruption and an unreviewed image on a screen that may belong
+	 * to a child. The row is the consent step — and the place to report it.
+	 */
+	| (BaseLobbyItem & {
+			type: "reference";
+			referenceId: string;
+			referenceName: string;
 	  });
 
 export interface PublicLobby {

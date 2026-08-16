@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { transformReferencePlacement } from "./referenceViewport";
+import {
+	overlayResized,
+	transformReferencePlacement,
+} from "./referenceViewport";
 
 describe("reference viewport placement", () => {
 	it("keeps the image registered to the board while zooming and panning", () => {
@@ -12,5 +15,12 @@ describe("reference viewport placement", () => {
 		expect(transformReferencePlacement(transformed, zoomed, identity)).toEqual(
 			original,
 		);
+	});
+
+	it("treats a hide-and-restore round trip as no resize", () => {
+		const size = { width: 390, height: 844 };
+		expect(overlayResized(null, size)).toBe(true);
+		expect(overlayResized(size, { width: 390.4, height: 843.7 })).toBe(false);
+		expect(overlayResized(size, { width: 844, height: 390 })).toBe(true);
 	});
 });

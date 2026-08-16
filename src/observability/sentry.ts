@@ -11,6 +11,7 @@ interface SentryBreadcrumbLike {
 	category?: string;
 	level?: string;
 	message?: string;
+	data?: Record<string, unknown>;
 }
 
 /**
@@ -34,6 +35,31 @@ export function filterCapacitorBridgeBreadcrumb<T extends SentryBreadcrumbLike>(
 		breadcrumb.message?.startsWith("Removing listener")
 	) {
 		return null;
+	}
+
+	const url = breadcrumb.data?.url;
+	if (typeof url === "string") {
+		// DotLottie expands the zip member it is loading into a base64 `data:` URL.
+		// The HTTP integration used to retain that entire base64 payload as
+		// a breadcrumb and, with native scope sync enabled, copy it through the
+		// Capacitor bridge. Several copies at once are enough to matter on a 2 GB
+		// WebView, and they evict the UI/lifecycle breadcrumbs needed for ANR triage.
+		// Blob/data fetches are process-local implementation details, never useful
+		// network evidence, so do not retain them at all.
+		if (url.startsWith("data:") || url.startsWith("blob:")) return null;
+
+		// Successful packaged animation loads are similarly high-volume and carry
+		// no diagnostic value. Keep failures (including a missing status) so a real
+		// asset/load regression is still visible in Sentry.
+		const status = Number(breadcrumb.data?.status_code);
+		if (
+			/\.lottie(?:$|[?#])/i.test(url) &&
+			Number.isFinite(status) &&
+			status >= 200 &&
+			status < 400
+		) {
+			return null;
+		}
 	}
 	return breadcrumb;
 }

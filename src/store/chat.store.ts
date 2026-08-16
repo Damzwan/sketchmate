@@ -884,6 +884,8 @@ export const useChatStore = defineStore("chat", () => {
 	const MAX_VISIBLE_NOTIFICATIONS = 3;
 
 	function addNotification(notif: ChatNotification) {
+		if (authStore.presenceStatus === "busy" && !notif.tabId.startsWith("lobby"))
+			return;
 		if (chatWidget.isExpanded && chatWidget.activeTab === notif.tabId) return;
 		const existing = notifications.value.find((n) => n.tabId === notif.tabId);
 		if (existing) {
@@ -919,6 +921,16 @@ export const useChatStore = defineStore("chat", () => {
 		notifications.value = notifications.value.filter((n) => {
 			if (n.tabId?.startsWith("lobby")) {
 				clearTimeout(n.timer);
+				return false;
+			}
+			return true;
+		});
+	}
+
+	function clearPrivateNotifications() {
+		notifications.value = notifications.value.filter((notification) => {
+			if (!notification.tabId.startsWith("lobby")) {
+				clearTimeout(notification.timer);
 				return false;
 			}
 			return true;
@@ -1232,6 +1244,7 @@ export const useChatStore = defineStore("chat", () => {
 		addNotification,
 		removeNotification,
 		clearLobbyNotifications,
+		clearPrivateNotifications,
 		handleRequestAccepted,
 		handleRequestDeclined,
 		handleMateMatched,

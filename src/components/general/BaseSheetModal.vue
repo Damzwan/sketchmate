@@ -14,7 +14,10 @@
          onto every label, caption and paragraph in all 21 sheets, which is the
          container anti-pattern fonts.css exists to undo. The face is opted into
          per element (title/subtitle below, headlines in the sheets). -->
-    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background overflow-hidden relative">
+    <!-- `max-h` mirrors the modal's own `--max-height`: without an explicit
+         bound here an auto-height sheet grows past the cap and the tail of the
+         content is clipped instead of scrolled. -->
+    <div class="h-full max-h-[95vh] flex flex-col p-5 bot-pad-safe bg-background overflow-hidden relative">
 
       <div class="absolute top-2 left-2 z-20" v-if="showBack">
         <transition name="fade">
@@ -46,7 +49,7 @@
       </div>
 
       <div
-        class="flex-1 overflow-y-auto px-1 hide-scrollbar pb-4 mt-1"
+        class="flex-1 min-h-0 overflow-y-auto px-1 hide-scrollbar pb-4 mt-1"
         data-content-scroll="true"
         @touchmove.stop
       >

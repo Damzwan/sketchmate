@@ -565,12 +565,19 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		b.targetCandidatesProvider = (path: Path) => {
 			const r = (path as any).getBoundingRect();
 			const pad = (path as any).strokeWidth ?? 0;
-			return objMgr.querySelectable({
-				x: r.left - pad,
-				y: r.top - pad,
-				w: r.width + 2 * pad,
-				h: r.height + 2 * pad,
-			});
+			// Pinned to the active layer, never the "Select across layers" switch:
+			// erasing is not selecting, and `erasePolicy` gates on the active layer
+			// independently — a wider candidate set here would only feed it objects
+			// it is about to reject.
+			return objMgr.querySelectable(
+				{
+					x: r.left - pad,
+					y: r.top - pad,
+					w: r.width + 2 * pad,
+					h: r.height + 2 * pad,
+				},
+				"activeLayer",
+			);
 		};
 	}
 

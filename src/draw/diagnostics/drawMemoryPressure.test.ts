@@ -11,6 +11,7 @@ import {
 	HIDE_GRACE_MS,
 	installDrawMemoryPressure,
 	isDrawGraphicsReleased,
+	UI_HIDDEN_GRACE_MS,
 	uninstallDrawMemoryPressure,
 } from "./drawMemoryPressure";
 
@@ -89,11 +90,42 @@ describe("draw memory pressure", () => {
 		expect(restore).not.toHaveBeenCalled();
 	});
 
-	it("releases immediately when Android reports that the UI is hidden", () => {
+	it("gives transient Android UI-hidden transitions a short grace", () => {
 		const release = vi.fn();
 		installDrawMemoryPressure({ release, restore: vi.fn() });
 
 		emitMemoryPressure("uiHidden");
+
+		vi.advanceTimersByTime(UI_HIDDEN_GRACE_MS - 1);
+		expect(release).not.toHaveBeenCalled();
+		vi.advanceTimersByTime(1);
+		expect(release).toHaveBeenCalledTimes(1);
+		expect(isDrawGraphicsReleased()).toBe(true);
+	});
+
+	it("cancels a UI-hidden release when the compositor returns quickly", () => {
+		const release = vi.fn();
+		const restore = vi.fn();
+		installDrawMemoryPressure({ release, restore });
+
+		emitMemoryPressure("uiHidden");
+		vi.advanceTimersByTime(UI_HIDDEN_GRACE_MS - 1_000);
+		setVisibility("visible");
+		vi.advanceTimersByTime(UI_HIDDEN_GRACE_MS);
+
+		expect(release).not.toHaveBeenCalled();
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"low",
+		"critical",
+	] as const)("still releases immediately for Android %s memory pressure", (level) => {
+		const release = vi.fn();
+		installDrawMemoryPressure({ release, restore: vi.fn() });
+
+		emitMemoryPressure("uiHidden");
+		emitMemoryPressure(level);
 
 		expect(release).toHaveBeenCalledTimes(1);
 		expect(isDrawGraphicsReleased()).toBe(true);

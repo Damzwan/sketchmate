@@ -67,6 +67,7 @@ function emptyEngineMetrics(): DrawMetricsSnapshot {
 		phaseCount: {},
 		slowestRenderObject: null,
 		longTasks: 0,
+		longTasksSevere: 0,
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
 		longTaskObserved: true,

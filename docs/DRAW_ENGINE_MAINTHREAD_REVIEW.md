@@ -435,12 +435,12 @@ so they can be corrected rather than argued about:
   rises, compositing from a canvas is slower than from a bitmap on that
   hardware and the hot set should shrink (0 disables the path entirely).
 
-### Still to build
+### Still to validate
 
-- The native `onTrimMemory` bridge. `drawMemoryPressure.ts` already listens for
-  a `trimMemory` event on the App plugin and releases at
-  `TRIM_MEMORY_RUNNING_LOW`; nothing emits it yet, so today only
-  `visibilitychange` and `appStateChange` drive the release.
+- The native `onTrimMemory` bridge is implemented in `MainActivity` and the web
+  layer listens for `nativeTrimMemory`. Validate event delivery and resource
+  release on representative API/OEM builds, especially background/foreground
+  and `RUNNING_LOW`/`RUNNING_CRITICAL`; implementation alone is not field proof.
 - **Verify native ANR capture in a real release build before trusting any of
   this.** R8 was only recently enabled. If `ApplicationNotResponding` events do
   not arrive, every other M8 change is inert.
@@ -449,8 +449,12 @@ so they can be corrected rather than argued about:
 
 ## What is *not* worth doing
 
-- `android:largeHeap="true"` — the WebView renderer is a separate process; it
-  does not apply.
+- `android:largeHeap="true"` — still correct to skip. It only changes the app's
+  managed-heap class and is not a direct remedy for WebView/native graphics
+  allocations, GPU hangs or main-thread stalls. WebView output is integrated
+  with the app window's HWUI pipeline, so reducing render work remains relevant;
+  the full ANR trace, rather than a process-model assumption, must establish the
+  dependency chain. See `DRAW_ENGINE_PERF.md` → "0.4.4 field pass".
 - Re-enabling Fabric `objectCaching` globally — it caches at live viewport zoom,
   which is exactly what M4's tier-keyed cache exists to avoid.
 - Abandoning tiling. Both existing audits reach the same conclusion and the code

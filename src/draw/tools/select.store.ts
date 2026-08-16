@@ -6,11 +6,16 @@ import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
+import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { getAbsoluteState } from "@/draw/objects/objectSerialization";
 import { isText } from "@/draw/tools/textEditing";
 import type { ToolService } from "@/draw/tools/tool.types";
 import * as transform from "@/draw/transform/transformController";
+import { useToast } from "@/service/toast.service";
 import { v4 } from "@/utils/uuid";
 
 interface Select extends ToolService {
@@ -99,6 +104,26 @@ export const useSelect = defineStore("select", (): Select => {
 		);
 
 		if (newObjects.length) {
+			if (currentSelection.length >= DRAW_SELECTION_OBJECT_LIMIT) {
+				// discardActiveObject() above restores members to the canvas plane.
+				// Rebuild the already-bounded selection so refusing one extra member
+				// does not unexpectedly clear the user's current selection.
+				const capped = capOrderedSelection(currentSelection);
+				void actionWithoutEvents(() => {
+					c!.setActiveObject(
+						capped.objects.length === 1
+							? capped.objects[0]
+							: new fabric.ActiveSelection(capped.objects, { canvas: c }),
+					);
+					selectedObjects = capped.objects;
+					selectedObjectsRef.value = [...capped.objects];
+				});
+				void useToast().toast(
+					`Selection is limited to ${DRAW_SELECTION_OBJECT_LIMIT} objects on this device.`,
+					{ color: "warning" },
+				);
+				return;
+			}
 			void actionWithoutEvents(() => {
 				const newSelection = [...currentSelection, ...newObjects.slice(0, 1)];
 				c!.setActiveObject(

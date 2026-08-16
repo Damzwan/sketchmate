@@ -13,6 +13,16 @@ export type BakeryRequest =
 			idleMax?: number;
 			/** At-rest cap for the worker's compact serialized scene mirror. */
 			jsonMaxBytes?: number;
+			/**
+			 * Rasterize tiles on the CPU rather than the GPU
+			 * (`willReadFrequently`, see config/rasterMode.config.ts).
+			 *
+			 * Sent from the client because the decision folds in the GPU family and
+			 * Android's `isLowRamDevice()`, neither of which the worker can see: it
+			 * has no `window`, so the device-class config resolves to the desktop
+			 * profile inside it.
+			 */
+			softwareRaster?: boolean;
 	  }
 	| { t: "upsert"; items: { id: string; json: any }[] }
 	| { t: "translate"; ids: string[]; dx: number; dy: number }

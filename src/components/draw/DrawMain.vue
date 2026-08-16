@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full h-full overflow-hidden" :style="{ backgroundColor }">
+  <div class="draw-runtime relative w-full h-full overflow-hidden" :style="{ backgroundColor }">
 
     <div
       class="absolute inset-0 z-0 flex transition-opacity duration-300"

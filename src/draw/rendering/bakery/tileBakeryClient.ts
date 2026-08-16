@@ -48,6 +48,7 @@ import type {
 	RemoteBakeResult,
 	WorldRect,
 } from "@/draw/rendering/committedLayer";
+import { RASTER_SOFTWARE } from "@/draw/rendering/rasterSurface";
 import {
 	type RefusalReason,
 	recordBakeHardError,
@@ -375,6 +376,7 @@ function getWorker(): Worker | null {
 		liveMax: liveMaxConfig,
 		idleMax: idleMaxConfig,
 		jsonMaxBytes: jsonMaxBytesConfig,
+		softwareRaster: RASTER_SOFTWARE,
 	});
 	return worker;
 }

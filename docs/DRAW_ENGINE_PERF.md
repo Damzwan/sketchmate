@@ -1,5 +1,89 @@
 # Draw engine — ANR / crash remediation plan
 
+## 0.4.4 field pass — 2026-08-15
+
+Build 141 (0.4.4) sits at **0.44 % ANR / 0.30 % crash**. The Play Console
+clusters are still input-dispatch timeouts with "Unresponsive GPU" and native
+lock contention, but the top frame has **changed vendor**:
+
+```
+[libIMGegl.so] KEGLGetDrawableParameters
+```
+
+`libIMGegl.so` identifies Imagination's EGL implementation rather than
+Qualcomm's. That is useful cohort evidence, but it does **not** identify one GPU
+model, RAM tier, or root cause by itself. The supporting frames
+(`__futex_wait_ex`, `art::ConditionVariable::WaitHoldingLocks`) are wait sites,
+not attribution: the complete main/RenderThread stacks and lock owner in each
+Play trace decide what actually stalled.
+
+### The correction that reorders the plan
+
+The GPU-tagged clusters are consistent with this failure chain:
+
+```
+tile pipeline GL  →  RenderThread stalls in libIMGegl
+                  →  UI thread blocks in nSyncAndDrawFrame (futex)
+                  →  input not dispatched within 5 s  →  ANR
+```
+
+Android explicitly documents GPU hangs as one way rendering can block long
+enough to cause an input-dispatch ANR. That makes reducing fill rate, surface
+count and texture churn a justified priority. It does **not** make every row the
+same incident: the System WebView and "No focused window" clusters must remain
+separate hypotheses until their full traces, device breakdown and WebView
+versions are compared.
+
+### What shipped in this pass
+
+| # | Change | Where |
+| --- | --- | --- |
+| L5 | **Device profile: GPU family + native RAM/WebView signals.** `WEBGL_debug_renderer_info` supplies the renderer string; MainActivity forwards `isLowRamDevice()`, advertised/physical RAM and the active WebView provider/version. The WebGL probe now reuses a persisted renderer instead of creating and losing another EGL context on every boot. Values are learned for the next launch because render constants resolve synchronously at canvas construction. | [`service/deviceProfile.ts`](../src/service/deviceProfile.ts), `MainActivity.java` |
+| L3 | **Render DPR 1.0 on the severe cohort.** F4 took the cap from raw DPR to 1.5 and stopped. 1.5 is still 2.25x the pixels of 1.0 in every full-surface clear, tile bake and canvas backing store, and this hardware is fill-rate bound. `severelyConstrained` also moved out of `drawMemoryProfile` so the budget and the resolution read one predicate. | [`config/renderQuality.config.ts`](../src/draw/config/renderQuality.config.ts) |
+| L2 | **CPU raster remains an explicit experiment, not an automatic mitigation.** Chromium prefers a CPU-backed 2D canvas for `willReadFrequently: true`, but with the bakery off that moves every tile bake onto the UI thread and the result still needs a GPU upload at composite time. Production therefore defaults to GPU; `?drawRaster=cpu` or the support storage override is available only for measured cohort tests. | [`config/rasterMode.config.ts`](../src/draw/config/rasterMode.config.ts), [`rendering/rasterSurface.ts`](../src/draw/rendering/rasterSurface.ts) |
+| L4 | **Session-scoped quality governor.** Sustained main-thread blocking sheds tile headroom now and persists a demotion for the next launch. Metrics reset on every draw mount, historical buffered long tasks are excluded, and severe tasks are counted directly rather than inferred from a cumulative maximum. Resolution is deliberately not changed mid-session because that would resize every surface and invalidate tiles during pressure. Demotions expire after 30 days. | [`diagnostics/renderPressureGovernor.ts`](../src/draw/diagnostics/renderPressureGovernor.ts), [`rendering/renderMetrics.ts`](../src/draw/rendering/renderMetrics.ts), [`config/qualityDemotion.ts`](../src/draw/config/qualityDemotion.ts) |
+| L6 | **Drag layers release their pixels.** The two transform layers were `display: none` between grabs but kept full-size accelerated canvases — up to ~5 MB each — for the whole session. Zeroed on an 8 s idle timer, on memory pressure, and when a stale layer's canvas is replaced. | [`transform/transformController.ts`](../src/draw/transform/transformController.ts) |
+| L7 | **Splash watchdog.** `launchAutoHide: false` + hide-on-`router.isReady()` + a 10 s auth bail could hold a full-screen native view over a window with no focus, well past the 5 s ANR threshold. That is a plausible contributor to the `No focused window` row, not proof of it. Splash lifetime is now bounded at 4 s regardless of the router. | [`helper/general.helper.ts`](../src/helper/general.helper.ts) |
+| L8 | **One low-end predicate.** `main.ts` stamped `low-end` from `cores <= 4` while the engine also demoted on memory, GPU and low-RAM: an 8-core low-memory phone could keep the full decorative effects. A `min-end` class drops blur and, inside the draw route, infinite CSS animations on the severe cohort. Canvas/tool input remains enabled. | [`main.ts`](../src/main.ts), [`theme/main.css`](../src/theme/main.css) |
+| L9 | **Remove avoidable window overdraw.** The opaque WebView no longer sits over a retained window background drawable; the drawable is set to `null` after creation rather than replaced by a transparent drawable. | `MainActivity.java` |
+| L10 | **Bound ActiveSelection materialization.** Lasso, rectangular selection, additive multi-select and saved-import selection share a 64/128/256/512 member ceiling by device tier. Over-limit bulk selections keep the topmost objects and warn; saved import still adds every object, it just does not synchronously group all of them. | [`config/selectionBudget.ts`](../src/draw/config/selectionBudget.ts), [`tools/lassoTool.ts`](../src/draw/tools/lassoTool.ts), [`canvas/fabricInteractions.ts`](../src/draw/canvas/fabricInteractions.ts), [`tools/select.store.ts`](../src/draw/tools/select.store.ts), [`objects/objectActions.ts`](../src/draw/objects/objectActions.ts) |
+| L11 | **Incremental opaque crayon preview.** The crayon brush now gives Fabric its seeded pattern source and uses Fabric's incremental segment rendering for opaque/no-shadow strokes. It only requests a full redraw where alpha or shadow makes that necessary, eliminating the prior O(points²) preview path. | [`utils/brushes/CrayonBrush.ts`](../src/draw/utils/brushes/CrayonBrush.ts) |
+| L12 | **Legacy-load centering no longer groups the whole scene.** The Fabric 5.5.2 migration used a scene-sized `ActiveSelection` merely to translate all children to the viewport center. Bounds and equivalent per-object translations now run in yielded slices, removing another uninterruptible load-time atom. | [`objects/savedObjectPlacement.ts`](../src/draw/objects/savedObjectPlacement.ts), [`document/document.store.ts`](../src/draw/document/document.store.ts) |
+
+### Telemetry — the join that was missing
+
+Play Console names its ANR clusters after the driver that stalled
+(`libIMGegl.so`, `libGLESv2_adreno`, `libgsl`) and nothing we recorded
+identified the GPU, so the two data sets could not be joined at all. Now tagged:
+`draw.gpu`, `draw.gpuClass`, `draw.lowRam`, `draw.totalMemMB`,
+`draw.webViewPackage`, `draw.webViewVersion`, `draw.raster`, `draw.severe`,
+`draw.qualityDemotion`. `draw.gpu` is normally populated from the second launch
+onwards.
+
+**Read these before tuning anything above.** The DPR-1.0 cohort has no field
+data yet. There is no automatic CPU-raster cohort; `draw.raster: cpu` means an
+explicit support experiment.
+
+### The worker flip stays deferred — and what it now waits on
+
+`getDrawRenderBackend()` still returns `"main"`
+([`renderBackend.config.ts:47`](../src/draw/config/renderBackend.config.ts#L47)),
+so production defaults to main-thread baking and the `tileBakery.worker.ts` path
+remains dark unless an explicit support query/stored override selects it. That
+is a deliberate hold: the measured overhead of the worker round trip (serialize,
+structured clone, mirror upserts) has not paid for itself on the devices that
+matter.
+
+The switches remain orthogonal in code: the backend says which thread bakes and
+`rasterMode.config` says which processor Chromium should prefer. Neither switch
+is a production recommendation today. The worker stays off by request, and CPU
+raster stays opt-in because running it on the UI thread could trade a GPU stall
+for a JavaScript/input stall. Any future test must compare p95/p99 input delay,
+long-task severity, tile bake time, memory pressure and Play vitals by device/GPU
+cohort—not just average frame time.
+
+---
+
 ## Field incidents follow-up — 2026-08-13
 
 A Sentry ANR at `2026-08-13T14:35:18.953Z` contained breadcrumbs but no native
@@ -58,8 +142,8 @@ and in what order.**
 
 ## TL;DR
 
-The worker offload landed and it is the right architecture, but **three things
-keep the main thread and the GPU on the hook**:
+The worker implementation landed but remains disabled in production. If it is
+reconsidered later, **three things keep the main thread and GPU on the hook**:
 
 1. **The bake path still does unbounded synchronous serialization on the main
    thread.** `bakeryBakeTile` calls `flush()` per tile, which drains the *global*
@@ -74,9 +158,10 @@ keep the main thread and the GPU on the hook**:
    wholesale** and falls back to the main-thread renderer. On a real board that
    is most tiles. The worker is helping much less than it looks like it is.
 
-Separately, the crash signatures are **GPU-driver**, not JS: `libGLESv2_adreno`
-/ `libgsl` SIGSEGV + "Unresponsive GPU" is tile-texture churn and uncapped DPR
-fill rate, not a slow `for` loop.
+Separately, `libGLESv2_adreno` / `libgsl` SIGSEGV plus "Unresponsive GPU"
+implicates the native graphics path. Texture churn, memory pressure and fill
+rate are credible local contributors, but a library name alone cannot separate
+an app workload problem from a driver defect or earlier memory corruption.
 
 And `minifyEnabled false` in `android/app/build.gradle` is the vitals warning —
 one line, unrelated to the ANRs, free to fix.
@@ -85,17 +170,18 @@ one line, unrelated to the ANRs, free to fix.
 
 ## Reading the 0.4.3 signatures
 
-| Signature | What it actually means | Suspected driver here |
+| Signature | What the evidence supports | Local hypothesis to test |
 | --- | --- | --- |
-| `__futex_wait_ex` + Input dispatching timed out + **Unresponsive GPU** + Native lock contention (×5, ~40% of ANR volume) | The UI thread is blocked waiting on a lock held by the render/GPU thread. The GPU work queue is backed up. | Tile bitmap create/destroy churn → texture allocation storms; full-canvas clear+fill at uncapped DPR every frame. |
-| `MessageQueue.nativePollOnce` + Input dispatching timed out | Classic "JS/main thread busy, no message pumped in time". | The synchronous `flush()` / `toJSON()` inside the bake loop; main-thread fallback bakes after the bakery shuts itself down. |
-| `art::ConditionVariable::WaitHoldingLocks` + Unresponsive GPU | Java thread parked on a native lock, GPU again. | Same as row 1. |
-| `libGLESv2_adreno.so` SIGSEGV / SIGABRT, `libgsl.so` SIGSEGV | Qualcomm GPU driver + its graphics-memory allocator faulting. Almost always texture/buffer allocation churn or exhaustion. | Tile `ImageBitmap` lifecycle: every bake pass replaces ~40 bitmaps, each a fresh GPU texture on first `drawImage`. |
-| `libwebviewchromium.so` SIGTRAP (17 users, 14%) | A Chromium `CHECK()` fired — most commonly OOM or fatal GPU context loss. | Memory ceiling: tile budget + overview + fabric lower/upper canvases + drag layer, all at full DPR. |
+| `__futex_wait_ex` + Input dispatching timed out + **Unresponsive GPU** + Native lock contention | The sampled thread is waiting; the complete trace must show the lock owner. The GPU annotation makes a render-path stall plausible. | Tile bitmap create/destroy churn and full-surface work may be increasing driver pressure. |
+| `MessageQueue.nativePollOnce` + Input dispatching timed out | This frame frequently means the sampled main thread was idle by the time the trace was captured; it is not proof that JS was busy. | Correlate the ANR timestamp with long-task breadcrumbs and earlier main-thread frames before blaming serialization. |
+| `art::ConditionVariable::WaitHoldingLocks` + Unresponsive GPU | A runtime thread is parked on a condition variable. The complete thread set must identify the dependency chain. | Compare with the RenderThread stack and GPU annotation rather than grouping on this frame alone. |
+| `libGLESv2_adreno.so` SIGSEGV / SIGABRT, `libgsl.so` SIGSEGV | A fatal fault/abort occurred in or surfaced through Qualcomm's native graphics stack. | Tile `ImageBitmap` lifecycle and near-ceiling graphics memory may reproduce it; driver/version clustering can distinguish workload from vendor defect. |
+| `libwebviewchromium.so` SIGTRAP | Chromium deliberately trapped or crashed; the abort message and preceding frames are required to know why. | Compare WebView version, memory-pressure breadcrumbs and draw phase. Do not label OOM/context loss without that evidence. |
 | `ActivityThread.throwRemoteServiceException` | System killed a foreground service / bad notification. | Not draw engine. Track separately. |
 
-The pattern is unambiguous: **more of this is GPU/memory than is JS.** Fixing
-only the JS side will move the `nativePollOnce` ANR and leave the rest.
+The current evidence justifies prioritizing GPU/memory reduction while keeping
+main-thread work bounded. It does not justify merging every cluster: each
+signature needs its full trace and cohort dimensions before it is marked fixed.
 
 ---
 

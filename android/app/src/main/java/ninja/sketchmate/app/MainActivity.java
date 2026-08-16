@@ -1,13 +1,18 @@
 package ninja.sketchmate.app;
 
+import android.app.ActivityManager;
 import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
+import android.webkit.WebView;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
+import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
 
@@ -19,6 +24,109 @@ public class MainActivity extends BridgeActivity {
         // Handle dismissal if the app was completely closed/killed
         handleNotificationDismissal(getIntent());
         watchImeInset();
+        dropWindowBackground();
+        scheduleDeviceProfileReport();
+    }
+
+    /**
+     * `triggerWindowJSEvent` only reaches a listener that is already attached,
+     * and on a cold start the web layer has not been parsed yet in onCreate. So
+     * the report is emitted more than once: shortly after start-up, and on every
+     * resume. The web side dedupes by value, and the value never changes for a
+     * given device, so repeats cost nothing.
+     */
+    private void scheduleDeviceProfileReport() {
+        try {
+            View content = findViewById(android.R.id.content);
+            if (content != null) {
+                content.postDelayed(this::reportDeviceProfile, 2500);
+            }
+        } catch (Throwable ignored) {
+            // onResume still covers it.
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        reportDeviceProfile();
+    }
+
+    /**
+     * The WebView is opaque and covers the whole window, so the window's own
+     * background is unnecessary overdraw. Depending on Android/driver
+     * optimisations it can add a full-screen fill, so removing it is a cheap
+     * reduction in work for the constrained devices being protected here.
+     *
+     * The theme background still applies while the window is being created: it
+     * is only cleared once we have a decor view, so the splash/launch surface is
+     * unaffected and there is no white flash.
+     */
+    private void dropWindowBackground() {
+        try {
+            Window window = getWindow();
+            if (window != null) {
+                // `null` removes the drawable. A transparent ColorDrawable still
+                // participates in the draw/alpha pipeline and therefore does not
+                // reliably remove the work this optimisation is targeting.
+                window.setBackgroundDrawable(null);
+            }
+        } catch (Throwable ignored) {
+            // A cosmetic optimisation must never prevent the activity starting.
+        }
+    }
+
+    /**
+     * Tell the web layer what class of device this is.
+     *
+     * `ActivityManager.isLowRamDevice()` is an authoritative platform signal,
+     * while total/advertised RAM catches constrained phones that Android does
+     * not formally label low-RAM. `navigator.deviceMemory` is quantised and
+     * clamped, so JS alone cannot reliably distinguish those tiers.
+     *
+     * The draw engine derives its render resolution and tile budget from this
+     * (see src/service/deviceProfile.ts). Those are resolved
+     * synchronously while the canvas is constructed, so the web side persists
+     * what it learns here and applies it from the next launch onwards; this
+     * event is deliberately fire-and-forget.
+     */
+    private void reportDeviceProfile() {
+        try {
+            if (getBridge() == null) return;
+            ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am == null) return;
+            ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
+            am.getMemoryInfo(info);
+            // API 34 exposes the retail/advertised RAM size. On older releases
+            // totalMem is the best signal available but excludes fixed hardware
+            // reservations, so the web-side threshold includes some tolerance.
+            long reportedMem = Build.VERSION.SDK_INT >= 34 && info.advertisedMem > 0
+                ? info.advertisedMem
+                : info.totalMem;
+            long totalMemMB = reportedMem / (1024L * 1024L);
+            String webViewPackage = "";
+            String webViewVersion = "";
+            if (Build.VERSION.SDK_INT >= 26) {
+                PackageInfo webViewInfo = WebView.getCurrentWebViewPackage();
+                if (webViewInfo != null) {
+                    webViewPackage = webViewInfo.packageName;
+                    webViewVersion = webViewInfo.versionName;
+                }
+            }
+            JSONObject detail = new JSONObject();
+            detail.put("lowRam", am.isLowRamDevice());
+            detail.put("totalMemMB", totalMemMB);
+            detail.put("webViewPackage", webViewPackage);
+            detail.put("webViewVersion", webViewVersion);
+            JSONObject payload = new JSONObject();
+            payload.put("detail", detail);
+            getBridge().triggerWindowJSEvent(
+                "nativeDeviceProfile",
+                payload.toString()
+            );
+        } catch (Throwable ignored) {
+            // The web layer falls back to its CPU/memory heuristics.
+        }
     }
 
     /**

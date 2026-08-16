@@ -276,10 +276,14 @@ export class CrayonBrush extends PatternBrush {
 	}
 
 	override needsFullRender() {
-		return true;
+		// Opaque crayon strokes are append-only, so Fabric's incremental segment
+		// path is exact and turns the live preview from O(n²) into O(n). Keep the
+		// full redraw only when BaseBrush requires it (alpha/shadow), where drawing
+		// overlapping segments would change the appearance.
+		return super.needsFullRender();
 	}
 	_needsFullRender() {
-		return true;
+		return this.needsFullRender();
 	}
 
 	override onMouseDown(pointer: Point, ev: any) {
@@ -287,6 +291,10 @@ export class CrayonBrush extends PatternBrush {
 		// AND the committed flatten, so they can't disagree.
 		this._seed = Math.floor(Math.random() * 1_000_000);
 		this._patternCanvas = buildPatternCanvas(this._seed, this.color as string);
+		// PatternBrush's incremental branch takes its stroke style from `source`.
+		// Without this assignment it would fall back to Fabric's default dot
+		// pattern; the old full-redraw override hid that mismatch at O(n²) cost.
+		this.source = this._patternCanvas;
 		super.onMouseDown(pointer, ev);
 	}
 

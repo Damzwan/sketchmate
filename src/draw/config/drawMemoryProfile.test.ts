@@ -185,6 +185,33 @@ describe("canvas-backed tile surfaces", () => {
 		expect(residentTiles + OTHER_SURFACES).toBeLessThan(MEASURED_KNEE);
 	});
 
+	it("takes the caller's severe verdict over its own memory/core rule", () => {
+		// A weak-GPU phone with 4 GB and 8 cores passes neither local test, but
+		// renderQuality.config classes it severe from the GPU family.
+		const device = {
+			mobile: true,
+			lowEnd: true,
+			deviceMemoryGB: 4,
+			hardwareConcurrency: 8,
+		};
+		expect(resolveDrawMemoryProfile(device).tileBudgetMB).toBe(32);
+		expect(
+			resolveDrawMemoryProfile({ ...device, severelyConstrained: true })
+				.tileBudgetMB,
+		).toBe(24);
+	});
+
+	it("lets the caller clear a severe verdict the local rule would set", () => {
+		const profile = resolveDrawMemoryProfile({
+			mobile: true,
+			lowEnd: true,
+			deviceMemoryGB: 2,
+			hardwareConcurrency: 4,
+			severelyConstrained: false,
+		});
+		expect(profile.tileBudgetMB).toBe(32);
+	});
+
 	it("never raises a small device byte budget to the desktop cap", () => {
 		const phone = resolveDrawMemoryProfile({
 			mobile: true,

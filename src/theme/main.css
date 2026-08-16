@@ -116,7 +116,7 @@ ion-alert.liquid-alert {
     -webkit-backdrop-filter: blur(2px);
 }
 
-/* ── Low-end devices (mobile, ≤4 cores; flag stamped in main.ts) ──────────────
+/* ── Low-end devices (IS_LOW_END_DEVICE; flag stamped in main.ts) ─────────────
    backdrop-filter is the single biggest GPU cost on weak webviews — it
    re-rasterizes the blurred region every frame content moves underneath. Kill
    it everywhere, and shrink the standalone decorative blur radii. Visual hit
@@ -139,6 +139,28 @@ html.android-wv *::after {
    `filter: blur()` decoration stays cheap without disappearing. */
 html.low-end .blur-2xl { --tw-blur: blur(16px); }
 html.low-end .blur-3xl { --tw-blur: blur(24px); }
+
+/* ── Severely constrained devices (IS_SEVERELY_CONSTRAINED_DEVICE) ────────────
+   Weak-GPU/low-memory and Android low-RAM signals select this tier. CSS filters
+   commonly require extra offscreen/compositor work, so decoration is not worth
+   the render budget here — drop the blur entirely rather than shrink it. */
+html.min-end .blur-sm,
+html.min-end .blur,
+html.min-end .blur-md,
+html.min-end .blur-lg,
+html.min-end .blur-2xl,
+html.min-end .blur-3xl { --tw-blur: none; }
+
+/* Keep the drawing surface itself as the only continuously changing visual on
+   the severe cohort. Status pulses, toolbar hints and decorative spinners are
+   small individually but each keeps the WebView compositor scheduling frames
+   while the canvas is already consuming the device's render budget. Static
+   state remains visible; interaction and JS-driven canvas frames are untouched. */
+html.min-end .draw-runtime *,
+html.min-end .draw-runtime *::before,
+html.min-end .draw-runtime *::after {
+    animation: none !important;
+}
 
 button.alert-button.alert-button-confirm,
 button.alert-button.alert-button-cancel,

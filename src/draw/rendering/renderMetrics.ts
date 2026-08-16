@@ -231,6 +231,9 @@ export interface DrawMetricsSnapshot {
 
 	// ── main thread blocked at all ─────────────────────────────────────────
 	longTasks: number;
+	/** Tasks at or above the near-ANR threshold. Counted directly, not inferred
+	 * from the session maximum (two severe tasks need not set two new maxima). */
+	longTasksSevere: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
 	longTaskObserved: boolean;
@@ -313,6 +316,7 @@ interface Counters {
 	phaseCount: Record<string, number>;
 	slowestRenderObject: SlowRenderObject | null;
 	longTasks: number;
+	longTasksSevere: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
 	longAnimationFrames: number;
@@ -390,6 +394,7 @@ function blank(): Counters {
 		phaseCount: {},
 		slowestRenderObject: null,
 		longTasks: 0,
+		longTasksSevere: 0,
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
 		longAnimationFrames: 0,
@@ -865,6 +870,7 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 			? { ...m.slowestRenderObject, ms: round2(m.slowestRenderObject.ms) }
 			: null,
 		longTasks: m.longTasks,
+		longTasksSevere: m.longTasksSevere,
 		longTaskMsTotal: Math.round(m.longTaskMsTotal),
 		longTaskMsMax: Math.round(m.longTaskMsMax),
 		longTaskObserved: longTaskObserver !== null,
@@ -891,10 +897,22 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 }
 
 export function resetDrawMetrics(): void {
+	// A manual benchmark can reset counters while the draw observers stay active.
+	// Drain anything already queued so it is not charged to the new interval.
+	try {
+		longTaskObserver?.takeRecords();
+		longAnimationFrameObserver?.takeRecords();
+	} catch {
+		/* an observer shim may not implement takeRecords */
+	}
 	const workerProtocolVersion = m.workerProtocolVersion;
 	m = blank();
 	m.workerProtocolVersion = workerProtocolVersion;
 	startedAt = Date.now();
+	lastPhaseName = "";
+	lastPhaseMs = 0;
+	lastPhaseAt = 0;
+	renderObjectSampleCounter = 0;
 }
 
 // ── reporting seam ───────────────────────────────────────────────────────────
@@ -947,6 +965,9 @@ export function setDrawMetricsSink(fn: Sink | null, intervalMs = 60_000): void {
  */
 export const LONG_TASK_REPORT_MS = 250;
 
+/** One task this long consumed most of Android's 5 s input timeout budget. */
+export const SEVERE_LONG_TASK_MS = 2_000;
+
 export interface LongTaskReport {
 	durationMs: number;
 	/** Phase that was running when the block started, if any. */
@@ -976,6 +997,7 @@ function startLongTaskObserver(): void {
 		const obs = new PerformanceObserver((list) => {
 			for (const entry of list.getEntries()) {
 				m.longTasks++;
+				if (entry.duration >= SEVERE_LONG_TASK_MS) m.longTasksSevere++;
 				m.longTaskMsTotal += entry.duration;
 				if (entry.duration > m.longTaskMsMax) m.longTaskMsMax = entry.duration;
 				if (longTaskSink && entry.duration >= LONG_TASK_REPORT_MS) {
@@ -993,7 +1015,10 @@ function startLongTaskObserver(): void {
 				}
 			}
 		});
-		obs.observe({ type: "longtask", buffered: true });
+		// Session policy must not ingest startup work that happened before the draw
+		// engine was opened. In particular, a buffered auth/startup task must never
+		// demote drawing quality on an otherwise healthy device.
+		obs.observe({ type: "longtask" });
 		longTaskObserver = obs;
 	} catch {
 		/* unsupported — counters stay 0, longTaskObserved stays false */
@@ -1078,7 +1103,8 @@ function startLongAnimationFrameObserver(): void {
 			);
 			m.longFrameScripts.length = Math.min(8, m.longFrameScripts.length);
 		});
-		observer.observe({ type: "long-animation-frame", buffered: true } as any);
+		// A draw session must not ingest buffered auth/startup frames.
+		observer.observe({ type: "long-animation-frame" } as any);
 		longAnimationFrameObserver = observer;
 	} catch {
 		/* unsupported */
@@ -1095,6 +1121,7 @@ export function stopDrawMetrics(): void {
 		clearInterval(sinkTimer);
 		sinkTimer = null;
 	}
+	sink = null;
 }
 
 /**

@@ -48,6 +48,8 @@
 // viewport working set rather than a small optimisation quota. Do not raise
 // that without re-measuring the pool.
 
+import { getDrawRasterMode } from "@/draw/config/rasterMode.config";
+
 /** A main-thread rasterization target. `drawImage` accepts both. */
 export type RasterSurface = OffscreenCanvas | HTMLCanvasElement;
 
@@ -122,6 +124,48 @@ export function isDomCanvas(
 	);
 }
 
+/**
+ * Should tile rasterization use the CPU backend? See
+ * `config/rasterMode.config.ts` for the whole argument.
+ *
+ * Resolved once, like `RASTER_PREFERS_DOM_CANVAS` and for the same reason: a
+ * mid-session flip would leave surfaces of both kinds in one cache, sized
+ * against a budget that assumed one of them.
+ */
+export const RASTER_SOFTWARE: boolean = getDrawRasterMode() === "cpu";
+
+/**
+ * The 2D context attributes every raster surface is created with.
+ *
+ * `willReadFrequently` is Chromium's switch for the software (Skia CPU) canvas
+ * backend. It is named for pixel reads, but the backend it selects is the point
+ * here — see `rasterMode.config.ts`.
+ */
+export const RASTER_CONTEXT_ATTRS: CanvasRenderingContext2DSettings = {
+	willReadFrequently: RASTER_SOFTWARE,
+};
+
+/**
+ * Bind the 2D context at creation time.
+ *
+ * Context attributes are honoured on the FIRST `getContext` call for a canvas
+ * and ignored on every later one, which is what makes this the only place the
+ * raster backend has to be chosen. The bake and stamp paths call
+ * `surface.getContext("2d")` bare, all over the engine, and still get the
+ * backend selected here.
+ *
+ * Nothing is lost by doing it eagerly: every surface this factory produces has
+ * its context taken immediately by its caller.
+ */
+function primeContext(surface: RasterSurface): void {
+	try {
+		surface.getContext("2d", RASTER_CONTEXT_ATTRS);
+	} catch {
+		// A context that cannot be created here will fail again, visibly, at the
+		// call site that actually needs it. Do not turn it into a factory throw.
+	}
+}
+
 export function createRasterSurface(
 	width: number,
 	height: number,
@@ -133,6 +177,7 @@ export function createRasterSurface(
 		const canvas = document.createElement("canvas");
 		canvas.width = width;
 		canvas.height = height;
+		primeContext(canvas);
 		return canvas;
 	}
 	if (typeof OffscreenCanvas !== "function") {
@@ -140,7 +185,9 @@ export function createRasterSurface(
 			"No canvas raster surface is available in this environment",
 		);
 	}
-	return new OffscreenCanvas(width, height);
+	const surface = new OffscreenCanvas(width, height);
+	primeContext(surface);
+	return surface;
 }
 
 /**
@@ -153,7 +200,10 @@ export function releaseRasterSurface(surface: RasterSurface): void {
 }
 
 export function rasterContext(surface: RasterSurface): RasterContext | null {
-	return (surface.getContext("2d") as RasterContext | null) ?? null;
+	return (
+		(surface.getContext("2d", RASTER_CONTEXT_ATTRS) as RasterContext | null) ??
+		null
+	);
 }
 
 /**

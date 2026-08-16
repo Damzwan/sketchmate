@@ -1,6 +1,9 @@
 import { type Canvas, Rect } from "fabric";
 import { describe, expect, it } from "vitest";
-import { fitAndCenterSavedObjects } from "./savedObjectPlacement";
+import {
+	centerObjectsInViewportYielded,
+	fitAndCenterSavedObjects,
+} from "./savedObjectPlacement";
 
 function canvas(width: number, height: number, zoom = 1): Canvas {
 	return {
@@ -77,5 +80,22 @@ describe("saved drawing placement", () => {
 		await fitAndCenterSavedObjects([object], canvas(500, 500));
 
 		expect(object.scaleX / object.scaleY).toBeCloseTo(ratio, 6);
+	});
+
+	it("centers a legacy scene without changing its scale", async () => {
+		const objects = [
+			new Rect({ left: 0, top: 0, width: 100, height: 100 }),
+			new Rect({ left: 1_000, top: 500, width: 100, height: 100 }),
+		];
+		const scales = objects.map((object) => [object.scaleX, object.scaleY]);
+
+		await centerObjectsInViewportYielded(objects, canvas(1_000, 500));
+
+		const bounds = sceneBounds(objects);
+		expect(bounds.left + bounds.width / 2).toBeCloseTo(500, 4);
+		expect(bounds.top + bounds.height / 2).toBeCloseTo(250, 4);
+		expect(objects.map((object) => [object.scaleX, object.scaleY])).toEqual(
+			scales,
+		);
 	});
 });

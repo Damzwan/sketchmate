@@ -748,6 +748,30 @@ function yieldToWorkerTasks(): Promise<void> {
 const RASTER_SLICE_MS = 8;
 
 // --- rasterizer --------------------------------------------------------------
+
+/**
+ * Rasterize on the CPU instead of the GPU. Set from the client's `config`
+ * message — the worker has no `window`, so it cannot resolve the device class
+ * that decides this (see config/rasterMode.config.ts).
+ *
+ * Context attributes bind on the FIRST `getContext` for a canvas, so a change
+ * only takes effect on a canvas allocated afterwards. Both factories below
+ * therefore drop their cached canvas when the mode changes; in practice the
+ * config message arrives before the first bake and nothing is discarded.
+ */
+let softwareRaster = false;
+
+function rasterAttrs(): CanvasRenderingContext2DSettings {
+	return { willReadFrequently: softwareRaster };
+}
+
+function setWorkerSoftwareRaster(on: boolean): void {
+	if (softwareRaster === on) return;
+	softwareRaster = on;
+	renderCanvas = null;
+	overviewCanvas = null;
+}
+
 let renderCanvas: OffscreenCanvas | null = null;
 
 function getRenderCanvas(size: number): OffscreenCanvas {
@@ -757,6 +781,7 @@ function getRenderCanvas(size: number): OffscreenCanvas {
 		renderCanvas.height !== size
 	) {
 		renderCanvas = new OffscreenCanvas(size, size);
+		renderCanvas.getContext("2d", rasterAttrs());
 	}
 	return renderCanvas;
 }
@@ -772,6 +797,7 @@ function getOverviewCanvas(width: number, height: number): OffscreenCanvas {
 		overviewCanvas.height !== height
 	) {
 		overviewCanvas = new OffscreenCanvas(width, height);
+		overviewCanvas.getContext("2d", rasterAttrs());
 	}
 	return overviewCanvas;
 }
@@ -1128,6 +1154,9 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 							: Math.max(768, Math.floor(LIVE_MAX / 4));
 					if (typeof msg.jsonMaxBytes === "number" && msg.jsonMaxBytes > 0) {
 						JSON_MAX_BYTES = msg.jsonMaxBytes;
+					}
+					if (typeof msg.softwareRaster === "boolean") {
+						setWorkerSoftwareRaster(msg.softwareRaster);
 					}
 					shrinkTo(LIVE_MAX);
 					shrinkJsonToBytes(JSON_MAX_BYTES);

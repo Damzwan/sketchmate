@@ -8,6 +8,10 @@ import {
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { stackPositions } from "@/draw/canvas/objectStack";
+import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
 import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
 import {
 	enlivenAllBatched,
@@ -665,13 +669,20 @@ export async function addSavedFabricObjectToCanvas(
 		});
 
 		await runSavedImportPhase("selection", () => {
-			if (objects.length === 1) {
-				c.setActiveObject(objects[0]);
-			} else if (objects.length > 1) {
+			const capped = capOrderedSelection(objects);
+			if (capped.objects.length === 1) {
+				c.setActiveObject(capped.objects[0]);
+			} else if (capped.objects.length > 1) {
 				c.setActiveObject(
-					new fabric.ActiveSelection(objects, {
+					new fabric.ActiveSelection(capped.objects, {
 						canvas: c,
 					}),
+				);
+			}
+			if (capped.omitted > 0) {
+				useToast().toast(
+					`Added every object; selected the top ${DRAW_SELECTION_OBJECT_LIMIT} to keep this device responsive.`,
+					{ color: "warning" },
 				);
 			}
 		});

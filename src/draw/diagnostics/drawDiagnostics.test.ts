@@ -30,7 +30,14 @@ vi.mock("@/draw/config/renderQuality.config", () => ({
 	getRenderDpr: () => 1.5,
 	IS_LOW_END_DEVICE: true,
 	IS_MOBILE_DEVICE: true,
+	IS_SEVERELY_CONSTRAINED_DEVICE: true,
 	isRenderDprCapped: () => true,
+}));
+
+// Reached through `rasterSurface`, which allocates a canvas the node
+// environment does not have. Only the raster-mode tag is read from it here.
+vi.mock("@/draw/rendering/rasterSurface", () => ({
+	RASTER_SOFTWARE: true,
 }));
 
 vi.mock("@/draw/rendering/renderMetrics", () => ({

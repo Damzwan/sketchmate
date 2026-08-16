@@ -622,6 +622,22 @@ export abstract class RenderOverviewCoordinator<
 	}
 
 	/**
+	 * Give back cache headroom WITHOUT blurring what is on screen.
+	 *
+	 * The middle setting between doing nothing and `releaseGraphicsMemory()`:
+	 * that one drops every tile, which is the right trade when the app is
+	 * backgrounded or about to be killed, and the wrong one while the user is
+	 * looking at the board. This evicts down to the tile cache's headroom target
+	 * — cold tiers first — so tile bytes, i.e. GPU texture bytes, come back
+	 * without the visible tiles going anywhere.
+	 *
+	 * Returns the number of tiles evicted, for the caller's telemetry.
+	 */
+	trimToHeadroom(targetFraction?: number): number {
+		return this.committed.trimToHeadroom(targetFraction);
+	}
+
+	/**
 	 * Come back from `releaseGraphicsMemory()`.
 	 *
 	 * Normally a plain repaint: the overview survived the release, so the very

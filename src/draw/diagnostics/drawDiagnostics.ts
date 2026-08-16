@@ -27,6 +27,7 @@
 import { App as CapacitorApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import * as Sentry from "@sentry/capacitor";
+import { DRAW_QUALITY_DEMOTION } from "@/draw/config/qualityDemotion";
 import type { DrawRenderBackend } from "@/draw/config/renderBackend.config";
 import {
 	DRAW_DEVICE_MEMORY_GB,
@@ -34,8 +35,10 @@ import {
 	getRenderDpr,
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
+	IS_SEVERELY_CONSTRAINED_DEVICE,
 	isRenderDprCapped,
 } from "@/draw/config/renderQuality.config";
+import { RASTER_SOFTWARE } from "@/draw/rendering/rasterSurface";
 import {
 	type DrawMetricsSnapshot,
 	type LongTaskReport,
@@ -44,6 +47,7 @@ import {
 	setLongTaskSink,
 	snapshotDrawMetrics,
 } from "@/draw/rendering/renderMetrics";
+import { deviceProfile } from "@/service/deviceProfile";
 
 /**
  * How often the engine snapshot is written to the Sentry scope.
@@ -128,6 +132,7 @@ function compactContext(s: DrawMetricsSnapshot): Record<string, unknown> {
 
 		// Main-thread blocking: the ANR cohort.
 		longTasks: s.longTasks,
+		longTasksSevere: s.longTasksSevere,
 		longTaskMsMax: s.longTaskMsMax,
 		longTaskObserved: s.longTaskObserved,
 		loafMsMax: s.longAnimationFrameMsMax,
@@ -157,18 +162,37 @@ function compactContext(s: DrawMetricsSnapshot): Record<string, unknown> {
  *
  * Set once — none of them change during a session (`getRenderDpr` is cached on
  * purpose, see renderQuality.config).
+ *
+ * `draw.gpu` is the one that closes the loop with Play Console. Its ANR clusters
+ * are named after the driver that stalled — `libIMGegl.so`, `libGLESv2_adreno`,
+ * `libgsl` — and nothing else we record identifies the GPU, so until this tag
+ * existed the two data sets could not be joined at all. `draw.gpu` is only
+ * populated from the SECOND launch onwards (see service/deviceProfile.ts).
  */
 function setStaticTags(backend: DrawRenderBackend): void {
 	const rawDpr =
 		typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+	const profile = deviceProfile();
 	Sentry.setTag("draw.backend", backend);
+	Sentry.setTag("draw.raster", RASTER_SOFTWARE ? "cpu" : "gpu");
 	Sentry.setTag("draw.renderDpr", String(getRenderDpr()));
 	Sentry.setTag("draw.rawDpr", String(rawDpr));
 	Sentry.setTag("draw.dprCapped", String(isRenderDprCapped()));
 	Sentry.setTag("draw.lowEnd", String(IS_LOW_END_DEVICE));
+	Sentry.setTag("draw.severe", String(IS_SEVERELY_CONSTRAINED_DEVICE));
 	Sentry.setTag("draw.mobile", String(IS_MOBILE_DEVICE));
 	Sentry.setTag("draw.deviceMemoryGB", String(DRAW_DEVICE_MEMORY_GB));
+	Sentry.setTag("draw.totalMemMB", String(profile.totalMemMB ?? "unknown"));
 	Sentry.setTag("draw.cores", String(DRAW_HARDWARE_CONCURRENCY));
+	Sentry.setTag("draw.qualityDemotion", String(DRAW_QUALITY_DEMOTION));
+	Sentry.setTag("draw.gpu", profile.gpu ?? "unknown");
+	Sentry.setTag("draw.gpuClass", profile.gpuClass);
+	Sentry.setTag(
+		"draw.lowRam",
+		profile.lowRam === undefined ? "unknown" : String(profile.lowRam),
+	);
+	Sentry.setTag("draw.webViewPackage", profile.webViewPackage ?? "unknown");
+	Sentry.setTag("draw.webViewVersion", profile.webViewVersion ?? "unknown");
 }
 
 function reportLongTask(report: LongTaskReport): void {

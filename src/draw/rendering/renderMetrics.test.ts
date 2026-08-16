@@ -209,6 +209,52 @@ describe("draw worker cancellation metrics", () => {
 			vi.unstubAllGlobals();
 		}
 	});
+
+	it("counts repeated near-ANR tasks directly and does not request buffered history", () => {
+		const observers: {
+			callback: (list: { getEntries: () => any[] }) => void;
+			options?: { type: string; buffered?: boolean };
+		}[] = [];
+		class FakePerformanceObserver {
+			private readonly observer: (typeof observers)[number];
+
+			constructor(callback: (list: { getEntries: () => any[] }) => void) {
+				this.observer = { callback };
+				observers.push(this.observer);
+			}
+
+			observe(options: { type: string; buffered?: boolean }) {
+				this.observer.options = options;
+			}
+
+			disconnect() {}
+		}
+
+		stopDrawMetrics();
+		vi.stubGlobal("PerformanceObserver", FakePerformanceObserver);
+		try {
+			initDrawMetrics(() => 1);
+			const observer = observers.find(
+				(candidate) => candidate.options?.type === "longtask",
+			);
+			expect(observer?.options?.buffered).not.toBe(true);
+			const longFrameObserver = observers.find(
+				(candidate) => candidate.options?.type === "long-animation-frame",
+			);
+			expect(longFrameObserver?.options?.buffered).not.toBe(true);
+			observer!.callback({
+				getEntries: () => [{ duration: 2_500 }, { duration: 2_100 }],
+			});
+
+			const metrics = snapshotDrawMetrics();
+			expect(metrics.longTasks).toBe(2);
+			expect(metrics.longTasksSevere).toBe(2);
+			expect(metrics.longTaskMsMax).toBe(2_500);
+		} finally {
+			stopDrawMetrics();
+			vi.unstubAllGlobals();
+		}
+	});
 });
 
 describe("per-object render sampling", () => {

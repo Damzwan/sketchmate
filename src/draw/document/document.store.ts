@@ -1,12 +1,9 @@
-import { ActiveSelection, type Canvas } from "fabric";
+import type { Canvas } from "fabric";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import {
-	centerObjectInViewport,
-	precalculateAndSetViewport,
-} from "@/draw/canvas/viewport";
+import { precalculateAndSetViewport } from "@/draw/canvas/viewport";
 import {
 	notifyDraftDeleted,
 	notifyDraftSaved,
@@ -29,6 +26,7 @@ import {
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { centerObjectsInViewportYielded } from "@/draw/objects/savedObjectPlacement";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { EventBus } from "@/main";
@@ -549,12 +547,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 					}
 
 					if (json.version === "5.5.2" && c.getObjects().length > 0) {
-						const selection = new ActiveSelection(c.getObjects(), {
-							canvas: c,
-						});
-						centerObjectInViewport(c, selection);
-						selection.removeAll();
-						selection.dispose();
+						await centerObjectsInViewportYielded(c.getObjects(), c);
 					}
 				});
 				c.backgroundColor = json.background;

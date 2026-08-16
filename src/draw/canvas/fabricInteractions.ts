@@ -3,6 +3,10 @@ import { type Canvas, type IText, Point, type TPointerEvent } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
+import {
 	activeLayerId,
 	compareRenderOrder,
 	isLayerHidden,
@@ -10,6 +14,7 @@ import {
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
 import * as transform from "@/draw/transform/transformController";
+import { useToast } from "@/service/toast.service";
 
 const HIDDEN_STROKE_OPACITY = "__hiddenLayerStrokeOpacity";
 
@@ -416,11 +421,19 @@ export function overrideHandleSelection(c: Canvas) {
 		mgr.getZIndexMap();
 		collected.sort((a, b) => compareRenderOrder(b, a)); // topmost first
 
-		const objects = isClick
+		const candidates = isClick
 			? collected[0]
 				? [collected[0]]
 				: []
 			: collected.filter((o) => !(o as any).onSelect({ e })).reverse();
+		const capped = capOrderedSelection(candidates);
+		const objects = capped.objects;
+		if (capped.omitted > 0) {
+			void useToast().toast(
+				`Selected the top ${DRAW_SELECTION_OBJECT_LIMIT} objects to keep this device responsive.`,
+				{ color: "warning" },
+			);
+		}
 
 		if (objects.length > 0) {
 			this.setActiveObject(

@@ -49,6 +49,16 @@ export interface DrawMemoryDevice {
 	deviceMemoryGB: number;
 	hardwareConcurrency: number;
 	/**
+	 * The ANR cohort, as decided by `renderQuality.config`.
+	 *
+	 * Optional and defaulted so this stays a pure, independently testable
+	 * policy: omitting it reproduces the original local rule
+	 * (`deviceMemoryGB <= 2 || hardwareConcurrency <= 2`). The caller passes it
+	 * because the real predicate also folds in the GPU family and Android's
+	 * `isLowRamDevice()`, neither of which is expressible from these fields.
+	 */
+	severelyConstrained?: boolean;
+	/**
 	 * Longest screen edge in RENDER pixels (CSS px x the capped render DPR).
 	 * Optional: omitted in tests and on any host without a screen, where the
 	 * device-class `overviewPx` stands on its own.
@@ -218,7 +228,8 @@ function resolveDeviceClassProfile(
 	}
 
 	const severelyConstrained =
-		device.deviceMemoryGB <= 2 || device.hardwareConcurrency <= 2;
+		device.severelyConstrained ??
+		(device.deviceMemoryGB <= 2 || device.hardwareConcurrency <= 2);
 	return {
 		tileBudgetMB: severelyConstrained ? 24 : 32,
 		// 768² is 2.25 MB instead of 4 MB at 1024², and also cuts overview

@@ -6,6 +6,7 @@ import {
 	DRAW_SCREEN_EDGE_PX,
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
+	IS_SEVERELY_CONSTRAINED_DEVICE,
 } from "./renderQuality.config";
 
 export const DRAW_MEMORY_PROFILE = resolveDrawMemoryProfile({
@@ -13,6 +14,7 @@ export const DRAW_MEMORY_PROFILE = resolveDrawMemoryProfile({
 	lowEnd: IS_LOW_END_DEVICE,
 	deviceMemoryGB: DRAW_DEVICE_MEMORY_GB,
 	hardwareConcurrency: DRAW_HARDWARE_CONCURRENCY,
+	severelyConstrained: IS_SEVERELY_CONSTRAINED_DEVICE,
 	screenEdgePx: DRAW_SCREEN_EDGE_PX,
 	canvasTileSurfaces: RASTER_PREFERS_DOM_CANVAS,
 });

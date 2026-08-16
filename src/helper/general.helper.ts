@@ -271,6 +271,25 @@ export function setupPWAPromptListener() {
 	});
 }
 
+/**
+ * Hard ceiling on how long the native splash may stay up.
+ *
+ * `launchAutoHide` is false, so nothing else ever takes it down — and the only
+ * thing that did was `router.isReady()`, which waits on the first route's
+ * `beforeEnter`, which awaits `auth.waitUntilInitialized()`, which bails after
+ * 10 SECONDS. On a slow cold start that leaves a full-screen native view over an
+ * app that has no focused, interactive window.
+ *
+ * Android's input-dispatch ANR window is 5 s. A user who taps during that stretch
+ * produces exactly the `Input dispatching timed out (No focused window)`
+ * signature seen in 0.4.4. 4 s keeps the splash for the whole normal start-up on
+ * a low-end device while staying inside the ANR window.
+ *
+ * Hiding early is safe: the app shell is mounted by then and renders its own
+ * loading state. The splash is a start-up cosmetic, not a gate.
+ */
+const SPLASH_MAX_MS = 4_000;
+
 export function setupRouterReadyWatcher(
 	isRouterReady: Ref<boolean>,
 	_isAuthLoading: Ref<boolean>,
@@ -280,16 +299,33 @@ export function setupRouterReadyWatcher(
 	});
 
 	if (isNative()) {
-		const unwatch = watch(
+		let hidden = false;
+		// `let`, declared first: `watch(..., { immediate: true })` can call
+		// hideSplash synchronously, i.e. before the watcher handle exists.
+		let unwatch: (() => void) | undefined;
+
+		const hideSplash = () => {
+			if (hidden) return;
+			hidden = true;
+			clearTimeout(watchdog);
+			unwatch?.();
+			void SplashScreen.hide().catch(() => {
+				/* already hidden, or no splash on this platform */
+			});
+		};
+
+		const watchdog = setTimeout(hideSplash, SPLASH_MAX_MS);
+
+		unwatch = watch(
 			[isRouterReady],
 			([routerReady]) => {
-				if (routerReady) {
-					SplashScreen.hide();
-					unwatch();
-				}
+				if (routerReady) hideSplash();
 			},
 			{ immediate: true },
 		);
+
+		// Covers the synchronous case above, where the handle arrived too late.
+		if (hidden) unwatch();
 	}
 }
 

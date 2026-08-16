@@ -7,6 +7,37 @@ export const IS_DRAW_TESTING = import.meta.env.VITE_DRAW_TESTING === "si";
 
 let sentryInitialized = false;
 
+interface SentryBreadcrumbLike {
+	category?: string;
+	level?: string;
+	message?: string;
+}
+
+/**
+ * Capacitor's injected native bridge logs every listener teardown with
+ * `console.debug("Removing listener", ...)`. Sentry instruments that console
+ * call and, with native scope sync enabled, sends the resulting breadcrumb
+ * back through the same bridge. On iOS WebView that re-entry can overflow in
+ * native-bridge.js before an application frame is ever reached
+ * (`app:///undefined:189`).
+ *
+ * The message is bridge bookkeeping, not useful diagnostic context. Dropping
+ * only this breadcrumb breaks the bridge -> console -> Sentry -> bridge cycle
+ * while retaining every application console breadcrumb and all UI/HTTP ones.
+ */
+export function filterCapacitorBridgeBreadcrumb<T extends SentryBreadcrumbLike>(
+	breadcrumb: T,
+): T | null {
+	if (
+		breadcrumb.category === "console" &&
+		breadcrumb.level === "debug" &&
+		breadcrumb.message?.startsWith("Removing listener")
+	) {
+		return null;
+	}
+	return breadcrumb;
+}
+
 export function initSentry(app: VueApp) {
 	if (sentryInitialized) return;
 	sentryInitialized = true;
@@ -61,6 +92,7 @@ export function initSentry(app: VueApp) {
 			tracesSampleRate: IS_DRAW_TESTING ? 1.0 : IS_PROD ? 0.1 : 1.0,
 			profileSessionSampleRate: IS_DRAW_TESTING ? 1.0 : 0,
 			profileLifecycle: "trace",
+			beforeBreadcrumb: filterCapacitorBridgeBreadcrumb,
 			// The API does not yet accept Sentry trace headers in CORS preflights.
 			tracePropagationTargets: [],
 			enableLogs: true,

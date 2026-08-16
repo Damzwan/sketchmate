@@ -18,6 +18,10 @@ import {
 	installDrawMemoryPressure,
 	uninstallDrawMemoryPressure,
 } from "@/draw/diagnostics/drawMemoryPressure";
+import {
+	installRenderPressureGovernor,
+	uninstallRenderPressureGovernor,
+} from "@/draw/diagnostics/renderPressureGovernor";
 import { createGestureController } from "@/draw/input/gestureController";
 import {
 	isLayerHidden,
@@ -54,7 +58,11 @@ import {
 } from "@/draw/rendering/fabricTileRenderer";
 import { createLiveObjectRenderer } from "@/draw/rendering/liveObjectRenderer";
 import { RenderEngine, type Surface } from "@/draw/rendering/renderEngine";
-import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
+import {
+	initDrawMetrics,
+	resetDrawMetrics,
+	stopDrawMetrics,
+} from "@/draw/rendering/renderMetrics";
 import { createYielder } from "@/draw/scheduling/yielder";
 import {
 	releaseFillBuffer,
@@ -482,6 +490,8 @@ export function createDrawObjectManager() {
 		c = canvas;
 		const renderBackend = getDrawRenderBackend();
 		installDrawRenderBackendDebugApi();
+		// Counters describe THIS drawing session, not a previous board.
+		resetDrawMetrics();
 		initDrawMetrics(getRenderDpr, () => renderBackend);
 		// Persist engine state to the Sentry scope from here on. Must run AFTER
 		// initDrawMetrics (it owns the observers and the reporting sink).
@@ -569,11 +579,29 @@ export function createDrawObjectManager() {
 			release: () => {
 				renderEngine?.releaseGraphicsMemory();
 				localTransform.invalidateCache();
+				// The two hidden drag layers keep full-size accelerated canvases
+				// allocated between grabs; under pressure they are pure cache.
+				localTransform.releaseLayerGraphics();
 				releaseFillBuffer();
 				shutdownBucketFillWorker();
 				shutdownErasureAnalysisWorker();
 			},
 			restore: () => renderEngine?.restoreFromRelease(),
+		});
+
+		// Sustained main-thread blocking means this session is running above what
+		// the device can carry, whatever its detected class said. Give tile memory
+		// back now — tile bytes are GPU texture bytes — and record a demotion that
+		// the next launch starts from.
+		//
+		// `trimToHeadroom`, not `releaseGraphicsMemory`: the user is looking at the
+		// board. Dropping the whole cache mid-session would blur everything on
+		// screen, which is the memory-pressure trade, not this one.
+		installRenderPressureGovernor({
+			shed: () => {
+				renderEngine?.trimToHeadroom();
+				localTransform.releaseLayerGraphics();
+			},
 		});
 
 		rebuildIndexFromCanvas();
@@ -667,8 +695,12 @@ export function createDrawObjectManager() {
 		// user drew. Session-scoped state dies with the session.
 		loadingDepth = 0;
 		shutdownTileBakerySession();
+		uninstallRenderPressureGovernor();
 		uninstallDrawMemoryPressure();
 		uninstallDrawDiagnostics();
+		// Do not observe Home/auth work between drawing sessions. The next init
+		// starts fresh observers after resetting the counters.
+		stopDrawMetrics();
 		c = undefined;
 	}
 

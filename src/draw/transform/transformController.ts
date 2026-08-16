@@ -419,6 +419,12 @@ export function commit(c: Canvas): void {
 	// selection is instant: converts a fast low-quality bake to full quality,
 	// and re-bakes after rotate/scale (which changed the cache key).
 	prewarm(c);
+
+	// Deliberately scheduled from here rather than from each hide site: the
+	// `hideWhenReady` branch above is still holding both layers visible at this
+	// point, and `releaseLayerSurfaces` re-checks that they are hidden before it
+	// touches anything.
+	scheduleLayerSurfaceRelease();
 }
 
 export function cancel(c: Canvas): void {
@@ -845,7 +851,19 @@ function ensureLayer(c: Canvas): HTMLCanvasElement {
 	const wrapper = (c as any).wrapperEl as HTMLElement;
 	const upper = (c as any).upperCanvasEl as HTMLElement;
 
+	// Both layers are about to be needed again — do not let a pending idle
+	// release zero them out from under the drag that is starting.
+	cancelLayerSurfaceRelease();
+
 	if (layerCanvas && layerCanvas.parentElement === wrapper) return layerCanvas;
+
+	// Leaving and re-entering the draw route builds a new fabric canvas, so the
+	// old layer belongs to a wrapper that is gone. Release its pixels rather
+	// than waiting for the element to be collected.
+	if (layerCanvas) {
+		layerCanvas.width = 0;
+		layerCanvas.height = 0;
+	}
 
 	const el = document.createElement("canvas");
 	el.className = "fabric-drag-layer";
@@ -870,6 +888,13 @@ function ensureVacatedLayer(c: Canvas): HTMLCanvasElement {
 	if (vacatedLayerCanvas && vacatedLayerCanvas.parentElement === wrapper) {
 		wrapper.insertBefore(vacatedLayerCanvas, lower);
 		return vacatedLayerCanvas;
+	}
+
+	// See ensureLayer: a stale layer from a previous canvas keeps its backing
+	// store until it is explicitly zeroed.
+	if (vacatedLayerCanvas) {
+		vacatedLayerCanvas.width = 0;
+		vacatedLayerCanvas.height = 0;
 	}
 
 	const el = document.createElement("canvas");
@@ -959,6 +984,69 @@ function maskCommittedCanvas(s: Session): void {
 function hideVacatedLayer(): void {
 	if (vacatedLayerCanvas) vacatedLayerCanvas.style.display = "none";
 	clearCommittedCanvasMask();
+}
+
+/**
+ * How long the drag layers may sit hidden before their pixels are given back.
+ *
+ * Long enough that a user nudging an object repeatedly never pays a
+ * reallocation (each grab is well inside this), short enough that a session
+ * spent drawing rather than moving does not hold the surfaces at all.
+ */
+const LAYER_RELEASE_IDLE_MS = 8_000;
+
+let layerReleaseHandle: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Give back the drag layers' backing stores while nothing is being dragged.
+ *
+ * `display: none` drops the compositor layer but NOT the canvas allocation:
+ * both elements keep a `transformMaxPixels`-sized accelerated surface — up to
+ * ~5 MB each at the mobile profile — for the rest of the drawing session, even
+ * if the user moves one object once and then draws for twenty minutes. On the
+ * device class in the `libIMGegl` ANR reports, where the WebView's GL runs on
+ * the app's own HWUI RenderThread, that is GPU memory held for nothing.
+ *
+ * A zero resize releases the store and leaves the element reusable;
+ * `placeLayer` / `placeVacatedLayer` already resize on every use, so the next
+ * drag re-allocates at exactly the size it needs with no other change.
+ */
+function releaseLayerSurfaces(): void {
+	layerReleaseHandle = null;
+	// A drag started while the timer was pending, or a layer is still covering
+	// for tiles that have not landed. Either way the pixels are load-bearing.
+	if (session) return;
+	if (layerCanvas && layerCanvas.style.display !== "none") return;
+	if (vacatedLayerCanvas && vacatedLayerCanvas.style.display !== "none") return;
+
+	for (const el of [layerCanvas, vacatedLayerCanvas]) {
+		if (!el || (el.width === 0 && el.height === 0)) continue;
+		el.width = 0;
+		el.height = 0;
+	}
+}
+
+/**
+ * Give the layer pixels back NOW, for the memory-pressure path.
+ *
+ * Skipped while a drag is live: those pixels are the only copy of what the user
+ * is moving. Everything else here is reconstructable on the next grab.
+ */
+export function releaseLayerGraphics(): void {
+	cancelLayerSurfaceRelease();
+	releaseLayerSurfaces();
+}
+
+function scheduleLayerSurfaceRelease(): void {
+	if (!layerCanvas && !vacatedLayerCanvas) return;
+	if (layerReleaseHandle !== null) clearTimeout(layerReleaseHandle);
+	layerReleaseHandle = setTimeout(releaseLayerSurfaces, LAYER_RELEASE_IDLE_MS);
+}
+
+function cancelLayerSurfaceRelease(): void {
+	if (layerReleaseHandle === null) return;
+	clearTimeout(layerReleaseHandle);
+	layerReleaseHandle = null;
 }
 
 function clearCommittedCanvasMask(): void {

@@ -55,7 +55,7 @@
       />
 
       <circle
-        :cx="-rulerView.length / 2 + 22"
+        :cx="rulerView.handles.start"
         cy="0"
         r="14"
         class="instrument-handle ruler-transform-handle"
@@ -66,7 +66,7 @@
         @lostpointercapture="endHandle"
       />
       <circle
-        :cx="rulerView.length / 2 - 22"
+        :cx="rulerView.handles.end"
         cy="0"
         r="14"
         class="instrument-handle ruler-transform-handle"
@@ -106,10 +106,13 @@
         :r="compassView.radius"
         class="compass-fill"
       />
+      <!-- A puck, not the whole interior: a circle bigger than the screen would
+           otherwise cover the canvas with a pointer-capturing surface and eat
+           every stroke drawn inside it. -->
       <circle
         :cx="compassView.center.x"
         :cy="compassView.center.y"
-        :r="Math.max(28, compassView.radius - 24)"
+        :r="compassView.dragRadius"
         class="instrument-drag-surface"
         @pointerdown="startGesture"
         @pointermove="updateGesture"
@@ -155,7 +158,11 @@ import type {
 	InstrumentGeometry,
 	InstrumentPoint,
 } from "@/draw/tools/instruments/instrumentGeometry";
-import { compassRadiusHandlePoint } from "@/draw/tools/instruments/instrumentViewport";
+import {
+	compassDragRadiusPx,
+	compassRadiusHandlePoint,
+	rulerHandleOffsets,
+} from "@/draw/tools/instruments/instrumentViewport";
 import { forwardInstrumentWheel } from "@/draw/tools/instruments/instrumentWheel";
 
 type HandleKind = "rotate" | "ruler-transform" | "radius";
@@ -223,6 +230,8 @@ function detachCanvas() {
 watch(isCanvasInitialized, attachCanvas, { immediate: true });
 onBeforeUnmount(() => {
 	detachCanvas();
+	overlayObserver?.disconnect();
+	overlayObserver = null;
 	overlayEl.value?.removeEventListener("touchmove", guardTouchMove);
 	if (frameId !== null) cancelAnimationFrame(frameId);
 	frameId = null;
@@ -245,25 +254,85 @@ function toViewport(point: { x: number; y: number }) {
 	};
 }
 
+/**
+ * The overlay's own box, from a ResizeObserver rather than `clientWidth`.
+ *
+ * Handle placement needs this every frame, and reading it off the element is a
+ * forced synchronous layout — landing in the middle of a pan, right after the
+ * SVG attributes for that frame were written, which is the worst possible
+ * moment for one. The element only changes size when the window or the canvas
+ * container does, so observing it costs nothing between those.
+ */
+const overlayBox = ref({ width: 1, height: 1 });
+let overlayObserver: ResizeObserver | null = null;
+
+function measureOverlay() {
+	const element = overlayEl.value;
+	if (!element) return;
+	const width = element.clientWidth || 1;
+	const height = element.clientHeight || 1;
+	if (width === overlayBox.value.width && height === overlayBox.value.height) {
+		return;
+	}
+	overlayBox.value = { width, height };
+}
+
 const rulerView = computed(() => {
 	const state = viewportState();
 	if (!state) return null;
 	const displayed = instruments.displayGeometry();
 	if (displayed?.type !== "ruler") return null;
 	const center = toViewport(displayed.center);
+	const length = displayed.length * state.zoom;
 	return {
-		length: displayed.length * state.zoom,
+		length,
 		width: displayed.width * state.zoom,
+		// A ruler is allowed to be longer than the screen, so the handles live
+		// wherever they are still reachable rather than always at the tips.
+		handles: rulerHandleOffsets(
+			center,
+			displayed.angle,
+			length,
+			overlayBox.value,
+		),
 		transform: `translate(${center.x} ${center.y}) rotate(${(displayed.angle * 180) / Math.PI})`,
 	};
 });
 
+/**
+ * Ticks only where they can be seen. A ruler three viewport diagonals long
+ * would otherwise emit hundreds of `<line>` nodes per frame, nearly all of them
+ * off screen.
+ *
+ * The visible span is quantized before it becomes a range. Panning changes the
+ * span by a pixel or two per frame, and an exact range would then add or drop a
+ * tick — a keyed list edit, and a DOM insertion — on frames where nothing about
+ * the ruler actually changed. Rounding out to whole blocks makes the list
+ * stable through a whole pan and still bounded.
+ */
+const TICK_SPACING = 25;
+const TICK_BLOCK = TICK_SPACING * 8;
+
 const rulerTicks = computed(() => {
 	const view = rulerView.value;
 	if (!view) return [];
+	const half = view.length / 2;
+	const from = Math.max(
+		-half,
+		Math.floor((view.handles.start - 40) / TICK_BLOCK) * TICK_BLOCK,
+	);
+	const to = Math.min(
+		half,
+		Math.ceil((view.handles.end + 40) / TICK_BLOCK) * TICK_BLOCK,
+	);
 	const ticks: number[] = [];
-	const first = Math.ceil(-view.length / 2 / 25) * 25;
-	for (let x = first; x < view.length / 2; x += 25) ticks.push(x);
+	for (
+		let x = Math.ceil(from / TICK_SPACING) * TICK_SPACING;
+		x < to;
+		x += TICK_SPACING
+	) {
+		ticks.push(x);
+	}
 	return ticks;
 });
 
@@ -274,14 +343,11 @@ const compassView = computed(() => {
 	if (displayed?.type !== "compass") return null;
 	const center = toViewport(displayed.center);
 	const radius = displayed.radius * state.zoom;
-	const viewport = {
-		width: overlayEl.value?.clientWidth ?? 1,
-		height: overlayEl.value?.clientHeight ?? 1,
-	};
 	return {
 		center,
 		radius,
-		handle: compassRadiusHandlePoint(center, radius, viewport),
+		dragRadius: compassDragRadiusPx(radius),
+		handle: compassRadiusHandlePoint(center, radius, overlayBox.value),
 	};
 });
 
@@ -333,7 +399,17 @@ function guardTouchMove(event: TouchEvent) {
 
 watch(overlayEl, (element, previous) => {
 	previous?.removeEventListener("touchmove", guardTouchMove);
+	overlayObserver?.disconnect();
+	overlayObserver = null;
 	element?.addEventListener("touchmove", guardTouchMove, { passive: false });
+	if (!element) return;
+	// The ref is only filled AFTER the first render, so measure now: otherwise
+	// the first paint sizes itself against a 1x1 viewport and parks both ruler
+	// handles at their minimum offset.
+	measureOverlay();
+	if (typeof ResizeObserver === "undefined") return;
+	overlayObserver = new ResizeObserver(measureOverlay);
+	overlayObserver.observe(element);
 });
 
 /**

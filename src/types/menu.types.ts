@@ -20,6 +20,7 @@ export enum Menu {
 	ChatMenuOpen,
 	ViewProfileMenu,
 	Bucket,
+	Smudge,
 	ConnectionMenu,
 	ModerationMenu,
 	SharePostMenu,

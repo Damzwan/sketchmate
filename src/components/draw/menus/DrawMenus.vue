@@ -1,5 +1,6 @@
 <template>
   <PenMenu />
+  <SmudgeMenu v-if="SMUDGE_ENABLED" />
   <BucketMenu />
   <EraserMenu />
   <SelectMenu />
@@ -47,9 +48,11 @@ import SelectExtraOptionsMenu from "@/components/draw/menus/SelectExtraOptionsMe
 import SelectImgStyleMenu from "@/components/draw/menus/SelectImgStyleMenu.vue";
 import SelectMenu from "@/components/draw/menus/SelectMenu.vue";
 import ShapesMenu from "@/components/draw/menus/ShapesMenu.vue";
+import SmudgeMenu from "@/components/draw/menus/SmudgeMenu/SmudgeMenu.vue";
 import TextMenu from "@/components/draw/menus/TextMenu.vue";
 import TextEditMenu from "@/components/draw/TextEditMenu.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { SMUDGE_ENABLED } from "@/draw/config/tools.config";
 import { ObjectType } from "@/draw/objects/object.types";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useSelect } from "@/draw/tools/select.store";

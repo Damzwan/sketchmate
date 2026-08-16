@@ -49,7 +49,11 @@ export function cancelPreviousAction(c: Canvas) {
 	useInstrumentStore().endStroke();
 	const { selectedTool } = useToolSelection();
 	if (ERASERS.includes(selectedTool)) cancelEraserAction(c);
-	if (selectedTool == DrawTool.Pen) cancelPenAction(c);
+	// Smudge is a free-drawing brush too, so a gesture must abort its stroke the
+	// same way — otherwise the half-finished smear commits on the finger lift.
+	if (selectedTool == DrawTool.Pen || selectedTool == DrawTool.Smudge) {
+		cancelPenAction(c);
+	}
 	if (selectedTool == DrawTool.Select) {
 		cancelSelect(c);
 	}

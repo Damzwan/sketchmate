@@ -160,6 +160,22 @@
           </div>
         </div>
 
+        <!-- Smudge is a TOOL, not a brush: it has no colour, no opacity and no
+             swatch, so it cannot sit in the grid above without breaking every
+             control in this menu. It is reached from here because this is where
+             people look for "things you drag across the canvas", and it takes
+             over the dock's pen slot once selected. -->
+        <button v-if="SMUDGE_ENABLED" type="button" class="smudge_launcher" @click="openSmudge">
+          <div class="smudge_launcher_icon">
+            <ion-icon :icon="svg(SMUDGE_ICON)" aria-hidden="true" />
+          </div>
+          <div class="min-w-0 text-left">
+            <p class="smudge_launcher_title">Smudge</p>
+            <p class="smudge_launcher_sub">Blend colours already on the canvas</p>
+          </div>
+          <ion-icon class="smudge_launcher_chevron" :icon="svg(mdiChevronRight)" aria-hidden="true" />
+        </button>
+
         <ColorPicker v-model:color="brushColor" :reset="penMenuOpen" />
       </div>
     </div>
@@ -168,13 +184,24 @@
 
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
-import { mdiArrowRight, mdiCreation, mdiLock, mdiPencilOutline } from "@mdi/js";
+import {
+	mdiArrowRight,
+	mdiChevronRight,
+	mdiCreation,
+	mdiLock,
+	mdiPencilOutline,
+} from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref, watch } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import { brushDisplayName, brushItemId } from "@/draw/config/paidBrushes";
-import { PENMENUTOOLS, penIconMapping } from "@/draw/config/tools.config";
+import {
+	PENMENUTOOLS,
+	penIconMapping,
+	SMUDGE_ENABLED,
+	SMUDGE_ICON,
+} from "@/draw/config/tools.config";
 import { useBrushTrial } from "@/draw/tools/brushTrial.store";
 import { usePen } from "@/draw/tools/pen.store";
 import { BrushType, DrawTool } from "@/draw/tools/tool.types";
@@ -182,6 +209,7 @@ import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { svg } from "@/helper/general.helper";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
 import BrushTile from "./BrushTile.vue";
 import PrecisionRange from "./PrecisionRange.vue";
 import { STROKE_WIDTH_CURVE, snapStrokeWidth } from "./precisionRange";
@@ -199,6 +227,7 @@ const {
 	pixelSize,
 } = storeToRefs(usePen());
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
+const { openMenu, closeMenu } = useMenuStore();
 const inventoryStore = useInventoryStore();
 const brushTrial = useBrushTrial();
 const { purchasing, unlockItem } = useUnlockItem();
@@ -323,6 +352,19 @@ function onDismiss() {
 	editingWidth.value = false;
 }
 
+/**
+ * Hand over to the smudge tool: this menu closes, the smudge one opens.
+ *
+ * `skipOpenMenu` because `selectTool` would otherwise re-open the smudge menu
+ * itself on the pen menu's anchor event, and the two would race over
+ * `menuEvent`.
+ */
+function openSmudge() {
+	closeMenu(Menu.Pen);
+	selectTool(DrawTool.Smudge, { skipOpenMenu: true });
+	openMenu(Menu.Smudge);
+}
+
 function selectBrushType(newBrushType: BrushType) {
 	if (selectedTool.value != DrawTool.Pen) selectTool(DrawTool.Pen);
 	brushType.value = newBrushType;
@@ -430,6 +472,32 @@ watch(penMenuOpen, async (open) => {
      width — same two rows for 9 brushes, but 17px of air between tiles instead
      of 6px. */
   grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
+}
+
+.smudge_launcher {
+  @apply w-full flex items-center gap-2.5 p-2 rounded-2xl cursor-pointer border-0
+  bg-secondary/10 ring-1 ring-secondary/20 active:scale-[0.99] transition-transform;
+}
+
+.smudge_launcher_icon {
+  @apply w-9 h-9 shrink-0 rounded-xl bg-secondary/20 text-secondary
+  flex items-center justify-center;
+}
+
+.smudge_launcher_icon ion-icon {
+  @apply w-5 h-5;
+}
+
+.smudge_launcher_title {
+  @apply text-xs font-black tracking-tight text-black/75;
+}
+
+.smudge_launcher_sub {
+  @apply text-[10px] leading-snug text-black/45 truncate;
+}
+
+.smudge_launcher_chevron {
+  @apply ml-auto text-black/25 text-base shrink-0;
 }
 
 .unlock-banner {

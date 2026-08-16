@@ -9,6 +9,7 @@ import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
 import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
 import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
 import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
+import { SmudgeStroke } from "@/draw/utils/brushes/SmudgeBrush";
 import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
 
 /**
@@ -28,6 +29,7 @@ export const BRUSH_REGISTRY = [
 	[SprayStroke, SprayStroke.type],
 	[CircleStroke, CircleStroke.type],
 	[CrayonStroke, CrayonStroke.type],
+	[SmudgeStroke, SmudgeStroke.type],
 ] as const;
 
 export function registerBrushClasses(): void {

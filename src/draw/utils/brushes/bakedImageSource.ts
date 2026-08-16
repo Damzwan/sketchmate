@@ -34,15 +34,27 @@ function encodeSync(canvas: HTMLCanvasElement): string {
  * @param canvas the baked, never-redrawn canvas element backing it
  */
 export function cacheBakedImageSource(image: any, canvas: HTMLCanvasElement) {
-	image.getSrc = function getSrc(): string {
-		const cached = encoded.get(canvas);
-		if (cached !== undefined) return cached;
-		const src = encodeSync(canvas);
-		encoded.set(canvas, src);
-		return src;
-	};
+	image.getSrc = () => bakedCanvasDataUrl(canvas);
+	warmBakedCanvasEncode(canvas);
+}
 
-	// Warm-up. Failure is silent and harmless: `getSrc` still encodes on demand.
+/**
+ * The memoized PNG data URL of a baked, never-redrawn canvas.
+ *
+ * Same contract as `cacheBakedImageSource` for drawables that are not
+ * `FabricImage` and so have no `getSrc` to intercept — the smudge patch is one.
+ */
+export function bakedCanvasDataUrl(canvas: HTMLCanvasElement): string {
+	const cached = encoded.get(canvas);
+	if (cached !== undefined) return cached;
+	const src = encodeSync(canvas);
+	encoded.set(canvas, src);
+	return src;
+}
+
+/** Start encoding off the main thread so no frame has to pay for it later. */
+export function warmBakedCanvasEncode(canvas: HTMLCanvasElement): void {
+	// Failure is silent and harmless: the on-demand encode still covers it.
 	if (encoded.has(canvas) || typeof canvas.toBlob !== "function") return;
 	try {
 		canvas.toBlob((blob) => {

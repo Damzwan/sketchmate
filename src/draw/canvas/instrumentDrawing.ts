@@ -12,6 +12,10 @@ function asFabricPoint(point: { x: number; y: number }): Point {
  */
 export function installInstrumentDrawing(canvas: Canvas): void {
 	const state = canvas as any;
+	// Resolved ONCE per canvas, not per pointer sample. These handlers replace
+	// fabric's own and run on every move of every stroke — the common case by far
+	// being no instrument at all — so the hook has to cost nothing when idle.
+	const instruments = useInstrumentStore();
 
 	state._onMouseDownInDrawingMode = function (e: TPointerEvent) {
 		this._isCurrentlyDrawing = true;
@@ -20,9 +24,10 @@ export function installInstrumentDrawing(canvas: Canvas): void {
 			this.requestRenderAll();
 		}
 		const raw = this.getScenePoint(e);
-		const pointer = asFabricPoint(
-			useInstrumentStore().beginStroke({ x: raw.x, y: raw.y }),
-		);
+		const constrained = instruments.beginStroke({ x: raw.x, y: raw.y });
+		const pointer = instruments.hasConstraint()
+			? asFabricPoint(constrained)
+			: raw;
 		this.freeDrawingBrush?.onMouseDown(pointer, { e, pointer });
 		this._handleEvent(e, "down", { alreadySelected: false });
 	};
@@ -30,9 +35,11 @@ export function installInstrumentDrawing(canvas: Canvas): void {
 	state._onMouseMoveInDrawingMode = function (e: TPointerEvent) {
 		if (this._isCurrentlyDrawing) {
 			const raw = this.getScenePoint(e);
-			const pointer = asFabricPoint(
-				useInstrumentStore().constrainStroke({ x: raw.x, y: raw.y }),
-			);
+			// Unconstrained strokes hand fabric its own point straight back: no
+			// wrapper object, no `new Point`, no work at all.
+			const pointer = instruments.hasConstraint()
+				? asFabricPoint(instruments.constrainStroke({ x: raw.x, y: raw.y }))
+				: raw;
 			this.freeDrawingBrush?.onMouseMove(pointer, { e, pointer });
 		}
 		this.setCursor(this.freeDrawingCursor);
@@ -40,10 +47,14 @@ export function installInstrumentDrawing(canvas: Canvas): void {
 	};
 
 	state._onMouseUpInDrawingMode = function (e: TPointerEvent) {
-		const instruments = useInstrumentStore();
 		const raw = this.getScenePoint(e);
-		const constrained = instruments.endStroke({ x: raw.x, y: raw.y });
-		const pointer = asFabricPoint(constrained ?? raw);
+		let pointer: Point = raw;
+		if (instruments.hasConstraint()) {
+			const constrained = instruments.endStroke({ x: raw.x, y: raw.y });
+			if (constrained) pointer = asFabricPoint(constrained);
+		} else {
+			instruments.endStroke();
+		}
 		if (this.freeDrawingBrush) {
 			this._isCurrentlyDrawing = !!this.freeDrawingBrush.onMouseUp({
 				e,

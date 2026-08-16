@@ -14,10 +14,15 @@ export enum DrawTool {
 	Select,
 	Lasso,
 	Bucket,
+	Smudge,
 }
 
 export type Eraser = DrawTool.MobileEraser;
-export type PenMenuTool = DrawTool.Pen | DrawTool.Bucket;
+/**
+ * Tools that share the dock's pen slot. The slot renders whichever of them was
+ * used last, so smudge gets a real tool without a new toolbar button.
+ */
+export type PenMenuTool = DrawTool.Pen | DrawTool.Bucket | DrawTool.Smudge;
 export type SelectTool = DrawTool.Select | DrawTool.Lasso;
 
 export enum Shape {
@@ -41,6 +46,23 @@ export enum BrushType {
 	Pixel = "pixel",
 	Neon = "neon",
 	CalliGraphy = "calligraphy",
+}
+
+/**
+ * What the smudge brush does to the pixels it passes over.
+ *
+ * Three verbs rather than one slider: the same gesture means "drag this colour
+ * somewhere else" (Pull), "make this edge stop being an edge" (Blur) and "mix
+ * whatever is under me into one colour" (Blend), and no single parameter can
+ * express all three.
+ */
+export enum SmudgeMode {
+	/** Classic finger-paint: colour is carried along the stroke. */
+	Pull = "pull",
+	/** Softens what is already there without moving it. */
+	Blur = "blur",
+	/** Averages the colours under the tip and paints that average back. */
+	Blend = "blend",
 }
 
 export enum EraserSize {

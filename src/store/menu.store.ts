@@ -25,6 +25,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const chatMenuOpen = ref(false);
 	const viewProfileMenuOpen = ref(false);
 	const bucketMenuOpen = ref(false);
+	const smudgeMenuOpen = ref(false);
 	const connectionMenuOpen = ref(false);
 	const moderationMenuOpen = ref(false);
 	const sharePostMenuOpen = ref(false);
@@ -71,6 +72,7 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.ChatMenuOpen]: chatMenuOpen,
 		[Menu.ViewProfileMenu]: viewProfileMenuOpen,
 		[Menu.Bucket]: bucketMenuOpen,
+		[Menu.Smudge]: smudgeMenuOpen,
 		[Menu.ConnectionMenu]: connectionMenuOpen,
 		[Menu.ModerationMenu]: moderationMenuOpen,
 		[Menu.SharePostMenu]: sharePostMenuOpen,
@@ -85,6 +87,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
 		[DrawTool.Pen]: Menu.Pen,
 		[DrawTool.Bucket]: Menu.Bucket,
+		[DrawTool.Smudge]: Menu.Smudge,
 		[DrawTool.MobileEraser]: Menu.Eraser,
 		[DrawTool.Lasso]: Menu.Select,
 		[DrawTool.Select]: Menu.Select,
@@ -154,6 +157,7 @@ export const useMenuStore = defineStore("menu", () => {
 		chatMenuOpen,
 		viewProfileMenuOpen,
 		bucketMenuOpen,
+		smudgeMenuOpen,
 		connectionMenuOpen,
 		moderationMenuOpen,
 		sharePostMenuOpen,

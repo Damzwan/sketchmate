@@ -550,3 +550,108 @@ describe("bake stall latch", () => {
 		expect(schedule.mock.calls.length).toBeGreaterThan(1);
 	});
 });
+
+describe("transform commit at overview zoom", () => {
+	beforeEach(() => {
+		vi.stubGlobal(
+			"requestAnimationFrame",
+			vi.fn(() => 1),
+		);
+		vi.stubGlobal("cancelAnimationFrame", vi.fn());
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	/** An engine whose active tier IS the overview — i.e. there are no tiles. */
+	function overviewEngine(offset = 0) {
+		const engine = makeEngine() as any;
+		vi.spyOn(engine.committed, "pickActiveTier").mockReturnValue(
+			engine.committed.overviewTier + offset,
+		);
+		return engine;
+	}
+
+	const rect: WorldRect = { x: 0, y: 0, w: 100, h: 100 };
+	const moved = {
+		rect: { x: 50, y: 50, w: 100, h: 100 },
+		bmp: {} as ImageBitmap,
+		m: [1, 0, 0, 1, 50, 50] as const,
+	};
+	const vacated = {
+		rect,
+		bmp: {} as ImageBitmap,
+		m: [1, 0, 0, 1, 0, 0] as const,
+	};
+
+	it("keeps the drag out of the overview at overview zoom", () => {
+		const engine = overviewEngine();
+		const patch = vi.spyOn(engine, "patchOverview");
+		const markDirty = vi.spyOn(engine.committed, "markDirty");
+
+		// Patching here queues a deferred repair that the gesture-end flush turns
+		// into a full rebuild of the board — exactly when the commit needs the
+		// overview clean to stamp into.
+		expect(engine.invalidateUnderTransformCover([rect])).toBe(true);
+		expect(patch).not.toHaveBeenCalled();
+		expect(markDirty).toHaveBeenCalledWith(rect);
+	});
+
+	it("uses the ordinary retain path once there are tiles", () => {
+		const engine = overviewEngine(1);
+		const retain = vi.spyOn(engine, "retainRegionsUntilRebaked");
+
+		expect(engine.invalidateUnderTransformCover([rect])).toBe(false);
+		expect(retain).toHaveBeenCalledWith([rect]);
+	});
+
+	it("stamps both footprints and leaves the overview clean", () => {
+		const engine = overviewEngine();
+		const overview = engine.committed.overview;
+		vi.spyOn(overview, "isDirty").mockReturnValue(false);
+		vi.spyOn(overview, "covers").mockReturnValue(true);
+		const stamp = vi.spyOn(overview, "stampRegion").mockReturnValue(true);
+		const markDirty = vi.spyOn(engine.committed, "markDirty");
+
+		expect(engine.stampTransformIntoOverview(moved, vacated)).toBe(true);
+		// Vacated first, cleared; then the moved bitmap over its new footprint.
+		expect(stamp).toHaveBeenNthCalledWith(
+			1,
+			vacated.rect,
+			vacated.bmp,
+			vacated.m,
+			true,
+		);
+		expect(stamp).toHaveBeenNthCalledWith(2, moved.rect, moved.bmp, moved.m);
+		// Tiles at every tier still hold pre-move pixels; the overview does not.
+		expect(markDirty).toHaveBeenCalledWith(moved.rect);
+		expect(markDirty).toHaveBeenCalledWith(vacated.rect);
+		expect(overview.isDirty()).toBe(false);
+	});
+
+	it("writes nothing when a footprint falls outside the overview mapping", () => {
+		const engine = overviewEngine();
+		const overview = engine.committed.overview;
+		vi.spyOn(overview, "isDirty").mockReturnValue(false);
+		vi.spyOn(overview, "covers").mockImplementation(
+			(...args: unknown[]) => args[0] !== vacated.rect,
+		);
+		const stamp = vi.spyOn(overview, "stampRegion");
+
+		// Half a stamp is a hole in the only picture this zoom has.
+		expect(engine.stampTransformIntoOverview(moved, vacated)).toBe(false);
+		expect(stamp).not.toHaveBeenCalled();
+	});
+
+	it("declines while a rebuild already owns the picture", () => {
+		const engine = overviewEngine();
+		const overview = engine.committed.overview;
+		vi.spyOn(overview, "isDirty").mockReturnValue(true);
+		const stamp = vi.spyOn(overview, "stampRegion");
+
+		expect(engine.stampTransformIntoOverview(moved, vacated)).toBe(false);
+		expect(stamp).not.toHaveBeenCalled();
+	});
+});

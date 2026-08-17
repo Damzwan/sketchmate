@@ -198,6 +198,61 @@ export class WorldOverview<T extends Bounded> {
 		return true;
 	}
 
+	/**
+	 * Stamp a pre-rendered bitmap into the overview, mapped through `m`
+	 * (bitmap px → world). The overview twin of `TileStamps.stampBitmapRegion`,
+	 * and it exists for the same reason that one does.
+	 *
+	 * At overview zoom there are NO tiles, so a transform commit had nothing
+	 * cheap to write its result into: it fell through to markDirty + a full
+	 * rebuild of the whole board, once per move, and the drag layers stayed up
+	 * waiting for that rebuild (`isRegionReady` is `!overview.isDirty()` at this
+	 * tier). A second move aborted the rebuild mid-flight and left the overview
+	 * dirty with the previous move's layers still showing — the flicker and
+	 * ghosting when moving a big selection while zoomed far out.
+	 *
+	 * The bitmap being stamped is exactly what the user was already looking at
+	 * during the drag, at overview resolution, so the overview does NOT go
+	 * dirty. Like the tile stamp, this composites the moved content ON TOP
+	 * within its rect: where the selection lands underneath other content the z
+	 * is approximate. Tiles get that corrected by their next bake; here it
+	 * stands until some later edit or a zoom-in repaints the region.
+	 *
+	 * @param clear empty `rect` first — for the vacated footprint, whose
+	 *   replacement pixels the caller supplies as `bmp`.
+	 * @returns false if there is no bitmap yet or `rect` falls outside the
+	 *   mapping (only a rebuild can grow that), so the caller keeps its
+	 *   fallback. A failure mid-write marks the overview dirty rather than
+	 *   leaving a hole in it.
+	 */
+	stampRegion(
+		rect: WorldRect,
+		bmp: ImageBitmap,
+		m: readonly [number, number, number, number, number, number],
+		clear = false,
+	): boolean {
+		if (!this.canvas || !this.ctx || !this.bounds) return false;
+		if (!this.contains(this.bounds, rect)) return false;
+		const ctx = this.ctx;
+		const startedAt = performance.now();
+		ctx.save();
+		try {
+			this.applyWorldTransform(ctx);
+			if (clear) ctx.clearRect(rect.x, rect.y, rect.w, rect.h);
+			ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+			ctx.drawImage(bmp as any, 0, 0);
+		} catch {
+			ctx.restore();
+			// A cleared-but-not-redrawn region is a hole in the only picture this
+			// zoom has. Hand it to the rebuild rather than leave it showing.
+			if (clear) this.markDirty();
+			return false;
+		}
+		ctx.restore();
+		recordPhase("overviewStampRegion", performance.now() - startedAt);
+		return true;
+	}
+
 	/** Destination-out the eraser stroke into the overview (approximate). */
 	erase(renderEraser: (ctx: RasterContext) => void): void {
 		if (!this.ctx || !this.bounds) return;

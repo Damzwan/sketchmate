@@ -29,7 +29,7 @@
           <ion-icon :icon="svg(mdiRuler)" />
           <div class="pl-2 min-w-0 flex-1">
             <p class="text-base">Ruler</p>
-            <p class="text-xs opacity-60">{{ activeType === 'ruler' ? 'Tap again to turn off' : 'Straight strokes and erasing' }}</p>
+            <p class="text-xs opacity-60">{{ hint('ruler', 'Straight strokes and erasing') }}</p>
           </div>
           <ion-icon v-if="activeType === 'ruler'" slot="end" :icon="checkmark" color="secondary" />
         </ion-item>
@@ -38,7 +38,7 @@
           <ion-icon :icon="svg(mdiCompassOutline)" />
           <div class="pl-2 min-w-0 flex-1">
             <p class="text-base">Compass</p>
-            <p class="text-xs opacity-60">{{ activeType === 'compass' ? 'Tap again to turn off' : 'Full circles or partial arcs' }}</p>
+            <p class="text-xs opacity-60">{{ hint('compass', 'Full circles or partial arcs') }}</p>
           </div>
           <ion-icon v-if="activeType === 'compass'" slot="end" :icon="checkmark" color="secondary" />
         </ion-item>
@@ -75,13 +75,32 @@ const buttonLabel = computed(() =>
 		: "Drawing instruments",
 );
 
+/**
+ * Instruments stay where they were put in the DRAWING, so panning away leaves
+ * one behind rather than dragging it along. Sampled when the menu opens: the
+ * answer can only change through a viewport move, and no viewport move can
+ * happen while this popover is up.
+ */
+const strandedType = ref<InstrumentType | null>(null);
+
 function open(event: Event) {
+	strandedType.value = instruments.isOutOfView() ? activeType.value : null;
 	menuEvent.value = event;
 	menuOpen.value = true;
 }
 
+function hint(type: InstrumentType, inactive: string): string {
+	if (activeType.value !== type) return inactive;
+	return strandedType.value === type
+		? "Off screen — tap to bring it back"
+		: "Tap again to turn off";
+}
+
 function choose(type: InstrumentType) {
-	instruments.select(type);
+	// Turning off an instrument you cannot see is never what was meant; the tap
+	// is asking where it went.
+	if (strandedType.value === type) instruments.recenter();
+	else instruments.select(type);
 	menuOpen.value = false;
 }
 </script>

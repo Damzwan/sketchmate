@@ -73,18 +73,18 @@ describe("compass sizing helpers", () => {
 	});
 
 	it("caps the drag puck so a huge circle cannot swallow the canvas", () => {
-		expect(compassDragRadiusPx(4000)).toBe(96);
+		expect(compassDragRadiusPx(4000)).toBe(140);
 	});
 
 	it("never collapses the puck below a touch target", () => {
-		expect(compassDragRadiusPx(10)).toBe(28);
+		expect(compassDragRadiusPx(10)).toBe(40);
 	});
 
 	it("asks only enough centre margin to keep the puck reachable", () => {
 		// The regression this guards: a margin that tracked the full radius made
 		// the allowed centre range empty for any circle wider than the viewport,
 		// pinning the compass to the middle of the screen.
-		expect(compassCenterMarginPx(4000)).toBe(120);
+		expect(compassCenterMarginPx(4000)).toBe(164);
 		expect(compassCenterMarginPx(4000)).toBeLessThan(200);
 	});
 });

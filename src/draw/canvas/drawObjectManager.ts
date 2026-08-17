@@ -954,6 +954,27 @@ export function createDrawObjectManager() {
 		renderEngine?.retainRegionsUntilRebaked(rects);
 	}
 
+	/** @see RenderInvalidationCoordinator.invalidateUnderTransformCover */
+	function invalidateUnderTransformCover(rects: readonly WorldRect[]): boolean {
+		return renderEngine?.invalidateUnderTransformCover(rects) ?? false;
+	}
+
+	/** @see RenderInvalidationCoordinator.stampTransformIntoOverview */
+	function stampTransformIntoOverview(
+		moved: {
+			rect: WorldRect;
+			bmp: ImageBitmap;
+			m: readonly [number, number, number, number, number, number];
+		},
+		vacated?: {
+			rect: WorldRect;
+			bmp: ImageBitmap;
+			m: readonly [number, number, number, number, number, number];
+		} | null,
+	): boolean {
+		return renderEngine?.stampTransformIntoOverview(moved, vacated) ?? false;
+	}
+
 	function clearAllObjects() {
 		if (!c || !renderEngine) return;
 		objectMap.clear();
@@ -1020,6 +1041,8 @@ export function createDrawObjectManager() {
 		stampRegionBitmap: gestures.stampRegionBitmap,
 		patchRectSync,
 		retainRegionsUntilRebaked,
+		invalidateUnderTransformCover,
+		stampTransformIntoOverview,
 		withRetainedRemovalTiles,
 		beginBatch,
 		endBatch,

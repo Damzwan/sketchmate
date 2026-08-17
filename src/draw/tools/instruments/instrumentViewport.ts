@@ -130,11 +130,16 @@ export function maxCompassRadiusPx(viewport: InstrumentViewportSize): number {
  * puck keeps the tool draggable while leaving the rest of the circle's interior
  * to the brush, which is where drawing with a compass actually happens.
  *
- * Small circles are unaffected: below ~120px the cap never binds and the whole
+ * Small circles are unaffected: below the cap it never binds and the whole
  * interior still drags, exactly as before.
+ *
+ * The cap and the floor were both raised once the compass became world-anchored:
+ * the puck is the only part of a zoomed-out circle you can still grab, and at
+ * 96px it was a small target on a big board. The 24px inset is what keeps it off
+ * the rim, so a small circle's puck still cannot cover its own drawing edge.
  */
 export function compassDragRadiusPx(radiusPx: number): number {
-	return Math.max(28, Math.min(radiusPx - 24, 96));
+	return Math.max(40, Math.min(radiusPx - 24, 140));
 }
 
 /**

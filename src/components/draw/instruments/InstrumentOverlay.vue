@@ -203,8 +203,10 @@ const canvasReady = computed(
 );
 
 function refreshViewport() {
+	// Re-render at the new transform, and NOTHING else. This used to re-clamp the
+	// instrument into the viewport on every pan and pinch frame, which walked it
+	// across the drawing — see `ensureInViewport`.
 	viewportRevision.value++;
-	instruments.ensureInViewport();
 }
 
 function attachCanvas() {
@@ -435,12 +437,16 @@ function capturePointer(event: PointerEvent) {
 function startHandle(kind: HandleKind, event: PointerEvent) {
 	stopInstrumentEvent(event);
 	const point = pointFromSample(sampleFromEvent(event));
-	const displayed = instruments.displayGeometry();
-	if (!point || !displayed) return;
+	// The TRUE geometry, not the display. Resizing is a ratio measured from the
+	// centre, so it works from either — but starting from a clamped display would
+	// write the clamp back into the stored size the moment you touched a handle
+	// at an extreme zoom.
+	const base = geometry.value;
+	if (!point || !base) return;
 	activeHandle = {
 		kind,
 		pointerId: event.pointerId,
-		geometry: copyGeometry(displayed),
+		geometry: copyGeometry(base),
 		startPoint: point,
 	};
 	capturePointer(event);
@@ -520,7 +526,8 @@ function copyGeometry(value: InstrumentGeometry): InstrumentGeometry {
 }
 
 function resetGestureBaseline() {
-	const displayed = instruments.displayGeometry();
+	// True geometry, for the same reason `startHandle` uses it.
+	const displayed = geometry.value;
 	if (!displayed) {
 		gestureBaseline = null;
 		return;

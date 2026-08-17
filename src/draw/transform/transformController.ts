@@ -50,6 +50,13 @@ interface Session {
 	vacatedBitmap: ImageBitmap | null;
 	vacatedPromise: Promise<void> | null;
 	oldRegionRetained: boolean;
+	/**
+	 * At overview zoom the drag-start invalidation deliberately left the overview
+	 * untouched, so this session owes it both footprints at commit — as a stamp,
+	 * or as the ordinary retain path for BOTH rects if the stamp cannot run.
+	 * @see RenderInvalidationCoordinator.invalidateUnderTransformCover
+	 */
+	ownsOverview: boolean;
 	releasePending: boolean;
 }
 
@@ -352,7 +359,33 @@ export function commit(c: Canvas): void {
 			// have. Retain the sharp background at the new position as well; the CSS
 			// selection supplies the only missing pixels until both regions rebake.
 			attempted = true;
-			mgr.retainRegionsUntilRebaked([newRect]);
+			// Overview zoom: there are no tiles to retain, and the drag-start
+			// invalidation left the overview to us. Write the two bitmaps the user
+			// has been looking at straight into it — otherwise this commit costs a
+			// full rebuild of the board and the layers hang on it, which is the
+			// flicker when moving a big selection while zoomed far out.
+			const stampedOverview =
+				s.ownsOverview &&
+				!!s.vacatedBitmap &&
+				mgr.stampTransformIntoOverview(
+					{ rect: newRect, bmp: s.bitmap, m: bitmapToWorldMatrix(s) },
+					{
+						rect: oldRect,
+						bmp: s.vacatedBitmap,
+						m: vacatedBitmapToWorldMatrix(s),
+					},
+				);
+			if (stampedOverview) {
+				// hideWhenReady's `newReady`. `oldReady` is satisfied by the overview
+				// having stayed clean.
+				stamped = true;
+			} else {
+				// Both footprints, not just the new one: when the stamp was owed the
+				// overview and could not deliver, the old one has had no patch either.
+				mgr.retainRegionsUntilRebaked(
+					s.ownsOverview ? [oldRect, newRect] : [newRect],
+				);
+			}
 		} else if (c.viewportTransform![0] === s.baseZoom) {
 			try {
 				attempted = true;
@@ -799,6 +832,7 @@ function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
 			: null,
 		vacatedPromise: null,
 		oldRegionRetained: false,
+		ownsOverview: false,
 		releasePending: false,
 	};
 	for (const o of objs) if (o.id) ownedIds.add(o.id);
@@ -1068,7 +1102,9 @@ function activatePreparedCover(s: Session, mgr = useDrawObjectManager()): void {
 	// on mobile. Until the cover lands the originals now simply stay where they
 	// were committed — exactly what the comment in `markMoved` always claimed.
 	s.objects.forEach((o) => (o.opacity = 0));
-	mgr.retainRegionsUntilRebaked([sessionOriginRect(s)]);
+	// At overview zoom this takes the overview out of the drag entirely and hands
+	// both footprints to commit; above it, the ordinary retain-and-repair.
+	s.ownsOverview = mgr.invalidateUnderTransformCover([sessionOriginRect(s)]);
 	showVacatedLayer(s);
 	const moving = ensureLayer(s.canvas);
 	moving.style.display = "block";
@@ -1461,6 +1497,22 @@ function bitmapToWorldMatrix(s: Session): Mat {
 		0,
 		0,
 	]);
+}
+
+/**
+ * Vacated bitmap px → world. Unlike the moving layer's matrix there is no delta
+ * transform: this bitmap was baked for the origin box and stays there.
+ */
+function vacatedBitmapToWorldMatrix(s: Session): Mat {
+	const bmp = s.vacatedBitmap!;
+	return [
+		s.origin.width / bmp.width,
+		0,
+		0,
+		s.origin.height / bmp.height,
+		s.origin.left,
+		s.origin.top,
+	];
 }
 
 function isActiveSelection(t: FabricObject): boolean {

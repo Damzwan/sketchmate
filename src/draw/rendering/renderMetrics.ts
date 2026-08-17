@@ -600,6 +600,7 @@ export type DrawPhase =
 	| "overviewBuild"
 	| "overviewBuildObject"
 	| "overviewEraseObject"
+	| "overviewStampRegion"
 	| "rebuildSync"
 	| "eraseClipApply"
 	| "eraseClipUndo"

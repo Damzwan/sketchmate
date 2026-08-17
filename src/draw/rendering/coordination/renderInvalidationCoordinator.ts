@@ -7,6 +7,9 @@ import {
 	MAX_SYNC_REPAIR_TILES,
 } from "./renderEngineBase";
 
+/** Bitmap px → world, the 2x3 form `CanvasRenderingContext2D.transform` takes. */
+type StampMatrix = readonly [number, number, number, number, number, number];
+
 export abstract class RenderInvalidationCoordinator<
 	T extends Bounded,
 > extends RenderBakeCoordinator<T> {
@@ -500,6 +503,78 @@ export abstract class RenderInvalidationCoordinator<
 		if (this.intersectsView(rect)) this.requestFrame();
 		this.scheduleBake(); // stamped tiles are stale — bake repaints them exactly
 		return complete;
+	}
+
+	/**
+	 * Drag start, where a CSS cover already hides the old footprint and the
+	 * commit will supply the replacement pixels itself.
+	 *
+	 * Above the overview tier this is the ordinary retain-and-repair path. AT the
+	 * overview tier it deliberately leaves the overview alone: there are no tiles
+	 * to repair, so `patchOverview` here only queues a deferred patch, and with
+	 * the remote renderer that patch is a markDirty + FULL rebuild of the board —
+	 * flushed the instant the gesture ends, which is exactly when the commit
+	 * needs a clean overview to stamp into. One move then cost a whole-board
+	 * rebuild, and the next move aborted it half-done.
+	 *
+	 * @returns true when the caller now OWNS the overview for these rects and
+	 *   must write them itself (`stampTransformIntoOverview`) or fall back to
+	 *   `retainRegionsUntilRebaked` for all of them.
+	 */
+	invalidateUnderTransformCover(rects: readonly WorldRect[]): boolean {
+		if (rects.length === 0) return false;
+		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
+		if (tier > this.committed.overviewTier) {
+			this.retainRegionsUntilRebaked(rects);
+			return false;
+		}
+		for (const rect of rects) {
+			this.growContentBounds(rect);
+			this.committed.markDirty(rect);
+		}
+		this.requestFrame();
+		this.scheduleBake();
+		return true;
+	}
+
+	/**
+	 * Transform commit at overview zoom: write the drag layer's own pixels into
+	 * the overview instead of rebuilding it.
+	 *
+	 * `stampRegionBitmap` cannot help at this tier — there are no tiles — so this
+	 * is the same trade one level down: O(2 drawImage) now, exact-but-approximate
+	 * z (see `WorldOverview.stampRegion`). The tiles at every tier are marked
+	 * dirty because they still hold pre-move pixels, but the OVERVIEW stays
+	 * clean, so `isRegionBaked` is true immediately and the drag layers hide on
+	 * the next frame rather than waiting out a rebuild.
+	 *
+	 * Both regions are checked for coverage BEFORE anything is written: a
+	 * half-applied stamp would leave a hole in the only picture this zoom has.
+	 */
+	stampTransformIntoOverview(
+		moved: { rect: WorldRect; bmp: ImageBitmap; m: StampMatrix },
+		vacated?: { rect: WorldRect; bmp: ImageBitmap; m: StampMatrix } | null,
+	): boolean {
+		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
+		if (tier > this.committed.overviewTier) return false;
+		const overview = this.committed.overview;
+		if (overview.isDirty()) return false; // a rebuild already owns the picture
+		if (!overview.covers(moved.rect)) return false;
+		if (vacated && !overview.covers(vacated.rect)) return false;
+
+		if (
+			vacated &&
+			!overview.stampRegion(vacated.rect, vacated.bmp, vacated.m, true)
+		)
+			return false;
+		if (!overview.stampRegion(moved.rect, moved.bmp, moved.m)) return false;
+
+		this.growContentBounds(moved.rect);
+		this.committed.markDirty(moved.rect);
+		if (vacated) this.committed.markDirty(vacated.rect);
+		this.requestFrame();
+		this.scheduleBake();
+		return true;
 	}
 
 	// ── direct live control ──────────────────────────────────────────────────

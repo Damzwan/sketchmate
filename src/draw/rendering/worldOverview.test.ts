@@ -14,6 +14,7 @@ class FakeOffscreenCanvas {
 		beginPath: vi.fn(),
 		rect: vi.fn(),
 		clip: vi.fn(),
+		transform: vi.fn(),
 		drawImage: vi.fn(),
 		fillStyle: "",
 		imageSmoothingEnabled: false,
@@ -310,5 +311,89 @@ describe("WorldOverview backing-store lifecycle", () => {
 		);
 
 		expect(blob).toBeNull();
+	});
+});
+
+describe("WorldOverview transform stamp", () => {
+	afterEach(() => {
+		FakeOffscreenCanvas.instances = [];
+		vi.unstubAllGlobals();
+	});
+
+	function mounted() {
+		const canvas = new FakeOffscreenCanvas(100, 100);
+		const overview = new WorldOverview({ query: () => [] }, () => {}, {
+			px: 100,
+		}) as any;
+		overview.canvas = canvas;
+		overview.ctx = canvas.getContext();
+		overview.bounds = { x: 0, y: 0, w: 100, h: 100 };
+		overview.sx = 1;
+		overview.sy = 1;
+		overview.dirty = false;
+		return { canvas, overview };
+	}
+
+	it("stamps the drag bitmap without dirtying the overview", () => {
+		const { canvas, overview } = mounted();
+		const bmp = {} as ImageBitmap;
+
+		expect(
+			overview.stampRegion(
+				{ x: 10, y: 10, w: 20, h: 20 },
+				bmp,
+				[1, 0, 0, 1, 10, 10],
+			),
+		).toBe(true);
+		expect(canvas.context.transform).toHaveBeenCalledWith(1, 0, 0, 1, 10, 10);
+		expect(canvas.context.drawImage).toHaveBeenCalledWith(bmp, 0, 0);
+		// At overview zoom `isRegionReady` is `!isDirty()`. Going dirty here is what
+		// left the drag layers waiting out a whole-board rebuild after every move.
+		expect(overview.isDirty()).toBe(false);
+	});
+
+	it("clears the vacated footprint before drawing its replacement", () => {
+		const { canvas, overview } = mounted();
+
+		expect(
+			overview.stampRegion(
+				{ x: 10, y: 20, w: 30, h: 40 },
+				{} as ImageBitmap,
+				[1, 0, 0, 1, 10, 20],
+				true,
+			),
+		).toBe(true);
+		expect(canvas.context.clearRect).toHaveBeenCalledWith(10, 20, 30, 40);
+	});
+
+	it("declines a region the bitmap does not map", () => {
+		const { canvas, overview } = mounted();
+
+		// Only a rebuild can grow the mapping, so the caller keeps its fallback.
+		expect(
+			overview.stampRegion(
+				{ x: 90, y: 90, w: 40, h: 40 },
+				{} as ImageBitmap,
+				[1, 0, 0, 1, 90, 90],
+			),
+		).toBe(false);
+		expect(canvas.context.drawImage).not.toHaveBeenCalled();
+	});
+
+	it("hands a half-written clear to the rebuild instead of leaving a hole", () => {
+		const { canvas, overview } = mounted();
+		canvas.context.drawImage.mockImplementationOnce(() => {
+			throw new Error("detached bitmap");
+		});
+
+		expect(
+			overview.stampRegion(
+				{ x: 10, y: 10, w: 20, h: 20 },
+				{} as ImageBitmap,
+				[1, 0, 0, 1, 10, 10],
+				true,
+			),
+		).toBe(false);
+		expect(overview.isDirty()).toBe(true);
 	});
 });

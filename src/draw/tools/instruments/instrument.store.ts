@@ -18,10 +18,36 @@ export type InstrumentType = "ruler" | "compass";
 
 const SNAP_DISTANCE_PX = 22;
 
-interface RulerScreenSize {
-	length: number;
-	width: number;
-}
+/**
+ * An instrument lives in the DRAWING, not on the screen.
+ *
+ * Its size used to be held in screen pixels and the world size derived from the
+ * zoom, so zooming out grew the instrument's world span while it kept the same
+ * size under your finger. For the compass that is simply wrong: the radius IS
+ * the circle you are about to draw, so placing it on a feature, zooming out and
+ * drawing gave a bigger circle than the one you positioned. The ruler has the
+ * same problem one level down — its two snap edges sit at ±width/2, so a
+ * screen-pinned width slid the edge you had aligned to a stroke.
+ *
+ * So centre, angle, length, width and radius are all WORLD units and no
+ * viewport change touches them. What stays in screen pixels is everything that
+ * exists to be grabbed rather than to be measured: the handles, the drag puck,
+ * and the display clamps below.
+ */
+
+/**
+ * Display-only floors, in screen pixels.
+ *
+ * A world-anchored instrument can be zoomed down to a hairline, and a hairline
+ * cannot be grabbed. These keep it visible and draggable at any zoom WITHOUT
+ * touching the stored geometry — which is why `beginStroke` reads the stored
+ * geometry rather than the display: a clamp that exists for grabbability must
+ * never move the line you are drawing.
+ */
+const MIN_RULER_LENGTH_PX = 96;
+const MIN_RULER_WIDTH_PX = 20;
+const MAX_RULER_WIDTH_PX = 96;
+const MIN_COMPASS_RADIUS_PX = 28;
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
@@ -33,8 +59,6 @@ export const useInstrumentStore = defineStore("instrument", () => {
 	let cachedRect: DOMRect | null = null;
 
 	const geometry = ref<InstrumentGeometry | null>(null);
-	const rulerScreenSize = ref<RulerScreenSize | null>(null);
-	const compassScreenRadius = ref<number | null>(null);
 	const activeType = computed<InstrumentType | null>(
 		() => geometry.value?.type ?? null,
 	);
@@ -50,8 +74,6 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		strokeConstraint = null;
 		cachedRect = null;
 		geometry.value = null;
-		rulerScreenSize.value = null;
-		compassScreenRadius.value = null;
 	}
 
 	/**
@@ -125,7 +147,7 @@ export const useInstrumentStore = defineStore("instrument", () => {
 	 * nothing at all.
 	 */
 	let cachedDisplay: InstrumentGeometry | null = null;
-	const cacheInputs = new Float64Array(5);
+	const cacheInputs = new Float64Array(3);
 	let cachedSource: InstrumentGeometry | null = null;
 
 	function displayMatchesCache(
@@ -138,20 +160,11 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		// here already rules out any change to centre, angle, length or radius.
 		// Only the things OUTSIDE it still need comparing.
 		if (cachedSource !== current || !cachedDisplay) return false;
-		if (
-			cacheInputs[0] !== zoom ||
-			cacheInputs[1] !== width ||
-			cacheInputs[2] !== height
-		) {
-			return false;
-		}
-		if (current.type === "ruler") {
-			return (
-				cacheInputs[3] === (rulerScreenSize.value?.length ?? -1) &&
-				cacheInputs[4] === (rulerScreenSize.value?.width ?? -1)
-			);
-		}
-		return cacheInputs[3] === (compassScreenRadius.value ?? -1);
+		return (
+			cacheInputs[0] === zoom &&
+			cacheInputs[1] === width &&
+			cacheInputs[2] === height
+		);
 	}
 
 	function rememberDisplay(
@@ -166,15 +179,20 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		cacheInputs[0] = zoom;
 		cacheInputs[1] = width;
 		cacheInputs[2] = height;
-		if (current.type === "ruler") {
-			cacheInputs[3] = rulerScreenSize.value?.length ?? -1;
-			cacheInputs[4] = rulerScreenSize.value?.width ?? -1;
-		} else {
-			cacheInputs[3] = compassScreenRadius.value ?? -1;
-		}
 		return display;
 	}
 
+	/**
+	 * The stored geometry, made grabbable at the current zoom.
+	 *
+	 * Ordinarily this returns the stored world size untouched — the instrument
+	 * scales with the drawing like a ruler lying on paper. The clamps only bind
+	 * at the extremes, where the true size is either too small to grab or so
+	 * large that its SVG geometry stops being finite.
+	 *
+	 * FOR DISPLAY AND FOR HIT SURFACES ONLY. Snapping reads `geometry` directly:
+	 * see the note on the clamp constants.
+	 */
 	function displayGeometry(): InstrumentGeometry | null {
 		// Cheapest question first: with no instrument out there is nothing to
 		// measure, and `viewportMetrics` costs a layout read.
@@ -196,14 +214,18 @@ export const useInstrumentStore = defineStore("instrument", () => {
 
 		if (current.type === "ruler") {
 			const maxLengthPx = maxRulerLengthPx(viewport);
-			const preferred = rulerScreenSize.value ?? {
-				length: current.length * viewport.zoom,
-				width: current.width * viewport.zoom,
-			};
-			const lengthPx = Math.min(preferred.length, maxLengthPx);
-			const widthPx = Math.min(
-				preferred.width,
-				Math.max(32, Math.min(96, maxLengthPx / 2)),
+			const lengthPx = clamp(
+				current.length * viewport.zoom,
+				Math.min(MIN_RULER_LENGTH_PX, maxLengthPx),
+				maxLengthPx,
+			);
+			const widthPx = clamp(
+				current.width * viewport.zoom,
+				MIN_RULER_WIDTH_PX,
+				Math.max(
+					MIN_RULER_WIDTH_PX,
+					Math.min(MAX_RULER_WIDTH_PX, lengthPx / 2),
+				),
 			);
 			return rememberDisplay(
 				current,
@@ -220,8 +242,9 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		}
 
 		const maxRadiusPx = maxCompassRadiusPx(viewport);
-		const radiusPx = Math.min(
-			compassScreenRadius.value ?? current.radius * viewport.zoom,
+		const radiusPx = clamp(
+			current.radius * viewport.zoom,
+			Math.min(MIN_COMPASS_RADIUS_PX, maxRadiusPx),
 			maxRadiusPx,
 		);
 		return rememberDisplay(
@@ -245,27 +268,23 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		const viewport = viewportMetrics();
 		const center = viewportCenter();
 		strokeConstraint = null;
+		// Sized against the screen ONCE, at the moment it is placed, then converted
+		// to world units and left alone. A comfortable first size is a screen
+		// question; everything after that is a drawing question.
 		const minDimension = viewport?.minDimension ?? 600;
 		if (type === "ruler") {
-			rulerScreenSize.value = {
-				length: clamp(minDimension * 0.68, 220, 520),
-				width: clamp(minDimension * 0.1, 54, 72),
-			};
-			compassScreenRadius.value = null;
 			geometry.value = {
 				type,
 				center,
-				length: worldSize(rulerScreenSize.value.length),
-				width: worldSize(rulerScreenSize.value.width),
+				length: worldSize(clamp(minDimension * 0.68, 220, 520)),
+				width: worldSize(clamp(minDimension * 0.1, 54, 72)),
 				angle: -Math.PI / 12,
 			};
 		} else {
-			compassScreenRadius.value = clamp(minDimension * 0.22, 78, 190);
-			rulerScreenSize.value = null;
 			geometry.value = {
 				type,
 				center,
-				radius: worldSize(compassScreenRadius.value),
+				radius: worldSize(clamp(minDimension * 0.22, 78, 190)),
 			};
 		}
 		ensureInViewport();
@@ -274,8 +293,6 @@ export const useInstrumentStore = defineStore("instrument", () => {
 	function remove() {
 		geometry.value = null;
 		strokeConstraint = null;
-		rulerScreenSize.value = null;
-		compassScreenRadius.value = null;
 	}
 
 	function setCenter(point: InstrumentPoint) {
@@ -298,6 +315,15 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		geometry.value = { ...geometry.value, angle };
 	}
 
+	/**
+	 * Resize, in WORLD units.
+	 *
+	 * The size caps are expressed in screen pixels because they are about what
+	 * you can see and reach while you are dragging the handle — so they are
+	 * resolved against the CURRENT viewport and applied HERE, at the moment of
+	 * the edit. Applying them continuously (as the display path used to) would
+	 * let a zoom quietly shrink a ruler the user had deliberately sized.
+	 */
 	function setRulerLength(length: number) {
 		if (geometry.value?.type !== "ruler") return;
 		const viewport = viewportMetrics();
@@ -305,26 +331,21 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		const maxLengthPx = maxRulerLengthPx(
 			viewport ?? { width: 600, height: 600 },
 		);
-		const previous = rulerScreenSize.value ?? {
-			length: geometry.value.length * zoom,
-			width: geometry.value.width * zoom,
-		};
-		const lengthPx = clamp(
-			length * zoom,
-			Math.min(120, maxLengthPx),
-			maxLengthPx,
-		);
-		const scale = lengthPx / Math.max(previous.length, 0.001);
-		const widthPx = clamp(previous.width * scale, 42, 96);
-		rulerScreenSize.value = { length: lengthPx, width: widthPx };
+		const nextLength =
+			clamp(length * zoom, Math.min(120, maxLengthPx), maxLengthPx) / zoom;
+		// The body keeps its proportion to the length, as it always has.
+		const scale = nextLength / Math.max(geometry.value.length, 0.001);
+		const nextWidth =
+			clamp(geometry.value.width * scale * zoom, 42, MAX_RULER_WIDTH_PX) / zoom;
 		geometry.value = {
 			...geometry.value,
-			length: lengthPx / zoom,
-			width: widthPx / zoom,
+			length: nextLength,
+			width: nextWidth,
 		};
 		ensureInViewport();
 	}
 
+	/** @see setRulerLength — same world-units-in, edit-time-caps contract. */
 	function setCompassRadius(radius: number) {
 		if (geometry.value?.type !== "compass") return;
 		const viewport = viewportMetrics();
@@ -332,15 +353,10 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		const maxRadiusPx = maxCompassRadiusPx(
 			viewport ?? { width: 600, height: 600 },
 		);
-		const radiusPx = clamp(
-			radius * zoom,
-			Math.min(36, maxRadiusPx),
-			maxRadiusPx,
-		);
-		compassScreenRadius.value = radiusPx;
 		geometry.value = {
 			...geometry.value,
-			radius: radiusPx / zoom,
+			radius:
+				clamp(radius * zoom, Math.min(36, maxRadiusPx), maxRadiusPx) / zoom,
 		};
 		ensureInViewport();
 	}
@@ -395,13 +411,17 @@ export const useInstrumentStore = defineStore("instrument", () => {
 	}
 
 	/**
-	 * Re-clamp after something that could have pushed the instrument out of
-	 * reach — a resize, a zoom, a size change.
+	 * Re-clamp after an EDIT that could have pushed the instrument out of reach —
+	 * placing it, or growing it far enough that its drag surface no longer fits.
 	 *
-	 * Writes only when the clamp actually MOVED it. This runs on every
-	 * `viewport:changed`, i.e. once per frame of every pan and pinch, and an
-	 * unconditional write replaced `geometry` with an identical object each time,
-	 * invalidating every overlay computed for nothing.
+	 * Deliberately NOT called on `viewport:changed` any more. Doing so dragged
+	 * the instrument along with every pan and pinch, which is the opposite of
+	 * anchoring it to the drawing: you would line the ruler up with a stroke,
+	 * pan, and find it had walked off that stroke. An instrument left behind by
+	 * a pan is recovered with `recenter`, not by following the camera.
+	 *
+	 * Writes only when the clamp actually MOVED it, so an unchanged geometry
+	 * object does not invalidate every overlay computed for nothing.
 	 */
 	function ensureInViewport() {
 		const current = geometry.value;
@@ -416,9 +436,43 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		geometry.value = { ...current, center };
 	}
 
+	/**
+	 * Is the instrument's centre off screen — i.e. left behind by a pan?
+	 *
+	 * The CENTRE, because that is what carries the drag surface: a ruler whose
+	 * tips run off both edges is perfectly usable, one whose middle is off screen
+	 * cannot be picked up.
+	 */
+	function isOutOfView(): boolean {
+		const current = geometry.value;
+		const viewport = viewportMetrics();
+		if (!current || !viewport || !canvas) return false;
+		const vpt = canvas.viewportTransform;
+		const x = vpt[0] * current.center.x + vpt[2] * current.center.y + vpt[4];
+		const y = vpt[1] * current.center.x + vpt[3] * current.center.y + vpt[5];
+		return (
+			x < 0 || y < 0 || x > viewport.rect.width || y > viewport.rect.height
+		);
+	}
+
+	/** Bring an instrument the camera has left behind back under the user. */
+	function recenter() {
+		if (!geometry.value) return;
+		geometry.value = { ...geometry.value, center: viewportCenter() };
+		ensureInViewport();
+	}
+
+	/**
+	 * Snapping reads the STORED geometry, never `displayGeometry`.
+	 *
+	 * The display clamps exist so a far-zoomed instrument stays visible and
+	 * grabbable. If they fed the constraint, they would move the line being
+	 * drawn — a ruler edge you had aligned to a stroke would rule somewhere else
+	 * purely because of how far you happened to be zoomed out.
+	 */
 	function beginStroke(point: InstrumentPoint): InstrumentPoint {
 		strokeConstraint = createStrokeConstraint(
-			displayGeometry(),
+			geometry.value,
 			point,
 			worldSize(SNAP_DISTANCE_PX),
 		);
@@ -467,6 +521,8 @@ export const useInstrumentStore = defineStore("instrument", () => {
 		setCompassRadius,
 		displayGeometry,
 		ensureInViewport,
+		isOutOfView,
+		recenter,
 		beginStroke,
 		constrainStroke,
 		hasConstraint,

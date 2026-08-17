@@ -109,11 +109,15 @@ ion-content.my-safe-area::part(scroll) {
     --default-font-family: var(--font-ui);
 }
 
+/* The alert's own skin lives in liquid-glass.css; this is only the backdrop.
+   The 2px backdrop-filter that used to sit here blurred the WHOLE viewport
+   behind the dialog — a full-screen re-rasterisation on every frame anything
+   moved underneath, and stripped on Android/low-end by the rule below anyway,
+   which is part of why mobile alerts didn't match desktop. A slightly darker
+   flat scrim reads the same at 2px of blur and costs one composited layer. */
 ion-alert.liquid-alert {
     --background: var(--ion-color-tertiary);
-    --backdrop-opacity: 0.2;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    --backdrop-opacity: 0.32;
 }
 
 /* ── Low-end devices (IS_LOW_END_DEVICE; flag stamped in main.ts) ─────────────

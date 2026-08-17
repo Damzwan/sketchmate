@@ -72,6 +72,12 @@
               <template v-if="lobby.users >= (lobby.maxUsers + lobby.premiumSlots)">
                 Full
               </template>
+              <!-- Tier still unknown (first launch on this device): render the raw
+                   head count. Anything tier-derived here would paint the free
+                   variant and then visibly correct itself a moment later. -->
+              <template v-else-if="!quotaStore.isTierResolved">
+                {{ lobby.users }}
+              </template>
               <template v-else-if="lobby.users >= lobby.maxUsers && !quotaStore.isPro">
                 VIP
               </template>

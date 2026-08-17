@@ -18,6 +18,10 @@ export const useQuotaStore = defineStore("quota", () => {
 	const subscriptionStore = useSubscriptionStore();
 
 	const isPro = computed(() => subscriptionStore.isPro);
+	/** False until the paid state is known — see `isTierResolved` in the
+	 * subscription store. UI that gates on `isPro` should render neutrally
+	 * rather than "free" while this is false. */
+	const isTierResolved = computed(() => subscriptionStore.isTierResolved);
 
 	const balloons = computed<QuotaState>(
 		() => summary.value?.balloons ?? EMPTY_STATE,
@@ -99,6 +103,7 @@ export const useQuotaStore = defineStore("quota", () => {
 	return {
 		summary,
 		isPro,
+		isTierResolved,
 		balloons,
 		posts,
 		canSendBalloon,

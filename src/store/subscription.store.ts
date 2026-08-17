@@ -38,11 +38,50 @@ import { useQuotaStore } from "@/store/quota.store";
 // budget is tight. Resolves from cache after the first call.
 const billing = () => import("@/helper/billing.helper");
 
+type Tier = "free" | "pro" | "lifetime";
+
+/**
+ * Last CONFIRMED tier, cached so the first frame paints the entitlement the
+ * user actually has.
+ *
+ * RC's answer needs configure + logIn + a network read, and the web path waits
+ * on auth init. Until then `isPro` was plainly `false`, so every Pro user saw
+ * the free UI (VIP badges on public lobbies, locked draft slots) flash before
+ * it corrected itself. Written only from a read taken under a confirmed
+ * identity, cleared on logout — never a way to grant Pro, only a way to avoid
+ * unpainting it.
+ */
+const TIER_CACHE_KEY = "sm_tier_cache";
+
+function readTierCache(): Tier | null {
+	try {
+		const raw = localStorage.getItem(TIER_CACHE_KEY);
+		return raw === "pro" || raw === "lifetime" || raw === "free" ? raw : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeTierCache(tier: Tier): void {
+	try {
+		localStorage.setItem(TIER_CACHE_KEY, tier);
+	} catch {
+		// Private mode or a full quota. Next launch just flashes as before.
+	}
+}
+
 export const useSubscriptionStore = defineStore("subscription", () => {
 	// ─── Paid state ──────────────────────────────────────────────────────────
-	const isPro = ref(false);
-	const isLifetime = ref(false);
+	const cachedTier = readTierCache();
+	const isPro = ref(cachedTier === "pro" || cachedTier === "lifetime");
+	const isLifetime = ref(cachedTier === "lifetime");
 	const isLoading = ref(true);
+	/**
+	 * True once the paid state is safe to render gating off — either the cache
+	 * answered synchronously or a live read has landed. UI that would otherwise
+	 * flash the wrong tier renders a neutral state while this is false.
+	 */
+	const isTierResolved = ref(cachedTier !== null);
 	// Toggled true after any successful purchase; drives the Confetti overlay.
 	const { confettiVisible: showConfetti } = storeToRefs(
 		useOverlayRuntimeStore(),
@@ -55,8 +94,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			useShareToastStore().pushTitleToast("title.supporter");
 		}
 	});
-
-	type Tier = "free" | "pro" | "lifetime";
 
 	async function syncWithBackend(tier: Tier) {
 		try {
@@ -84,6 +121,13 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 
 		isLifetime.value = lifetime;
 		isPro.value = lifetime || typeof ent[PRO_ENTITLEMENT] !== "undefined";
+		markTierResolved();
+	}
+
+	/** Mark the live read authoritative and cache it for the next cold start. */
+	function markTierResolved() {
+		isTierResolved.value = true;
+		writeTierCache(currentTier());
 	}
 
 	/**
@@ -120,6 +164,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			const { user } = useAuthStore();
 			isLifetime.value = user?.subscription_tier === "lifetime";
 			isPro.value = isLifetime.value || user?.subscription_tier === "pro";
+			if (user) markTierResolved();
 			return;
 		}
 
@@ -260,6 +305,11 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 	function resetRuntimeState() {
 		isPro.value = false;
 		isLifetime.value = false;
+		isTierResolved.value = false;
+		// Logout: the next account on this device must not inherit this one's tier.
+		try {
+			localStorage.removeItem(TIER_CACHE_KEY);
+		} catch {}
 		showConfetti.value = false;
 		pendingSupporterToast.value = false;
 	}
@@ -352,6 +402,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		isPro,
 		isLifetime,
 		isLoading,
+		isTierResolved,
 		checkProStatus,
 		resetRuntimeState,
 		openPaywall,

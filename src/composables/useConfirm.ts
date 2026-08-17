@@ -37,7 +37,12 @@ export function useConfirm() {
 				{
 					text: confirmText,
 					role: confirmRole,
-					cssClass: "alert-button-confirm",
+					// The theme colours the confirm button off this class, so a
+					// destructive confirm has to say so here — Ionic's own
+					// `alert-button-role-*` class is not what liquid-glass.css targets.
+					cssClass: destructive
+						? "alert-button-destructive"
+						: "alert-button-confirm",
 				},
 			],
 		});

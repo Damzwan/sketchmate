@@ -64,7 +64,14 @@ const POST_SESSION_DELAY_MS = 1_200;
 /** Refusals that will never succeed on retry — recorded, then left alone. */
 const TERMINAL_CODES = new Set(["draft_too_large", "draft_limit_reached"]);
 
-export type DraftSyncStatus = "off" | "idle" | "syncing" | "offline" | "error";
+export type DraftSyncStatus =
+	| "off"
+	| "idle"
+	| "syncing"
+	| "offline"
+	/** Drafts are owed to the cloud, but the connection is metered. */
+	| "metered"
+	| "error";
 export type DraftResyncResult =
 	| "synced"
 	| "downloaded"
@@ -141,6 +148,13 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		return networkStatus?.connected !== false;
 	};
 
+	/**
+	 * A connection whose bytes the user pays for.
+	 *
+	 * Only `cellular` counts. `unknown` is what the plugin reports on desktop
+	 * browsers and some WebViews, and treating that as metered would silently
+	 * disable backup for those devices entirely.
+	 */
 	const isMetered = () => {
 		const { networkStatus } = useNetworkStore();
 		return networkStatus?.connectionType === "cellular";
@@ -232,6 +246,14 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 
 	function scheduleDrain(): void {
 		if (pushTimer !== undefined || draining) return;
+		// Nothing to wake up for on a metered connection: the drain would refuse
+		// every entry and re-schedule itself from its own `finally`, which is a
+		// timer loop. The connection-type watcher re-arms this on wifi.
+		if (isMetered()) {
+			if (queue.size > 0 && status.value !== "offline")
+				status.value = "metered";
+			return;
+		}
 		const now = Date.now();
 		let soonest = Infinity;
 		for (const entry of queue.values())
@@ -253,7 +275,14 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		return undefined;
 	}
 
-	function drain(): Promise<void> {
+	/**
+	 * `force` is the user asking (Sync now, per-draft resync). Automatic drains
+	 * refuse a metered connection: a backup is a whole gzipped drawing per
+	 * revision, uploaded on a cadence the user never chose, and drawings run to
+	 * megabytes. It waits for wifi instead — the queue is durable (`queuedUpdatedAt`
+	 * in IndexedDB), so nothing is lost by waiting, not even across a restart.
+	 */
+	function drain(force = false): Promise<void> {
 		if (draining) return draining;
 		draining = (async () => {
 			// Strictly one document in flight. Two concurrent uploads would hold two
@@ -262,6 +291,10 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 				if (!enabled.value) break;
 				if (!isOnline()) {
 					status.value = "offline";
+					break;
+				}
+				if (!force && isMetered()) {
+					status.value = "metered";
 					break;
 				}
 				status.value = "syncing";
@@ -652,7 +685,9 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 			clearTimeout(pushTimer);
 			pushTimer = undefined;
 		}
-		await drain();
+		// Forced: repairing ONE draft is a deliberate act, so it may spend metered
+		// bytes. The automatic queue behind it still waits for wifi.
+		await drain(true);
 
 		const updatedState = await documents.readDraftSyncState(id);
 		return (updatedState?.pushedUpdatedAt ?? 0) >= payload.updatedAt
@@ -697,16 +732,17 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 		backfilled = false;
 		await pull(true);
 		await backfill(true);
-		await drain();
+		await drain(true);
 	}
 
 	// ── Backfill ──────────────────────────────────────────────────────────────
 	/**
 	 * First sync on an account: upload the drafts already on the device.
 	 *
-	 * A cold bulk library is held back on cellular. Revisions carrying a durable
-	 * `queuedUpdatedAt` marker are different: this device already attempted to
-	 * sync them, so they resume after interruption on any connection.
+	 * A cold bulk library is not even QUEUED on cellular, so the queue does not sit
+	 * there full of work that `drain` will refuse. Revisions carrying a durable
+	 * `queuedUpdatedAt` marker are queued regardless — this device already attempted
+	 * to sync them — but the drain still holds them until wifi unless forced.
 	 */
 	async function backfill(force = false): Promise<void> {
 		if (backfilled || !enabled.value) return;
@@ -875,6 +911,20 @@ export const useDraftSyncStore = defineStore("draftSync", () => {
 			status.value = "idle";
 			void pull(true);
 			scheduleDrain();
+		},
+	);
+
+	// Landing on wifi is what the held-back queue has been waiting for. Backfill
+	// too: a cold library skipped on cellular has no other trigger than this or an
+	// explicit "Sync now".
+	watch(
+		() => useNetworkStore().networkStatus?.connectionType,
+		(type, previous) => {
+			if (!enabled.value || type === previous) return;
+			if (type === "cellular" || !isOnline()) return;
+			if (status.value === "metered") status.value = "idle";
+			backfilled = false;
+			void backfill().then(() => scheduleDrain());
 		},
 	);
 

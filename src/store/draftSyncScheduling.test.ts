@@ -367,7 +367,7 @@ describe("draft sync scheduling", () => {
 		}
 	});
 
-	it("resumes a persisted interrupted upload after a cold cellular launch", async () => {
+	it("holds a persisted interrupted upload on cellular until asked", async () => {
 		state.connectionType = "cellular";
 		state.drafts.set("persisted-interrupted-draft", { updatedAt: 3000 });
 		state.metadata = [
@@ -382,9 +382,17 @@ describe("draft sync scheduling", () => {
 
 		const sync = useDraftSyncStore();
 		try {
+			// Queued (the marker says this device already owed it) but NOT uploaded:
+			// backup is not something to spend a data plan on unprompted.
 			await vi.waitFor(() =>
-				expect(state.pushed).toContain("persisted-interrupted-draft"),
+				expect(sync.inFlightIds).toContain("persisted-interrupted-draft"),
 			);
+			await vi.waitFor(() => expect(sync.status).toBe("metered"));
+			expect(state.pushed).toEqual([]);
+
+			// A per-draft resync is the user asking, so it may spend them.
+			await sync.resyncDraft("persisted-interrupted-draft");
+			expect(state.pushed).toContain("persisted-interrupted-draft");
 		} finally {
 			sync.resetRuntimeState();
 		}

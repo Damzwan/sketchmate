@@ -38,14 +38,18 @@ import {
 } from "./rasterSurface";
 
 /**
- * How much of the requested preview edge the overview must actually hold in
- * source pixels before a bitmap copy is allowed to stand in for a real render.
+ * Smallest preview edge, in source pixels, still worth copying out of the
+ * overview.
  *
- * 0.75 lets the ordinary drawing (which covers enough world to be sampled well
- * above the preview size) keep the cheap path, while a small sketch — where the
- * copy would be a visible upscale — is handed back to the caller.
+ * The overview is a fixed-DENSITY bitmap, so a drawing that covers little world
+ * holds few pixels no matter how large a preview is asked for. Upscaling those
+ * is what made previews of small sketches blurry — but REFUSING whenever the
+ * overview cannot fill the full 640px made the expensive document re-render the
+ * normal case for every autosave. So: never upscale, emit whatever sharp size
+ * the overview genuinely holds, and only hand the caller back to a real render
+ * when even that would be too small to look like a preview at all.
  */
-const MIN_THUMBNAIL_SOURCE_RATIO = 0.75;
+const MIN_THUMBNAIL_SOURCE_PX = 192;
 
 interface OverviewOptions {
 	px?: number;
@@ -742,24 +746,17 @@ export class WorldOverview<T extends Bounded> {
 		 * therefore a few dozen overview pixels; blowing those up to 640 is the
 		 * blurry-preview-of-a-small-sketch report.
 		 *
-		 * Refuse instead of upscaling. The caller renders that case from the
-		 * document itself, where vectors rasterize at whatever size is asked for.
-		 * Anything that genuinely has the pixels keeps the cheap bitmap copy.
+		 * So clamp the output to what the overview actually holds instead of
+		 * upscaling it, and only decline (caller re-renders from the document) when
+		 * even the unscaled copy would be too small to serve as a preview.
 		 */
 		const sourceEdge = Math.max(framed.w * this.sx, framed.h * this.sy);
-		if (sourceEdge < maxSize * MIN_THUMBNAIL_SOURCE_RATIO) {
-			return Promise.resolve(null);
-		}
+		if (sourceEdge < MIN_THUMBNAIL_SOURCE_PX) return Promise.resolve(null);
+		const edge = Math.min(maxSize, Math.round(sourceEdge));
 
 		const aspect = framed.w / framed.h;
-		const width = Math.max(
-			1,
-			Math.round(aspect >= 1 ? maxSize : maxSize * aspect),
-		);
-		const height = Math.max(
-			1,
-			Math.round(aspect >= 1 ? maxSize / aspect : maxSize),
-		);
+		const width = Math.max(1, Math.round(aspect >= 1 ? edge : edge * aspect));
+		const height = Math.max(1, Math.round(aspect >= 1 ? edge / aspect : edge));
 		// The caller already has a vector-render fallback for thumbnails. Old
 		// Android WebViews do not expose OffscreenCanvas, so decline this cheap
 		// overview-copy path instead of crashing the draw page.

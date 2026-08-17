@@ -259,15 +259,15 @@ describe("WorldOverview backing-store lifecycle", () => {
 		vi.stubGlobal("OffscreenCanvas", FakeOffscreenCanvas);
 		const query = vi.fn(() => []);
 		const render = vi.fn();
-		const source = new FakeOffscreenCanvas(100, 50);
-		const overview = new WorldOverview({ query }, render, { px: 100 }) as any;
+		const source = new FakeOffscreenCanvas(1000, 500);
+		const overview = new WorldOverview({ query }, render, { px: 1000 }) as any;
 		overview.canvas = source;
 		overview.ctx = source.getContext();
 		overview.bounds = { x: 0, y: 0, w: 200, h: 100 };
-		overview.sx = 0.5;
-		overview.sy = 0.5;
+		overview.sx = 5;
+		overview.sy = 5;
 
-		// 88 source px across the framed region, so 64 is a downscale — the case
+		// 880 source px across the framed region, so 64 is a downscale — the case
 		// the bitmap copy exists for.
 		const blob = await overview.createThumbnailBlob(
 			{ x: 20, y: 10, w: 160, h: 80 },
@@ -285,10 +285,41 @@ describe("WorldOverview backing-store lifecycle", () => {
 		expect(output.context.drawImage).toHaveBeenCalledOnce();
 		expect(output).toMatchObject({ width: 0, height: 0 });
 		// Encoding the private output must never release the engine-owned source.
-		expect(source).toMatchObject({ width: 100, height: 50 });
+		expect(source).toMatchObject({ width: 1000, height: 500 });
 	});
 
-	it("refuses a thumbnail the overview would have to upscale", async () => {
+	it("clamps to the pixels it holds instead of upscaling", async () => {
+		vi.stubGlobal("OffscreenCanvas", FakeOffscreenCanvas);
+		const source = new FakeOffscreenCanvas(500, 250);
+		const overview = new WorldOverview({ query: () => [] }, () => {}, {
+			px: 500,
+		}) as any;
+		overview.canvas = source;
+		overview.ctx = source.getContext();
+		overview.bounds = { x: 0, y: 0, w: 200, h: 100 };
+		overview.sx = 2.5;
+		overview.sy = 2.5;
+
+		// 440 source px across the framed region against a 640px request. Upscaling
+		// those is what made previews of light drawings blurry — and refusing
+		// outright made the expensive document re-render the normal case for every
+		// autosave. Emit the sharp 440.
+		const blob = await overview.createThumbnailBlob(
+			{ x: 20, y: 10, w: 160, h: 80 },
+			640,
+			0.72,
+			"#f5e6d3",
+		);
+
+		expect(blob).toBeInstanceOf(Blob);
+		const output = FakeOffscreenCanvas.instances.at(-1)!;
+		const [, , , , , , , width, height] =
+			output.context.drawImage.mock.calls[0];
+		expect(width).toBe(440);
+		expect(height).toBe(220);
+	});
+
+	it("refuses a thumbnail too small to serve as a preview", async () => {
 		vi.stubGlobal("OffscreenCanvas", FakeOffscreenCanvas);
 		const source = new FakeOffscreenCanvas(100, 50);
 		const overview = new WorldOverview({ query: () => [] }, () => {}, {
@@ -300,9 +331,8 @@ describe("WorldOverview backing-store lifecycle", () => {
 		overview.sx = 0.5;
 		overview.sy = 0.5;
 
-		// A small sketch holds few overview pixels no matter how big the preview
-		// asked for is. Blowing them up is what made previews of light drawings
-		// blurry; the caller re-renders from the document instead.
+		// 88 px is below the floor: the caller re-renders from the document, where
+		// vectors rasterize at whatever size is asked for.
 		const blob = await overview.createThumbnailBlob(
 			{ x: 20, y: 10, w: 160, h: 80 },
 			640,

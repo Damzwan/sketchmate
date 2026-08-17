@@ -311,6 +311,7 @@ const syncLabel = computed(() => {
 	if (!props.syncEnabled) return "On this device";
 	if (props.syncStatus === "syncing") return "Syncing";
 	if (props.syncStatus === "offline") return "Offline";
+	if (props.syncStatus === "metered") return "Waiting for wifi";
 	if (props.syncStatus === "error") return "Sync retrying";
 	return "Backed up";
 });

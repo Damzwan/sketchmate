@@ -10,7 +10,7 @@ import {
 	notifyDrawSession,
 } from "@/draw/document/draftEvents";
 import { assertValidDraftStorageId } from "@/draw/document/draftStorageId";
-import { renderDraftThumbnailInWorker } from "@/draw/document/draftThumbnailWorker";
+import { renderDraftThumbnailFromDocumentBlob } from "@/draw/document/draftThumbnailWorker";
 import {
 	listNativeDraftMetadata,
 	nativeDraftMirrorAvailable,
@@ -643,20 +643,23 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	 * Preview of last resort, rendered from the DOCUMENT rather than copied out of
 	 * the overview bitmap.
 	 *
-	 * The overview declines (returns nothing) whenever it does not physically hold
-	 * enough pixels for the requested size — a small sketch covers little world,
-	 * and the overview is a fixed px-per-world-unit bitmap. Re-rendering the
-	 * vectors in the preview worker gives a genuinely sharp preview at any content
-	 * size, off the main thread, and it needs no live canvas: the exit path calls
-	 * it after the engine is already gone.
+	 * The overview declines only for a drawing so small that even an unscaled copy
+	 * would not look like a preview. Re-rendering the vectors in the preview worker
+	 * gives a sharp image at any content size and needs no live canvas: the exit
+	 * path calls it after the engine is already gone.
+	 *
+	 * Reserved for the EXIT save. It enlivens the whole document in a worker (and
+	 * pays a worker start-up), which is not something to spend on every autosave
+	 * of a session — the autosave keeps the previous preview instead (see
+	 * `runSave`), and exit is the moment the list is about to be looked at.
 	 */
 	async function renderThumbnailFromDocument(
-		json: any,
+		jsonBlob: Blob | undefined,
 		signal?: AbortSignal,
 	): Promise<DraftThumbnail> {
-		if (!json) return "";
+		if (!jsonBlob) return "";
 		try {
-			const blob = await renderDraftThumbnailInWorker(json, {
+			const blob = await renderDraftThumbnailFromDocumentBlob(jsonBlob, {
 				maxSize: DRAFT_THUMBNAIL_MAX_SIZE,
 				quality: DRAFT_THUMBNAIL_QUALITY,
 				signal,
@@ -686,15 +689,14 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const detached = await detachCanvasSnapshot(draftId, signal);
 		if (!detached || !activeCanvas) return null;
 
-		const [overview, jsonBlob] = await Promise.all([
+		const [thumbnail, jsonBlob] = await Promise.all([
 			thumbnailPromise,
 			documentJsonToBlob(detached.json, signal),
 		]);
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-		const thumbnail =
-			overview || (await renderThumbnailFromDocument(detached.json, signal));
-
+		// No document re-render here: an empty thumbnail leaves the stored one in
+		// place. Only the exit save pays for a sharp re-render.
 		return {
 			draftId,
 			json: detached.json,
@@ -744,6 +746,13 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				if (previous) {
 					transaction.objectStore(recoveryStoreName).put(previous);
 				}
+				// A preview this save could not produce must never REPLACE one it
+				// already has. An autosave deliberately skips the expensive document
+				// re-render, and the overview copy can decline (tiny drawing, no
+				// OffscreenCanvas) — writing "" for either would blank a card that was
+				// showing a perfectly good image.
+				if (!draft.thumbnail && previous?.thumbnail)
+					draft.thumbnail = previous.thumbnail;
 				drafts.put(draft);
 				transaction.objectStore(metadataStoreName).put({
 					id: draft.id,
@@ -942,23 +951,24 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			: await snapshotCanvas(draftId, ctrl.signal);
 		if (!snapshot) return null;
 
-		const thumbnailPromise = exitThumbnailPromise
-			? exitThumbnailPromise.then(
-					(thumbnail) =>
-						thumbnail ||
-						renderThumbnailFromDocument(snapshot.json, ctrl.signal),
-				)
-			: Promise.resolve(snapshot.thumbnail);
-
 		// On exit, build the Blob in the yielded background chain before touching
 		// IndexedDB. Passing the raw document object to put() would synchronously
 		// structured-clone all objects on the WebView main thread.
-		const promise = Promise.all([
+		//
+		// The Blob comes FIRST because the thumbnail fallback consumes it: the
+		// worker renders the exact bytes being persisted, handed over by reference.
+		const promise = (
 			detachBeforeThumbnail
 				? documentJsonToBlob(snapshot.json, ctrl.signal)
-				: Promise.resolve(snapshot.jsonBlob),
-			thumbnailPromise,
-		])
+				: Promise.resolve(snapshot.jsonBlob)
+		)
+			.then(async (jsonBlob) => {
+				const thumbnail = exitThumbnailPromise
+					? (await exitThumbnailPromise) ||
+						(await renderThumbnailFromDocument(jsonBlob, ctrl.signal))
+					: snapshot.thumbnail;
+				return [jsonBlob, thumbnail] as const;
+			})
 			.then(([jsonBlob, thumbnail]) =>
 				// Exit is the one save that must reach the filesystem immediately: the
 				// process may not exist by the time the throttle would next open.
@@ -983,6 +993,18 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		};
 		pendingDrafts.value.set(draftId, pending);
 		pendingDrafts.value = new Map(pendingDrafts.value);
+		// The exit snapshot detaches JSON only, so its pending card starts with no
+		// preview. Publish the overview copy as soon as it encodes instead of showing
+		// a placeholder for the whole write — the pixels were captured before the
+		// engine was disposed, so this costs nothing extra.
+		if (exitThumbnailPromise) {
+			void exitThumbnailPromise.then((thumbnail) => {
+				const entry = pendingDrafts.value.get(draftId);
+				if (!thumbnail || !entry || entry !== pending) return;
+				pendingDrafts.value.set(draftId, { ...entry, thumbnail });
+				pendingDrafts.value = new Map(pendingDrafts.value);
+			});
+		}
 		return pending;
 	}
 

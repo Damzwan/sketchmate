@@ -31,6 +31,63 @@ export function renderDraftThumbnailInWorker(
 	);
 }
 
+/**
+ * Render a preview from the document Blob that the save is about to persist.
+ *
+ * One postMessage, and the bytes move by reference. The batched
+ * {@link renderDraftSnapshotInWorker} protocol structured-clones every object
+ * on the main thread in groups of 32, yielding between them — for a large
+ * drawing that is seconds of main-thread work per save, on top of the
+ * serialization the save already did. This path costs neither.
+ */
+export function renderDraftThumbnailFromDocumentBlob(
+	jsonBlob: Blob,
+	options: DraftThumbnailOptions,
+): Promise<Blob | null> {
+	const { signal } = options;
+	if (!supportsDraftThumbnailWorker()) return Promise.resolve(null);
+
+	return new Promise((resolve, reject) => {
+		const worker = new Worker(new URL("./preview.worker.ts", import.meta.url), {
+			type: "module",
+		});
+		let settled = false;
+
+		const finish = (blob: Blob | null, error?: unknown) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			signal?.removeEventListener("abort", abort);
+			worker.terminate();
+			if (error) reject(error);
+			else resolve(blob);
+		};
+		const abort = () => finish(null, new DOMException("Aborted", "AbortError"));
+		const timeout = setTimeout(
+			() => finish(null, new Error("Preview worker timed out")),
+			WORKER_TIMEOUT_MS,
+		);
+
+		worker.onmessage = ({ data }) => {
+			if (data?.error) return finish(null, new Error(data.error));
+			finish(data?.blob instanceof Blob ? data.blob : null);
+		};
+		worker.onerror = (event) => {
+			event.preventDefault();
+			finish(null, new Error(event.message || "Preview worker failed"));
+		};
+		if (signal?.aborted) return abort();
+		signal?.addEventListener("abort", abort, { once: true });
+		worker.postMessage({
+			type: "document",
+			blob: jsonBlob,
+			maxSize: options.maxSize,
+			quality: options.quality,
+			bounds: options.bounds,
+		});
+	});
+}
+
 export function renderDraftSnapshotInWorker(
 	json: any,
 	options: DraftThumbnailOptions,

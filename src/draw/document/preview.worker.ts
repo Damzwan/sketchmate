@@ -12,8 +12,23 @@ interface PreviewStart {
 	bounds?: { x: number; y: number; w: number; h: number } | null;
 }
 
+/**
+ * The whole job in one message: a Blob crosses the worker boundary by
+ * reference, so the document that IndexedDB is about to store is handed over
+ * for the price of a single postMessage — no per-object structured clone on the
+ * main thread, which is what the batched `append` protocol below costs.
+ */
+interface PreviewDocument {
+	type: "document";
+	blob: Blob;
+	maxSize: number;
+	quality: number;
+	bounds?: { x: number; y: number; w: number; h: number } | null;
+}
+
 type PreviewMessage =
 	| PreviewStart
+	| PreviewDocument
 	| { type: "append"; objects: any[] }
 	| { type: "render" };
 
@@ -296,6 +311,28 @@ let request: PreviewStart | null = null;
 const sources: any[] = [];
 
 self.onmessage = async (event: MessageEvent<PreviewMessage>) => {
+	if (event.data.type === "document") {
+		const message = event.data;
+		try {
+			const json = JSON.parse(await message.blob.text());
+			const blob = await renderPreview(
+				{
+					type: "start",
+					background: json?.background,
+					maxSize: message.maxSize,
+					quality: message.quality,
+					bounds: message.bounds,
+				},
+				json?.objects ?? [],
+			);
+			self.postMessage({ blob });
+		} catch (error) {
+			self.postMessage({
+				error: error instanceof Error ? error.message : "Preview worker failed",
+			});
+		}
+		return;
+	}
 	if (event.data.type === "start") {
 		request = event.data;
 		sources.length = 0;

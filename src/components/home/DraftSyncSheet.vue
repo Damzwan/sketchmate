@@ -115,6 +115,8 @@ const statusLine = computed(() => {
 			return "Backing up now";
 		case "offline":
 			return "Offline — will resume";
+		case "metered":
+			return "Waiting for wifi";
 		case "error":
 			return "Retrying shortly";
 		default:

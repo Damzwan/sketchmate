@@ -33,6 +33,9 @@ interface Select extends ToolService {
 export const useSelect = defineStore("select", (): Select => {
 	let c: Canvas | undefined;
 	let gestureRestoreTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Long enough to sit behind the viewport's own post-gesture settle. */
+	const ZOOM_PREWARM_DELAY = 400;
+	let zoomPrewarmTimer: ReturnType<typeof setTimeout> | null = null;
 	const isSelectActive = ref(false);
 
 	let selectedObjects: FabricObject[] = [];
@@ -245,6 +248,24 @@ export const useSelect = defineStore("select", (): Select => {
 			on: "gestureEnd",
 			handler: () => {
 				isUsingGestures = false;
+				// Both transform caches are keyed on ZOOM, and nothing re-warmed them
+				// after a pinch: select, zoom out, then grab, and mouse:down had to
+				// render every member of the selection synchronously on the main
+				// thread (and the vacated cover started from cold too). On a
+				// whole-drawing selection that is the freeze-then-jump people see as
+				// flicker, and it got worse the further out you zoomed because more of
+				// the selection was on screen. A pan leaves the zoom alone, so this is
+				// a cache hit and a no-op in that case.
+				//
+				// Delayed past the viewport's own settle: the engine re-bakes tiles for
+				// the new tier right after a pinch, and dispatching a whole-selection
+				// render into the same worker at that moment would only extend the
+				// post-zoom blur it is trying to clear.
+				if (zoomPrewarmTimer) clearTimeout(zoomPrewarmTimer);
+				zoomPrewarmTimer = setTimeout(() => {
+					zoomPrewarmTimer = null;
+					if (c?.getActiveObject()) transform.prewarm(c);
+				}, ZOOM_PREWARM_DELAY);
 			},
 		},
 	];
@@ -257,6 +278,8 @@ export const useSelect = defineStore("select", (): Select => {
 	function destroy() {
 		if (gestureRestoreTimer) clearTimeout(gestureRestoreTimer);
 		gestureRestoreTimer = null;
+		if (zoomPrewarmTimer) clearTimeout(zoomPrewarmTimer);
+		zoomPrewarmTimer = null;
 		selectedObjects = [];
 		selectedObjectsRef.value = [];
 		isSelectActive.value = false;

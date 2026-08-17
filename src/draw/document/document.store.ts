@@ -25,6 +25,7 @@ import {
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
+import { BASE_LAYER_ID } from "@/draw/layers/layer.types";
 import { useLayersStore } from "@/draw/layers/layers.store";
 import { centerObjectsInViewportYielded } from "@/draw/objects/savedObjectPlacement";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
@@ -444,6 +445,21 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		});
 	}
 
+	/** Every `layerId` the raw document mentions, in document order, once each. */
+	function distinctLayerIds(objects: any[] | undefined): string[] {
+		if (!Array.isArray(objects)) return [];
+		const seen = new Set<string>();
+		for (const object of objects) {
+			const id = object?.layerId;
+			// An object with no `layerId` belongs to the base layer by definition, so
+			// say so: the recovery drops an unreferenced base layer, and a document
+			// mixing pre-layers strokes with placed ones needs it kept.
+			if (typeof id === "string" && id) seen.add(id);
+			else seen.add(BASE_LAYER_ID);
+		}
+		return [...seen];
+	}
+
 	// ==========================================
 	// 📥 LOAD
 	// ==========================================
@@ -516,6 +532,12 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				isLobby: options.isLobby,
 				isPublicLobby: useDrawSyncer().isPublicLobby,
 				persisted: json?.layers ?? null,
+				// The objects are the second source of truth for the layer set, and
+				// the only one when a writer dropped `json.layers` (see
+				// `recoverOrphanLayers`). One pass over the raw JSON, before anything
+				// is enlivened — the ids are needed to BUILD the registry the enliven
+				// then stamps ranks against.
+				objectLayerIds: distinctLayerIds(json?.objects),
 			});
 
 			if (json) {

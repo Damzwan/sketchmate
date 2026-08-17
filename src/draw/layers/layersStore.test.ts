@@ -149,6 +149,94 @@ describe("layers store", () => {
 		expect(layers.canAddLayer).toBe(false);
 	});
 
+	it("recovers layers a writer dropped from the document", () => {
+		const layers = useLayersStore();
+		// What a cropped send used to produce: objects that remember their layer,
+		// a document that forgot the layer set entirely.
+		layers.init({
+			isLobby: false,
+			persisted: null,
+			objectLayerIds: ["base", "ink", "colour"],
+		});
+
+		// Recovered in document order, bottom to top, and every id is now known to
+		// the registry — so nothing folds onto the base layer any more. The
+		// placeholder base layer is NOT kept: nothing in the drawing lives on it,
+		// and a fourth empty layer would put a free account over its own limit.
+		expect(layers.layers.map((l) => l.id)).toEqual(["base", "ink", "colour"]);
+		expect(getLayers().map((l) => l.id)).toEqual(["base", "ink", "colour"]);
+	});
+
+	it("keeps the base layer when objects still live on it", () => {
+		const layers = useLayersStore();
+		// A drawing that predates layers, added to after they existed: the old
+		// strokes carry no layerId (reported as BASE_LAYER_ID), the new ones do.
+		layers.init({
+			isLobby: false,
+			persisted: null,
+			objectLayerIds: [BASE_LAYER_ID, "ink"],
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual([BASE_LAYER_ID, "ink"]);
+	});
+
+	it("adds nothing when the objects reference no unknown layer", () => {
+		const layers = useLayersStore();
+		const persisted = [
+			{
+				id: "a",
+				name: "A",
+				order: 0,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
+			{
+				id: "b",
+				name: "B",
+				order: 1,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
+		];
+
+		layers.init({
+			isLobby: false,
+			persisted,
+			// A legacy object with no layerId shows up as BASE_LAYER_ID, which is
+			// where an unknown id already ranks — synthesizing it would only add an
+			// empty duplicate to the sheet.
+			objectLayerIds: ["a", "b", BASE_LAYER_ID],
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual(["a", "b"]);
+	});
+
+	it("never recovers past the hard cap", () => {
+		const layers = useLayersStore();
+		layers.init({
+			isLobby: false,
+			persisted: null,
+			objectLayerIds: Array.from({ length: 40 }, (_, i) => `orphan-${i}`),
+		});
+
+		expect(layers.layers).toHaveLength(MAX_SOLO_LAYERS);
+	});
+
+	it("keeps a public lobby on its fixed set", () => {
+		const layers = useLayersStore();
+		layers.init({
+			isLobby: true,
+			isPublicLobby: true,
+			objectLayerIds: ["stranger"],
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual(
+			FIXED_ROOM_LAYERS.map((l) => l.id),
+		);
+	});
+
 	it("moves the live selection to the active layer", () => {
 		const layers = useLayersStore();
 		layers.init({ isLobby: true, isPublicLobby: true });

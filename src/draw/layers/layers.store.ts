@@ -136,6 +136,12 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		isLobby: boolean;
 		isPublicLobby?: boolean;
 		persisted?: DrawLayer[] | null;
+		/**
+		 * Distinct `layerId`s carried by the document's OBJECTS, in document
+		 * order. Used to recover layers a writer dropped — see
+		 * `recoverOrphanLayers`.
+		 */
+		objectLayerIds?: readonly string[];
 	}) {
 		revisions.clear();
 		tombstones.clear();
@@ -154,7 +160,11 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			shared.value = !!options.isLobby;
 			// A private room's document arrives with the canvas snapshot like any
 			// other document state; an empty one starts from the default.
-			layers.value = sanitizePersisted(options.persisted);
+			layers.value = recoverOrphanLayers(
+				sanitizePersisted(options.persisted),
+				options.objectLayerIds,
+				Array.isArray(options.persisted) && options.persisted.length > 0,
+			);
 		}
 		activeId.value = layers.value[0].id;
 		commitLayout();
@@ -237,6 +247,65 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			});
 		}
 		out.sort(byLayerOrder);
+		return out.length ? out : defaultSoloLayers();
+	}
+
+	/**
+	 * Rebuild layers the DOCUMENT lost but the OBJECTS still remember.
+	 *
+	 * `layerId` rides on the object and therefore survives any serializer;
+	 * the layer document is separate state that a writer has to add explicitly,
+	 * and one did not (the cropped send, `exportCroppedJson`). The result was a
+	 * canvas whose every `layerId` was an orphan: `layerOrderOf` folds an unknown
+	 * id to rank 0, so the sheet showed a single layer, the stack flattened, and
+	 * the next save wrote that collapse back out as the truth.
+	 *
+	 * Recovering EXISTENCE is exact — an id on an object is a layer that existed.
+	 * Recovering ORDER is not, so first appearance in document order is used:
+	 * every current writer serializes in paint order (`compareDocumentOrder`), so
+	 * for anything written from now on it is the original bottom-to-top order,
+	 * and for the documents already out there it is a best effort that beats
+	 * collapsing them all onto one layer.
+	 *
+	 * A document that never had layers is untouched: its objects carry no
+	 * `layerId` at all, so there is nothing to recover.
+	 *
+	 * @param hasDocument the document CAME with a layer list, so `list` is a
+	 *   record rather than the default. Without one, the base layer `list` starts
+	 *   from is a placeholder: keeping it next to the recovered layers left an
+	 *   empty "Layer 1" in the sheet and made a four-layer drawing open as five,
+	 *   one past what a free account is even allowed to create.
+	 */
+	function recoverOrphanLayers(
+		list: DrawLayer[],
+		objectLayerIds?: readonly string[],
+		hasDocument = false,
+	): DrawLayer[] {
+		if (!objectLayerIds?.length) return list;
+		const known = new Set(list.map((layer) => layer.id));
+		// BASE_LAYER_ID is the documented home of everything unplaced, and an
+		// unknown id already ranks there — synthesizing it would only add an empty
+		// duplicate to the sheet.
+		const orphans = objectLayerIds.filter(
+			(id) => id && id !== BASE_LAYER_ID && !known.has(id),
+		);
+		if (!orphans.length) return list;
+
+		// Nothing in the drawing lives on the placeholder base layer, and no
+		// document asked for it — drop it rather than open with an empty layer.
+		const out =
+			hasDocument || objectLayerIds.includes(BASE_LAYER_ID)
+				? list
+				: list.filter((layer) => layer.id !== BASE_LAYER_ID);
+
+		let order: number | undefined = out.length
+			? out[out.length - 1].order
+			: undefined;
+		for (const id of orphans) {
+			if (out.length >= MAX_SOLO_LAYERS) break;
+			order = orderBetween(order, undefined);
+			out.push(createLayer(id, `Layer ${out.length + 1}`, order));
+		}
 		return out.length ? out : defaultSoloLayers();
 	}
 

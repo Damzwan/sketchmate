@@ -22,7 +22,7 @@ describe("selection object budget", () => {
 			severe: false,
 		});
 
-		expect(severe).toBe(64);
+		expect(severe).toBe(256);
 		expect(severe).toBeLessThan(ordinaryMobile);
 		expect(ordinaryMobile).toBeLessThan(desktop);
 	});

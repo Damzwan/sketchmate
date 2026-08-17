@@ -405,13 +405,19 @@ export const useDrawHistoryManager = defineStore("history", () => {
 						};
 					});
 
-					addToUndoStackWithResetRedo({
+					const action: any = {
 						type: HistoryEvent.ObjectModified,
 						params: {
 							changes,
 							activeObjectId: activeObject?.id ?? null,
 						},
-					});
+					};
+					// A change is an id plus two five-number deltas — nothing is
+					// retained. Left to the array-length fallback, one move of a large
+					// selection weighed as much as deleting it (see
+					// referenceHistoryWeight).
+					action.__w = referenceHistoryWeight(changes.length);
+					addToUndoStackWithResetRedo(action);
 				} finally {
 					recordPhase(
 						"historyTransformCapture",
@@ -451,30 +457,34 @@ export const useDrawHistoryManager = defineStore("history", () => {
 					[DrawAction.MoveObjectToBack]: HistoryEvent.MoveObjectToBack,
 				};
 
-				addToUndoStackWithResetRedo({
+				const objectIds = toObjectsIds(e.target);
+				const action: any = {
 					type: typeMapping[type]!,
 					params: {
-						objectIds: toObjectsIds(e.target),
+						objectIds,
 						prevObjectPositions: e?.prevObjectPositions,
 						prevZ: e?.prevZ,
 					},
-				});
+				};
+				// Ids and stack positions — references, not snapshots.
+				action.__w = referenceHistoryWeight(objectIds.length) * 2;
+				addToUndoStackWithResetRedo(action);
 			},
 		},
 		{
 			on: "flip",
 			handler: (e: any) => {
-				if (e.direction == HistoryEvent.FlipX) {
-					addToUndoStackWithResetRedo({
-						type: HistoryEvent.FlipX,
-						params: { objectIds: toObjectsIds(e.target) },
-					});
-				} else if (e.direction == HistoryEvent.FlipY) {
-					addToUndoStackWithResetRedo({
-						type: HistoryEvent.FlipY,
-						params: { objectIds: toObjectsIds(e.target) },
-					});
-				}
+				const direction =
+					e.direction == HistoryEvent.FlipX
+						? HistoryEvent.FlipX
+						: e.direction == HistoryEvent.FlipY
+							? HistoryEvent.FlipY
+							: null;
+				if (!direction) return;
+				const objectIds = toObjectsIds(e.target);
+				const action: any = { type: direction, params: { objectIds } };
+				action.__w = referenceHistoryWeight(objectIds.length);
+				addToUndoStackWithResetRedo(action);
 			},
 		},
 		{
@@ -511,14 +521,20 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		{
 			on: "objectStyleChanged",
 			handler: (e: any) => {
-				addToUndoStackWithResetRedo({
+				const objectIds = toObjectsIds(e.target);
+				const action: any = {
 					type: HistoryEvent.ObjectStyleChanged,
 					params: {
 						prevStyles: e.prevStyles,
-						objectIds: toObjectsIds(e.target),
+						objectIds,
 						newStyles: null,
 					},
-				});
+				};
+				// Two reference arrays (ids and small style patches), no snapshots —
+				// and this is the event a layer move rides on, so a 500-object move
+				// between layers was charged 1000.
+				action.__w = referenceHistoryWeight(objectIds.length) * 2;
+				addToUndoStackWithResetRedo(action);
 			},
 		},
 		{

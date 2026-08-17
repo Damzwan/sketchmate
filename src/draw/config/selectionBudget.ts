@@ -21,14 +21,23 @@ export interface SelectionBudgetDevice {
  * These are safety ceilings, not memory targets. The topmost members are kept
  * when a lasso exceeds the ceiling so the result still corresponds to what the
  * user can see and manipulate.
+ *
+ * They were set four times lower, and at that level they stopped being a
+ * ceiling and became a FEATURE limit: a drawing worth a few hundred strokes
+ * could not be moved as a whole, which is a normal thing to want to do and has
+ * no workaround. The per-object cost the cap was standing in for is already
+ * handled where it is actually paid — `bakeSelectionBitmap` halves its
+ * resolution past 150 members and the vacated/selection bakes run in the tile
+ * worker — so the ceiling only has to stop the pathological case (a lasso over
+ * a 10,000-object board), not ordinary work.
  */
 export function resolveSelectionObjectLimit(
 	device: SelectionBudgetDevice,
 ): number {
-	if (!device.mobile) return 512;
-	if (device.severe) return 64;
-	if (device.lowEnd) return 128;
-	return 256;
+	if (!device.mobile) return 2048;
+	if (device.severe) return 256;
+	if (device.lowEnd) return 512;
+	return 1024;
 }
 
 export const DRAW_SELECTION_OBJECT_LIMIT = resolveSelectionObjectLimit({

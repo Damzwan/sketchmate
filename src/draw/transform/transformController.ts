@@ -170,8 +170,6 @@ export function markMoved(): void {
 	const mgr = useDrawObjectManager();
 	mgr.onTransformStart();
 
-	s.objects.forEach((o) => (o.opacity = 0));
-
 	const repairStartedAt = performance.now();
 	if (s.vacatedBitmap) {
 		activatePreparedCover(s, mgr);
@@ -1060,6 +1058,16 @@ function clearCommittedCanvasMask(): void {
 function activatePreparedCover(s: Session, mgr = useDrawObjectManager()): void {
 	if (!s.vacatedBitmap || s.oldRegionRetained) return;
 	s.oldRegionRetained = true;
+	// Hiding the originals belongs HERE, in the same task that reveals the moving
+	// layer and the cover. `markMoved` used to do it unconditionally, before
+	// checking whether the cover was ready — so on a cold selection (nothing
+	// prewarmed, the bake still running) the objects went transparent while the
+	// drag layer was still `display:none`: the selection VANISHED for as long as
+	// the vacated bake took, then popped back at the finger. That is the flicker,
+	// and it scales with scene size, which is why it shows up on big drawings and
+	// on mobile. Until the cover lands the originals now simply stay where they
+	// were committed — exactly what the comment in `markMoved` always claimed.
+	s.objects.forEach((o) => (o.opacity = 0));
 	mgr.retainRegionsUntilRebaked([sessionOriginRect(s)]);
 	showVacatedLayer(s);
 	const moving = ensureLayer(s.canvas);

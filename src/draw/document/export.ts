@@ -467,8 +467,12 @@ export async function exportCroppedJson(
 	});
 
 	try {
+		// Clone in PAINT order, for the same reason generateChunkedJSON sorts:
+		// `getObjects()` is insertion order, and once layers exist that is not what
+		// the user is looking at. A crop that keeps insertion order ships a
+		// document whose stacking differs from the drawing it was cropped from.
 		const clonedObjects = await Promise.all(
-			keepObjects.map((obj) => obj.clone()),
+			[...keepObjects].sort(compareDocumentOrder).map((obj) => obj.clone()),
 		);
 
 		const cropCenterX = absCrop.left + absCrop.width / 2;
@@ -487,7 +491,20 @@ export async function exportCroppedJson(
 			tempCanvas.add(obj);
 		});
 
-		return tempCanvas.toJSON();
+		// Fabric serializes each object's `layerId` (a customProperty) but knows
+		// nothing about the layer DOCUMENT — the names and ordering live in pinia.
+		// Shipping the objects without it produced canvases whose every layerId was
+		// an orphan: the receiver rebuilt a single default layer, folded all of them
+		// onto it (layerOrderOf → 0) and then re-saved that loss permanently. Same
+		// seam createRoomCanvasSnapshot already keeps explicit.
+		const json = tempCanvas.toJSON() as any;
+		// Imported lazily for the same reason roomSnapshot does it: the store pulls
+		// the canvas controller and the object manager in behind it, and this module
+		// is also loaded by headless code (and by tests) that has no DOM.
+		const { useLayersStore } = await import("@/draw/layers/layers.store");
+		const layers = useLayersStore().serialize();
+		if (layers) json.layers = layers;
+		return json;
 	} finally {
 		tempCanvas.dispose();
 	}

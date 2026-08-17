@@ -1,5 +1,7 @@
 import {
 	mdiAccountRemoveOutline,
+	mdiBookmark,
+	mdiBookmarkOutline,
 	mdiDeleteOutline,
 	mdiFlagVariantOutline,
 } from "@mdi/js";
@@ -7,6 +9,7 @@ import { onLongPress } from "@vueuse/core";
 import { type CSSProperties, computed, ref, watch } from "vue";
 import { useOverlayScrollGuardContext } from "@/composables/general/useOverlayScrollGuard";
 import { useTextClamp } from "@/composables/general/useTextClamp";
+import { useSavePost } from "@/composables/home/useSavePost";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { useConfirm } from "@/composables/useConfirm";
 import { playSelectionTick } from "@/config/post.config";
@@ -222,6 +225,13 @@ export function useFeedPostCard(
 			100,
 		);
 	}
+	const { toggleSave: applySaveToggle } = useSavePost();
+
+	async function toggleSave() {
+		track(mixpanelEvents.postSaveToggle, { was_saved: !!props.post.is_saved });
+		await applySaveToggle(props.post);
+	}
+
 	const isMentioned = computed(() =>
 		(props.post.mentions || []).some(
 			(user) => user._id === useAuthStore().user?._id,
@@ -252,6 +262,13 @@ export function useFeedPostCard(
 	}
 	async function presentPostActions() {
 		const buttons: any[] = [
+			// Non-destructive, so it leads: the sheet is also the only place the
+			// save lives for anyone who reaches a post through the overflow menu.
+			{
+				text: props.post.is_saved ? "Remove from Saved" : "Save Post",
+				icon: svg(props.post.is_saved ? mdiBookmark : mdiBookmarkOutline),
+				handler: () => void toggleSave(),
+			},
 			{
 				text: "Report Artwork",
 				role: "destructive",
@@ -322,6 +339,7 @@ export function useFeedPostCard(
 		openShare,
 		openComments,
 		remixPost,
+		toggleSave,
 		handleDoubleTap,
 		presentActionSheet: presentPostActions,
 	};

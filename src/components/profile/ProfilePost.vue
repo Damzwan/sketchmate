@@ -6,7 +6,7 @@
         My Creative Posts
       </h3>
       <span v-if="posts.length" class="text-sm font-black text-black/70 uppercase tracking-widest">
-        {{ posts.length }} Saved Sketches
+        {{ posts.length }} Sketches
       </span>
     </div>
 
@@ -38,15 +38,20 @@
       <div
         v-for="(post, index) in posts"
         :key="post._id"
-        class="aspect-square bg-[#FAF8F5] rounded-[2rem] border border-primary/40 shadow-sm relative overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-secondary/30 active:scale-[0.97]"
+        class="gallery-tile aspect-square bg-[#FAF8F5] rounded-[2rem] border border-primary/40 shadow-sm relative overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-secondary/30 active:scale-[0.97]"
         @click="openPostSwiper(posts, index)"
       >
-        <!-- High-contrast portfolio image snapshot cover -->
+        <!-- The THUMBNAIL, not `image_url`. `image_url` is the full raw-canvas
+             export; this tile is half a phone wide, so decoding the full one
+             here costs a large multiple of the pixels for detail no one can see
+             at this size — and the gallery pages to 200 of them, each holding a
+             decoded bitmap. The fallback covers posts published before
+             thumbnails existed. -->
 <img
           width="1"
           height="1"
           decoding="async"
-          :src="post.image_url"
+          :src="post.thumbnail_url || post.image_url"
           class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           loading="lazy"
           alt="Portfolio entry"
@@ -55,7 +60,7 @@
         <!-- Translucent Interface Navigation Badges Tray -->
         <div
           v-if="getTotalReactions(post.reaction_counts) > 0 || (post.views && post.views > 0)"
-          class="absolute bottom-2.5 left-2.5 flex items-center space-x-2 bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/10 shadow-sm pointer-events-none"
+          class="absolute bottom-2.5 left-2.5 flex items-center space-x-2 bg-black/65 px-2.5 py-0.5 rounded-full border border-white/10 shadow-sm pointer-events-none"
         >
           <!-- Total Reactions Node Metric -->
           <div v-if="getTotalReactions(post.reaction_counts) > 0" class="flex items-center space-x-1">
@@ -101,5 +106,18 @@ const formatNumber = (n: number) =>
 <style scoped>
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Browser-native virtualisation, same technique as FeedPostCard and EntryCard.
+ * This gallery pages to 200 tiles, each holding a decoded bitmap — skipping the
+ * layout, style and paint of the offscreen ones is most of what keeps the
+ * scroll smooth on a low-end device.
+ *
+ * No `contain-intrinsic-size`, deliberately, and unlike those two: the tile
+ * carries `aspect-square`, so a skipped tile still resolves a definite height
+ * from its own aspect-ratio and the grid's column width. Declaring an intrinsic
+ * size as well would fight that and make the grid jump. */
+.gallery-tile {
+  content-visibility: auto;
 }
 </style>

@@ -473,6 +473,15 @@ export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
 	mentions?: PostCreditUser[];
 	user_reaction: string | null;
 	/**
+	 * Whether YOU have bookmarked this post. Per-viewer and private: there is no
+	 * public count and the author is never told, so it carries none of the
+	 * social weight a reaction does.
+	 *
+	 * Optional because the customization preview mocks a post that never came
+	 * from the server; every real read path sets it.
+	 */
+	is_saved?: boolean;
+	/**
 	 * Preview slice only — the feed ships the latest two, hydrated with their
 	 * author. The full list arrives from `GET /post/:id/comments`, which returns
 	 * the same shape. `commentsLoaded` marks that the full list has replaced the

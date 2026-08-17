@@ -2,10 +2,13 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import {
 	toggleReaction as apiReact,
+	savePost as apiSave,
+	unsavePost as apiUnsave,
 	deleteComment,
 	type FeedTab,
 	fetchFeed,
 	fetchPost,
+	fetchSavedPosts,
 } from "@/service/api/post.api";
 import { fetchUserPosts } from "@/service/api/user.api";
 import type { FeedPost } from "@/types/server.types";
@@ -29,10 +32,21 @@ export const usePostStore = defineStore("post", () => {
 	const userPosts = ref<FeedPost[]>([]);
 	const userPage = ref(1);
 	const hasMoreUserPosts = ref(true);
+	// Saved posts are their own paginated list rather than a filter over the
+	// others: it is ordered by when YOU saved, not by when the post was made,
+	// and most of what is on it was never in a list this session.
+	const savedPosts = ref<FeedPost[]>([]);
+	// A cursor, not a page number. Unsaving is the main thing people do on this
+	// page, so the list shrinks under the reader — an offset would step over one
+	// item for every one removed.
+	const savedCursor = ref<string | null>(null);
+	const hasMoreSavedPosts = ref(true);
+	const isSavedDirty = ref(false);
 	const isProfileDirty = ref(false);
 	const isFeedDirty = ref(false);
 	const limit = 20;
 	const MAX_USER_POSTS = 200;
+	const MAX_SAVED_POSTS = 200;
 	const postCache = ref<Record<string, FeedPost>>({});
 	const POST_CACHE_LIMIT = 60;
 	const postCacheAccess = new Map<string, number>();
@@ -141,6 +155,7 @@ export const usePostStore = defineStore("post", () => {
 			);
 		}
 		userPosts.value = userPosts.value.filter((p) => p._id !== postId);
+		savedPosts.value = savedPosts.value.filter((p) => p._id !== postId);
 	}
 
 	/**
@@ -200,10 +215,110 @@ export const usePostStore = defineStore("post", () => {
 		// and each is a distinct object — react in one, all of them must update.
 		eachFeedList((list) => collect(list.find((p) => p._id === postId)));
 		collect(userPosts.value.find((p) => p._id === postId));
+		collect(savedPosts.value.find((p) => p._id === postId));
 		collect(target);
 
 		seen.forEach((post) => applyReactionToggle(post, type));
 		return await apiReact(postId, type);
+	}
+
+	async function getSavedPosts(isInitial = false) {
+		if (isInitial) {
+			savedCursor.value = null;
+			hasMoreSavedPosts.value = true;
+		} else if (!savedCursor.value) {
+			// No cursor means the last page was the last page. Guard here rather
+			// than only in the view: an infinite-scroll event can land after the
+			// end and would otherwise re-request page one and duplicate it.
+			return;
+		}
+
+		try {
+			const res = await fetchSavedPosts(limit, savedCursor.value ?? undefined);
+			const fetched = res.posts || [];
+
+			if (isInitial) {
+				savedPosts.value = fetched;
+			} else {
+				// Dedupe by id. The cursor is a timestamp, so a save made while the
+				// user is mid-scroll can shift a row across the page boundary.
+				const known = new Set(savedPosts.value.map((p) => p._id));
+				savedPosts.value.push(...fetched.filter((p) => !known.has(p._id)));
+			}
+
+			// The server derives both from BOOKMARK rows, not from how many posts
+			// survived its active-post filter — a page can come back short (deleted
+			// or moderated posts) and still have pages behind it.
+			savedCursor.value = res.nextCursor;
+			hasMoreSavedPosts.value = res.hasMore;
+
+			// Same ceiling, and the same reason, as the profile gallery: every entry
+			// holds a decoded thumbnail, and this list has no natural end. Stop
+			// paging rather than evict — the swiper indexes straight into this
+			// array, so dropping the head would renumber every open slide.
+			if (savedPosts.value.length >= MAX_SAVED_POSTS) {
+				hasMoreSavedPosts.value = false;
+			}
+
+			isSavedDirty.value = false;
+		} catch (error) {
+			console.error("Failed to fetch saved posts", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Optimistically flip a post's bookmark, in every copy we hold — the feed
+	 * tabs, the profile gallery, the saved list, the single-post cache, and the
+	 * optional `target` the caller is rendering (the photoswiper's currItem is a
+	 * separate object and otherwise wouldn't update its icon).
+	 *
+	 * On failure the flip is rolled back rather than left to the next fetch:
+	 * unlike a reaction, a wrong bookmark state is invisible until the user opens
+	 * the saved list and finds the post missing.
+	 */
+	async function toggleSaveLocally(postId: string, target?: FeedPost) {
+		const seen = new Set<FeedPost>();
+		const collect = (post?: FeedPost) => {
+			if (post && post._id === postId && !seen.has(post)) seen.add(post);
+		};
+
+		eachFeedList((list) => collect(list.find((p) => p._id === postId)));
+		collect(userPosts.value.find((p) => p._id === postId));
+		collect(savedPosts.value.find((p) => p._id === postId));
+		collect(postCache.value[postId]);
+		collect(target);
+
+		// Whichever copy we found first is as good a source of truth as any —
+		// they are kept in lockstep by this function.
+		const nextSaved = !(
+			seen.values().next().value?.is_saved ?? target?.is_saved
+		);
+		seen.forEach((post) => {
+			post.is_saved = nextSaved;
+		});
+
+		try {
+			if (nextSaved) {
+				await apiSave(postId);
+				// The list is ordered by save time and this is the newest save, so a
+				// re-open has to re-pull rather than trusting what it already holds.
+				isSavedDirty.value = true;
+			} else {
+				await apiUnsave(postId);
+				savedPosts.value = savedPosts.value.filter((p) => p._id !== postId);
+			}
+			return nextSaved;
+		} catch (error) {
+			seen.forEach((post) => {
+				post.is_saved = !nextSaved;
+			});
+			throw error;
+		}
+	}
+
+	function markSavedDirty() {
+		isSavedDirty.value = true;
 	}
 
 	function markProfileDirty() {
@@ -252,6 +367,10 @@ export const usePostStore = defineStore("post", () => {
 		userPosts.value = [];
 		userPage.value = 1;
 		hasMoreUserPosts.value = true;
+		savedPosts.value = [];
+		savedCursor.value = null;
+		hasMoreSavedPosts.value = true;
+		isSavedDirty.value = false;
 		isProfileDirty.value = false;
 		isFeedDirty.value = false;
 		postCache.value = {};
@@ -268,6 +387,13 @@ export const usePostStore = defineStore("post", () => {
 		userPosts,
 		userPage,
 		hasMoreUserPosts,
+		savedPosts,
+		savedCursor,
+		hasMoreSavedPosts,
+		isSavedDirty,
+		getSavedPosts,
+		toggleSaveLocally,
+		markSavedDirty,
 		isProfileDirty,
 		isFeedDirty,
 		getUserPosts,

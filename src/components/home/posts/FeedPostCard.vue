@@ -269,6 +269,7 @@
         :open-comments="openComments"
         :open-share="openShare"
         :remix-post="remixPost"
+        :toggle-save="toggleSave"
 		@open-reaction-breakdown="(value) => $emit('open-reaction-breakdown', value)"
 		@open-reaction-popover="(value) => $emit('open-reaction-popover', value)"
       />
@@ -340,6 +341,7 @@ const {
 	openShare,
 	openComments,
 	remixPost,
+	toggleSave,
 	handleDoubleTap,
 	presentActionSheet,
 } = useFeedPostCard(props, emit);

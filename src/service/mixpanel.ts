@@ -33,6 +33,8 @@ export enum mixpanelEvents {
 	postFullscreenOpen = "post_fullscreen_open",
 	postShareOpen = "post_share_open",
 	postRemix = "post_remix",
+	postSaveToggle = "post_save_toggle",
+	savedPostsOpen = "saved_posts_open",
 	feedTabSwitched = "feed_tab_switched",
 
 	// --- v2 Relationships (client intent; server is authoritative) ---

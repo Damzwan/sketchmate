@@ -71,6 +71,7 @@
             @vote="handleVote"
             @delete="handleDelete"
             @react="handleReact"
+            @save="handleSave"
           />
         </div>
       </Transition>
@@ -338,6 +339,10 @@ function handleDelete() {
 		slide.value = Math.max(0, slide.value - 1);
 		open.value = false;
 	}
+}
+
+function handleSave() {
+	config.value.onSave?.(currItem.value);
 }
 
 function handleReact(type: string) {

@@ -18,6 +18,12 @@ export interface SwiperConfig {
 	thumbnailResolver?: (item: any) => string;
 	onComment?: (item: any, message: string) => Promise<void>;
 	onReact?: (item: any, type: string) => Promise<void>;
+	/**
+	 * Bookmark toggle. Only wired for post collections — the footer hides the
+	 * control everywhere else, so an unset handler is a state the UI never
+	 * reaches rather than a silent no-op.
+	 */
+	onSave?: (item: any) => Promise<void>;
 }
 
 export const usePhotoSwiper = defineStore("photoswiper", () => {

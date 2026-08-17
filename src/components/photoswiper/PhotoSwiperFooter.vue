@@ -66,6 +66,19 @@
         <ion-icon :icon="svg(mdiShareVariantOutline)" />
       </button>
 
+      <!-- Posts only. Inbox drawings and competition entries have no bookmark
+           list to go into — a save there would be a button that does nothing. -->
+      <button
+        v-if="type === 'post'"
+        @click="$emit('save')"
+        class="swiper-action-btn"
+        :class="currItem.is_saved ? 'text-secondary' : ''"
+        :aria-pressed="!!currItem.is_saved"
+        :aria-label="currItem.is_saved ? 'Remove from saved' : 'Save post'"
+      >
+        <ion-icon :icon="svg(currItem.is_saved ? mdiBookmark : mdiBookmarkOutline)" />
+      </button>
+
       <button v-if="showOverflow" @click="openOverflow" class="swiper-action-btn">
         <ion-icon :icon="svg(mdiDotsHorizontal)" />
       </button>
@@ -93,6 +106,8 @@
 <script setup lang="ts">
 import { actionSheetController, IonIcon } from "@ionic/vue";
 import {
+	mdiBookmark,
+	mdiBookmarkOutline,
 	mdiChatOutline,
 	mdiDeleteOutline,
 	mdiDotsHorizontal,
@@ -133,6 +148,7 @@ const emit = defineEmits([
 	"vote",
 	"delete",
 	"react",
+	"save",
 ]);
 
 const moderationStore = useModerationStore();

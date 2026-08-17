@@ -1,4 +1,5 @@
 import { useDrawingRemix } from "@/composables/gallery/useDrawingRemix";
+import { useSavePost } from "@/composables/home/useSavePost";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 import { deletePost } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";
@@ -16,6 +17,7 @@ export function usePostSwiper() {
 	const postStore = usePostStore();
 	const quotaStore = useQuotaStore();
 	const { openDrawingCopy } = useDrawingRemix();
+	const { toggleSave } = useSavePost();
 
 	function openPostSwiper(posts: FeedPost[], index: number) {
 		if (swiperStore.open && useMenuStore().viewProfileMenuOpen) {
@@ -62,6 +64,12 @@ export function usePostSwiper() {
 				} catch (_e) {
 					toast("Failed to delete post", { color: "danger" });
 				}
+			},
+			onSave: async (item) => {
+				// The swiper's item can be a separate object from the copies in the
+				// feed / profile lists, so pass it explicitly — otherwise the icon
+				// under the user's thumb is the one thing that doesn't update.
+				await toggleSave(item, item);
 			},
 			onReact: async (item, type) => {
 				// Pass the swiper's own item so its footer count updates even when it's

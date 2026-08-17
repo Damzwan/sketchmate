@@ -135,3 +135,40 @@ export async function deleteComment(postId: string, commentId: string) {
 export async function fetchPost(postId: string) {
 	return await request<{ post: FeedPost }>(`/post/${postId}`);
 }
+
+/**
+ * Bookmark a post. Idempotent server-side, so the caller never has to know
+ * whether it was already saved.
+ */
+export async function savePost(postId: string) {
+	return await request<{ saved: true; created: boolean }>(
+		`/post/${postId}/save`,
+		{ method: "POST" },
+	);
+}
+
+/** Remove a bookmark. Also idempotent. */
+export async function unsavePost(postId: string) {
+	return await request<{ saved: false; removed: boolean }>(
+		`/post/${postId}/save`,
+		{ method: "DELETE" },
+	);
+}
+
+/**
+ * A page of your saved posts, newest save first.
+ *
+ * @param before cursor from the previous page's `nextCursor` — the last
+ * BOOKMARK's date. Cursor rather than offset because unsaving is what people do
+ * on this page, and a shrinking list makes an offset skip rows.
+ */
+export async function fetchSavedPosts(limit = 20, before?: string) {
+	const query = new URLSearchParams({ limit: limit.toString() });
+	if (before) query.append("before", before);
+
+	return await request<{
+		posts: FeedPost[];
+		nextCursor: string | null;
+		hasMore: boolean;
+	}>(`/post/saved?${query.toString()}`);
+}

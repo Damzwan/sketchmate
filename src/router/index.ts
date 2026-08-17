@@ -58,6 +58,20 @@ const routes: Array<RouteRecordRaw> = [
 		component: () => import("@/views/notification.view.vue"),
 	},
 	{
+		path: `/${FRONTEND_ROUTES.savedPosts}`,
+		component: () => import("@/views/savedPosts.view.vue"),
+		// Saved posts are public-feed posts, and the feed itself is 13+ (the home
+		// view hides it entirely under 13). Same reasoning as the competition
+		// route below: the profile entry hides itself, but the path is still
+		// reachable by deep link or a restored history entry.
+		beforeEnter: async () => {
+			const { useAuthStore } = await import("@/store/auth.store");
+			const auth = useAuthStore();
+			await auth.waitUntilInitialized();
+			return auth.isUnderAge ? `/${FRONTEND_ROUTES.home}` : true;
+		},
+	},
+	{
 		// Lazy on purpose: the entry grid must not be in the app-start chunk.
 		path: `/${FRONTEND_ROUTES.competition}`,
 		component: () => import("@/views/competition.view.vue"),

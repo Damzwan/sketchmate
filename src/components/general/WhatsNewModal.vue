@@ -4,7 +4,7 @@
     @didDismiss="isWhatsNewOpen = false"
     class="sketch-modal"
   >
-    <div class="wn-paper bg-background p-4 pt-5 overflow-y-auto max-h-[82vh] hide-scrollbar relative">
+    <div class="wn-paper bg-background p-4 overflow-y-auto max-h-[82vh] hide-scrollbar relative">
       <!-- Soft warm glow -->
       <div class="absolute -top-10 -right-10 w-28 h-28 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -50,23 +50,12 @@
               <p class="text-lg font-black text-secondary cabin-sketch-regular leading-none">
                 SketchMate Big Boss
               </p>
-              <p class="text-xs uppercase tracking-wider text-black/70 mt-0.5">a note to everyone supporting SketchMate</p>
+              <p class="text-xs uppercase tracking-wider text-black/70 mt-0.5">a note on this release</p>
             </div>
           </div>
           <p class="text-sm text-black/80 leading-relaxed">
-            Welcome to our biggest creative update yet! Explore new tools, weekly events, and new ways to connect with fellow artists. ❤️
+            Packed with your top-requested features like new tools, safer drafts, and weekly competitions. Thanks for all the feedback :) ! ❤️
           </p>
-
-          <!-- Highlight teaser — torn dashed box -->
-          <div class="wn-next mt-2.5 p-2.5">
-            <div class="flex items-center gap-1.5 mb-0.5">
-              <ion-icon :icon="svg(mdiTrophyOutline)" class="text-lg text-secondary shrink-0" />
-              <p class="cabin-sketch-regular text-base font-black text-secondary leading-none">Weekly Competitions</p>
-            </div>
-            <p class="text-sm text-black/80 leading-tight">
-              Submit your art, vote on entries, and win prizes every week! 🏆
-            </p>
-          </div>
         </div>
 
         <!-- Changelog Features — sketchbook list with dashed rail -->
@@ -109,7 +98,10 @@ import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiAccountGroupOutline,
 	mdiAt,
+	mdiBookmarkOutline,
 	mdiClose,
+	mdiCloudCheckOutline,
+	mdiEyeOffOutline,
 	mdiRulerSquare,
 	mdiTrophyOutline,
 } from "@mdi/js";
@@ -127,22 +119,37 @@ const features = [
 	{
 		icon: mdiTrophyOutline,
 		title: "Art Competitions",
-		text: "Every week a new drawing theme with prizes to win. Vote on community creations!",
+		text: "Weekly themes, prizes, and community voting.",
 	},
 	{
 		icon: mdiAccountGroupOutline,
 		title: "Artist Highlight",
-		text: "Get to know featured community artists every week through Q&As and top post spotlights.",
+		text: "Weekly featured artists, Q&As, and top posts.",
 	},
 	{
 		icon: mdiRulerSquare,
 		title: "More Drawing Tools",
-		text: "Improved drawing engine with rulers, compasses, and reference guides for a smoother workflow.",
+		text: "Rulers, compasses, and reference guides for precision.",
 	},
 	{
 		icon: mdiAt,
 		title: "Post Tagging",
-		text: "Tag creators on posts for joint collaborations, credit, and shoutouts.",
+		text: "Tag creators on posts for collaborations and credit.",
+	},
+	{
+		icon: mdiBookmarkOutline,
+		title: "Save Posts",
+		text: "Bookmark drawings privately directly to your profile.",
+	},
+	{
+		icon: mdiEyeOffOutline,
+		title: "Presence Control",
+		text: "Set status to Invisible or Busy to quiet chat popups.",
+	},
+	{
+		icon: mdiCloudCheckOutline,
+		title: "Safer Drafts",
+		text: "Reliable local drafts + automatic cloud backups for Pro.",
 	},
 ];
 </script>
@@ -198,13 +205,6 @@ ion-modal.sketch-modal {
   background: rgba(var(--ion-color-secondary-rgb), 0.14);
   border: 1px dashed rgba(var(--ion-color-secondary-rgb), 0.3);
   border-radius: 2px;
-}
-
-/* ── Highlight box ── */
-.wn-next {
-  border-radius: 10px;
-  border: 1.5px dashed rgba(var(--ion-color-secondary-rgb), 0.45);
-  background: rgba(var(--ion-color-secondary-rgb), 0.06);
 }
 
 /* ── Changelog dashed rail + sketchy icon frames ── */

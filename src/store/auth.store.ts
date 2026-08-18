@@ -7,6 +7,7 @@ import type { UseIonRouterResult } from "@ionic/vue";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
+import { getDeviceIdentity } from "@/helper/deviceIdentity.helper";
 import {
 	getCurrentAuthUser,
 	hasDurableSignInProvider,
@@ -21,6 +22,7 @@ import router from "@/router";
 import {
 	getUser,
 	onLoginEvent,
+	registerDevice,
 	updatePresenceStatus,
 	updateUserTimezone,
 } from "@/service/api/user.api";
@@ -396,6 +398,21 @@ export const useAuthStore = defineStore("auth", () => {
 				}).catch((err) =>
 					console.warn("Failed to mark device logged-in for push", err),
 				);
+
+				// Ban-evasion check-in. Distinct from the push `fingerprint` above:
+				// that is an install-scoped UUID we mint and lose on uninstall, this
+				// is the OS-owned device id that survives one. Not awaited into the
+				// critical path and never allowed to throw — if it fails the account
+				// is simply unrecognised, which is where we were before it existed.
+				getDeviceIdentity()
+					.then((identity) => {
+						if (!identity) return;
+						return registerDevice({
+							device_id: identity.device_id,
+							platform: identity.platform,
+						});
+					})
+					.catch((err) => console.warn("Device check-in failed", err));
 			}
 
 			lastHydratedAt.value = Date.now();

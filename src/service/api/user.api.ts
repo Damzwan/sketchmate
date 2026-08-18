@@ -271,6 +271,24 @@ export async function onLoginEvent(params: OnLoginEventParams): Promise<void> {
 	});
 }
 
+/**
+ * Report this device to the ban-evasion check. Fire-and-forget by design: the
+ * server answers `recalled` only so we stop retrying, and any resulting
+ * restriction arrives over the normal moderation:strike socket event.
+ */
+export async function registerDevice(params: {
+	device_id: string;
+	platform: "android" | "ios";
+}): Promise<{ recorded: boolean; recalled: boolean }> {
+	return request<{ recorded: boolean; recalled: boolean }>(
+		`${ENDPOINTS.user}/device`,
+		{
+			method: "POST",
+			body: JSON.stringify(params),
+		},
+	);
+}
+
 export async function updateUser(params: UpdateUserParams): Promise<Res<void>> {
 	return request<Res<void>>(`${ENDPOINTS.user}/update`, {
 		method: "PUT",

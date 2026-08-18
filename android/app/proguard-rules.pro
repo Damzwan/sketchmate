@@ -21,6 +21,14 @@
 # does not ship the Facebook SDK, so those references are intentionally absent.
 -dontwarn com.facebook.**
 
+# Capacitor's Plugin.getPermissionStates() reads @CapacitorPlugin's
+# `permissions` array via getClass().getAnnotation(...) at runtime. Capacitor's
+# own consumer rules only keep the annotated *methods*, not the annotation
+# classes, so R8 strips them and that call returns null -> NPE
+# (crashed prod: PushNotificationsPlugin.checkPermissions -> Plugin.getPermissionStates).
+-keep class com.getcapacitor.annotation.** { *; }
+-keep class com.getcapacitor.PermissionState { *; }
+
 # Preserve generic signatures and runtime annotations used by JSON adapters and
 # annotated plugin methods. The classes and members themselves remain eligible
 # for shrinking and optimization.

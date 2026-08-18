@@ -17,11 +17,8 @@ android {
         applicationId "ninja.sketchmate.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 142
+        versionCode 143
         versionName "0.4.5"
-        // The web UI and Android resources currently ship in English only.
-        // Do not package translations contributed by native dependencies that
-        // the app can never select.
         resourceConfigurations += ['en']
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

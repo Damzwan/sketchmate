@@ -1,4 +1,4 @@
-import type { Bounded } from "../committedLayer";
+import type { Bounded, WorldRect } from "../committedLayer";
 import { PROGRESS_FRAME_MS, RenderEngineBase } from "./renderEngineBase";
 
 export abstract class RenderFrames<
@@ -78,7 +78,9 @@ export abstract class RenderFrames<
 				this.gesturing ? 1 : 0,
 			);
 			const vw = this.committed.viewWorld(vpt, size, dpr);
-			this.live.composite(ctx, vpt, dpr, this.liveRender, vw);
+			this.live.composite(ctx, vpt, dpr, this.liveRender, vw, (r) =>
+				this.liveItemAlreadyPainted(r, vpt[0]),
+			);
 			this.afterComposite?.();
 		});
 	}
@@ -116,9 +118,26 @@ export abstract class RenderFrames<
 		const size = this.surface.getSize();
 		const dpr = this.surface.getDpr();
 
-		const expired = this.live.gcExpired();
-		for (const r of expired) this.patchOverview(r);
-		const { needsBake } = this.committed.composite(
+		/**
+		 * Dropping a live overlay is only safe when the overview patch that
+		 * replaces it can be applied in the SAME frame. A live-covered stroke is
+		 * deliberately absent from the overview (see onObjectAdded), and mid-gesture
+		 * `patchOverview` DEFERS — so retiring the overlay there deletes the only
+		 * copy of the stroke and it stays invisible until the gesture ends. That is
+		 * the "draw, immediately pinch-zoom, the stroke isn't there" report: both
+		 * the TTL expiry below and the demote further down took that route.
+		 *
+		 * Neither is urgent. `pendingDemote` stays set and the TTL only grows, so
+		 * both run on the first idle frame — which `setGesturing(false)` requests.
+		 */
+		const canRetireOverlays =
+			!this.gesturing && !this.erasing && !this.mutating;
+
+		if (canRetireOverlays) {
+			const expired = this.live.gcExpired();
+			for (const r of expired) this.patchOverview(r);
+		}
+		const { needsBake, nonFresh } = this.committed.composite(
 			ctx,
 			vpt,
 			size,
@@ -126,19 +145,52 @@ export abstract class RenderFrames<
 			this.surface.getBackground(),
 			this.gesturing ? 1 : 0,
 		);
-		const vw = this.committed.viewWorld(vpt, size, dpr);
-		this.live.composite(ctx, vpt, dpr, this.liveRender, vw);
+		this.lastNonFresh = nonFresh;
 
-		if (this.pendingDemote && !needsBake) {
+		// Judge the bake pass that requested this frame. A pass that ran against
+		// THIS view and left at least as many holes as it started with did not
+		// fail transiently — it could not fit the viewport in the cache, and
+		// evicted its own output getting there. Latch, so the reschedule below
+		// stops firing; a pan, zoom or edit clears it.
+		if (this.completedPassView !== null) {
+			const finishedView = this.completedPassView;
+			const before = this.completedPassHoles;
+			this.completedPassView = null;
+			if (
+				nonFresh > 0 &&
+				before > 0 &&
+				nonFresh >= before &&
+				finishedView === this.viewKey(vpt)
+			) {
+				this.bakeStallKey = finishedView;
+			}
+		}
+		const vw = this.committed.viewWorld(vpt, size, dpr);
+		// Items whose tile already carries them are skipped rather than drawn on
+		// top: at alpha < 1 the overlap reads as a one-frame darkening every time
+		// a bake lands mid-stroke (the low-opacity brush flicker).
+		this.live.composite(ctx, vpt, dpr, this.liveRender, vw, (r) =>
+			this.liveItemAlreadyPainted(r, vpt[0]),
+		);
+
+		if (this.pendingDemote && !needsBake && canRetireOverlays) {
 			this.pendingDemote = false;
-			// live was already composited ABOVE the now-baked tiles this frame, so a
-			// semi-transparent stroke shows doubled until we repaint without it.
-			// demoteSettled removes the settled overlays → request one more frame so
-			// the next composite shows the tile alone (single intensity).
+			// Retire the settled overlays and fold them into the overview. The frame
+			// just painted is already correct (they were skipped above), so this is
+			// bookkeeping — the extra frame keeps the overview-tier fallback honest.
 			if (this.demoteSettled() > 0) this.requestFrame();
 		}
 
-		if (needsBake) this.scheduleBake();
+		// Not when the last pass against THIS view already failed to make progress
+		// — that is a cache too small for the viewport, and re-baking only
+		// re-evicts. See `bakeStallKey`.
+		if (needsBake && this.bakeStallKey !== this.viewKey(vpt)) {
+			this.scheduleBake();
+		}
 		this.afterComposite?.();
+	}
+
+	private liveItemAlreadyPainted(rect: WorldRect, zoom: number): boolean {
+		return this.committed.isRegionTileBacked(rect, zoom);
 	}
 }

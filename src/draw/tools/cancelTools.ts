@@ -1,6 +1,7 @@
 import type { Canvas } from "fabric";
 import { ERASERS } from "@/draw/config/tools.config";
 import { useEraser } from "@/draw/tools/eraser.store";
+import { useInstrumentStore } from "@/draw/tools/instruments/instrument.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
@@ -45,9 +46,14 @@ export function cancelPenAction(c: Canvas) {
 }
 
 export function cancelPreviousAction(c: Canvas) {
+	useInstrumentStore().endStroke();
 	const { selectedTool } = useToolSelection();
 	if (ERASERS.includes(selectedTool)) cancelEraserAction(c);
-	if (selectedTool == DrawTool.Pen) cancelPenAction(c);
+	// Smudge is a free-drawing brush too, so a gesture must abort its stroke the
+	// same way — otherwise the half-finished smear commits on the finger lift.
+	if (selectedTool == DrawTool.Pen || selectedTool == DrawTool.Smudge) {
+		cancelPenAction(c);
+	}
 	if (selectedTool == DrawTool.Select) {
 		cancelSelect(c);
 	}

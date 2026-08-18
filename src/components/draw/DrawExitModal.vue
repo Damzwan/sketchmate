@@ -21,7 +21,7 @@
         expand="block"
         shape="round"
         color="secondary"
-        class="main-exit-btn cabin-sketch-regular font-black"
+        class="main-exit-btn font-black"
         @click="dismiss('leave')"
       >
         {{ isLobby ? 'Leave Room' : (isEmptyDeletion ? 'Discard & Exit' : 'Exit') }}
@@ -31,7 +31,7 @@
         expand="block"
         fill="clear"
         color="secondary"
-        class="cancel-btn cabin-sketch-regular font-bold"
+        class="cancel-btn font-bold"
         @click="dismiss('cancel')"
       >
         Keep Drawing

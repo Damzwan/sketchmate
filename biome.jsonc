@@ -1,0 +1,124 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"includes": [
+			"src/**",
+			"scripts/**",
+			"*.ts",
+			"*.mjs",
+			"*.cjs",
+			"*.js",
+			"*.json",
+			"!**/node_modules",
+			"!android",
+			"!ios",
+			"!dist",
+			"!dev-dist",
+			"!public",
+			"!src/assets",
+			"!src/theme",
+			"!pnpm-lock.yaml"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noDoubleEquals": "off",
+				"useIterableCallbackReturn": "off",
+				"noAssignInExpressions": "off",
+				"noTsIgnore": "warn"
+			},
+			"style": {
+				"noNonNullAssertion": "off",
+				"useTemplate": "off"
+			},
+			"complexity": {
+				"useOptionalChain": "off",
+				"useLiteralKeys": "off"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"bracketSpacing": true,
+			"quoteStyle": "double"
+		}
+	},
+	"assist": {
+		"enabled": true,
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"overrides": [
+		{
+			// Q0 ratchet — docs/CODE_QUALITY_AUDIT.md §4.
+			//
+			// `noExplicitAny` stays OFF at the top level because src/draw's ~815
+			// `any` are load-bearing Fabric 7 generics, which QUALITY_PERF_PLAN.md
+			// §7 deliberately rules out purging. Everywhere else a new `any` should
+			// have to be argued for, so it warns here.
+			//
+			// `warn`, not `error`: ~300 pre-existing non-draw sites would fail the
+			// build outright, and the job of this rule is to stop the count growing
+			// while Q1–Q2 bring it down — not to block work on it.
+			//
+			// fabricDebug.ts is a dev-only Fabric introspection tool and gets the
+			// same exemption as the engine it inspects.
+			"includes": [
+				"src/**",
+				"!src/draw/**",
+				"!src/utils/fabricDebug.ts",
+				"!**/*.test.ts",
+				"!**/*.spec.ts"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "warn"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.vue"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnusedVariables": "off",
+						"noUnusedImports": "off",
+						"noUnusedFunctionParameters": "off",
+						"noVueDuplicateKeys": "off"
+					},
+					"style": {
+						"useImportType": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.test.ts", "**/*.spec.ts", "bench/**", "scripts/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noTsIgnore": "off"
+					}
+				}
+			}
+		}
+	]
+}

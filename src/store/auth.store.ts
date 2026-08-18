@@ -4,11 +4,13 @@ import {
 	type User as FirebaseUser,
 } from "@capacitor-firebase/authentication";
 import type { UseIonRouterResult } from "@ionic/vue";
-import { Purchases } from "@revenuecat/purchases-capacitor";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
-import { getCurrentAuthUser } from "@/helper/firebase.helper";
+import {
+	getCurrentAuthUser,
+	hasDurableSignInProvider,
+} from "@/helper/firebase.helper";
 import {
 	compareVersions,
 	generateDeviceFingerprint,
@@ -16,39 +18,34 @@ import {
 } from "@/helper/general.helper";
 import { isNative } from "@/helper/platform.helper";
 import router from "@/router";
-import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
-import {
-	socketConnect,
-	socketDisconnect,
-	socketLogin,
-} from "@/service/api/socket/socket.service";
 import {
 	getUser,
 	onLoginEvent,
+	updatePresenceStatus,
 	updateUserTimezone,
 } from "@/service/api/user.api";
+import {
+	ensureGuestRecovery,
+	finalizeGuestRecovery,
+} from "@/service/guestRecovery.service";
 import {
 	mixpanelEvents,
 	mixpanelIdentify,
 	trackEvent,
 } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";
-import { useBalloonStore } from "@/store/balloon.store";
-import { useChatStore } from "@/store/chat.store";
-import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
-import { useInboxStore } from "@/store/inbox.store";
-import { useInventoryStore } from "@/store/inventory.store";
-import { useModerationStore } from "@/store/moderation.store";
 import { useNotificationStore } from "@/store/notification.store";
-import { useQuotaStore } from "@/store/quota.store";
 import { resetAllStores } from "@/store/resetStores";
 import { useSessionStore } from "@/store/session.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import type { User } from "@/types/server.types";
+import type { PresenceStatus, User } from "@/types/server.types";
 import { LocalStorage } from "@/types/storage.types";
+
+// Lazy for the same reason as in the subscription store: this module is on the
+// cold-start path and the billing helper isn't needed until sign-in. Both call
+// sites below share one module instance, so the identity chain still orders
+// logout against the next login.
+const billing = () => import("@/helper/billing.helper");
 
 export const useAuthStore = defineStore("auth", () => {
 	// --- STATE ---
@@ -60,11 +57,13 @@ export const useAuthStore = defineStore("auth", () => {
 	const isNewAccount = ref(false);
 	const showForceUpdateModal = ref(false);
 	const showTutorial = ref(false);
+	const isRecoveredGuestAccount = ref(false);
 	const deviceFingerprint = ref<string>();
 	const localUserImg = ref<string>();
 
 	const lastHydratedAt = ref<number>(0);
 	const isHydrating = ref(false);
+	const presenceUpdating = ref(false);
 
 	const minimum_online_version = ref<string>("");
 
@@ -72,6 +71,9 @@ export const useAuthStore = defineStore("auth", () => {
 
 	// --- DERIVED ---
 	const hasConfirmedAge = computed(() => !!user.value?.date_of_birth);
+	const isGuestAccount = computed(
+		() => !!firebaseUser.value?.isAnonymous || isRecoveredGuestAccount.value,
+	);
 	// Default-DENY: an account whose age we haven't confirmed is treated as a
 	// child account until it tells us otherwise. Anything else leaves a window
 	// (guest sign-in, a failed DOB save, a legacy row) where social features are
@@ -82,6 +84,13 @@ export const useAuthStore = defineStore("auth", () => {
 		if (!user.value.date_of_birth) return true;
 		return !isOldEnough(user.value.date_of_birth);
 	});
+	const presenceStatus = computed<PresenceStatus>(() =>
+		user.value?.presence_status
+			? user.value.presence_status
+			: user.value?.presence_invisible
+				? "invisible"
+				: "online",
+	);
 
 	// --- INIT ---
 	Preferences.get({ key: LocalStorage.img }).then(
@@ -121,15 +130,49 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 
 		firebaseUser.value = status.user;
+		const [recoveredSession, legacyRecoveryLink] = await Promise.all([
+			Preferences.get({ key: LocalStorage.recoveredGuestSession }),
+			Preferences.get({ key: LocalStorage.guestRecoveryLinkRequired }),
+		]);
+		const alreadyLinked = hasDurableSignInProvider(status.user);
+		const providerlessRecoveredGuest =
+			!status.user.isAnonymous && !alreadyLinked;
+		const recoverySessionMatches = recoveredSession.value === status.user.uid;
+		const legacyRecoverySession =
+			!alreadyLinked &&
+			(recoveredSession.value === "true" ||
+				legacyRecoveryLink.value === "true");
+		const recoverySessionActive =
+			recoverySessionMatches ||
+			legacyRecoverySession ||
+			providerlessRecoveredGuest;
+		isRecoveredGuestAccount.value = recoverySessionActive && !alreadyLinked;
+		if (
+			isRecoveredGuestAccount.value &&
+			recoveredSession.value !== status.user.uid
+		) {
+			await Preferences.set({
+				key: LocalStorage.recoveredGuestSession,
+				value: status.user.uid,
+			});
+		}
+		if (
+			legacyRecoveryLink.value === "true" ||
+			recoveredSession.value === "true"
+		) {
+			await Preferences.remove({ key: LocalStorage.guestRecoveryLinkRequired });
+		}
+		if (recoverySessionMatches && alreadyLinked) {
+			await Preferences.remove({ key: LocalStorage.recoveredGuestSession });
+			isRecoveredGuestAccount.value = false;
+			void finalizeGuestRecovery();
+		}
 
 		const justLoggedIn = await Preferences.get({ key: LocalStorage.login });
 		const arrivedFromLogin = !!justLoggedIn.value;
 
 		// BOOTSTRAP: blocking, fast — just enough to make routing decisions
 		const ok = await bootstrap();
-
-		if (isNative() && user.value)
-			void Purchases.logIn({ appUserID: user.value.auth_id });
 
 		if (!ok) {
 			const { toast } = useToast();
@@ -149,14 +192,26 @@ export const useAuthStore = defineStore("auth", () => {
 		// Splash can come down NOW — user is loaded, route is decided.
 		isAuthLoading.value = false;
 
+		// Presence and unread counts are part of the always-visible app shell, not
+		// optional chat UI. Start their small metadata requests immediately; the
+		// panel and all message histories remain lazy.
+		const chatShellUser = user.value;
+		if (chatShellUser) {
+			void import("@/service/chatShellHydration")
+				.then(({ hydrateChatShell }) => hydrateChatShell(chatShellUser))
+				.catch((error) =>
+					console.warn("[auth] chat shell hydration failed", error),
+				);
+		}
+
 		// HYDRATE in two stages:
 		//   - hydrateCritical: things routing depends on. Awaited.
 		//   - hydrateBackground: everything else. Fire-and-forget, stores own their loading UI.
 		await hydrateCritical({ arrivedFromLogin });
-		void hydrateBackground({ arrivedFromLogin });
 
 		// ROUTING + post-login prompts
 		await handlePostBootstrapRouting(arrivedFromLogin);
+		scheduleBackgroundHydration({ arrivedFromLogin });
 	});
 
 	/**
@@ -182,6 +237,9 @@ export const useAuthStore = defineStore("auth", () => {
 		//    The modal saves to user.date_of_birth on confirm, so isUnderAge
 		//    becomes correct before we route anywhere.
 		if (!user.value.date_of_birth) {
+			const { useDateOfBirthModalStore } = await import(
+				"@/store/dateOfBirth.store"
+			);
 			const dobStore = useDateOfBirthModalStore();
 			await dobStore.open("initial");
 			// Don't branch on result. Soft mode means even if they declined,
@@ -224,8 +282,6 @@ export const useAuthStore = defineStore("auth", () => {
 	 */
 	async function bootstrap(): Promise<boolean> {
 		try {
-			void socketConnect();
-
 			const authUser = await getCurrentAuthUser();
 			if (!authUser) return false;
 
@@ -250,11 +306,24 @@ export const useAuthStore = defineStore("auth", () => {
 			isNewAccount.value = userValue.new_account;
 			isLoggedIn.value = true;
 
-			void socketLogin({ _id: user.value._id });
+			// Draft mirror reconciliation reads user_id to keep device backups scoped
+			// to the correct account. Commit it before routing can mount the home draft
+			// list; otherwise a cold login can permanently skip this boot's recovery.
+			await Promise.all([
+				Preferences.set({ key: LocalStorage.user_id, value: user.value._id }),
+				Preferences.set({ key: LocalStorage.img, value: user.value.img }),
+				Preferences.remove({ key: LocalStorage.loggedOut }),
+			]);
 
-			Preferences.set({ key: LocalStorage.user_id, value: user.value._id });
-			Preferences.set({ key: LocalStorage.img, value: user.value.img });
-			Preferences.remove({ key: LocalStorage.loggedOut });
+			if (authUser.isAnonymous || isRecoveredGuestAccount.value) {
+				void ensureGuestRecovery({
+					guestUid: authUser.uid,
+					profileName: user.value.name,
+					profileImage: user.value.img,
+				}).catch((error) =>
+					console.warn("Could not provision guest recovery:", error),
+				);
+			}
 
 			return true;
 		} catch (e) {
@@ -290,24 +359,23 @@ export const useAuthStore = defineStore("auth", () => {
 	 * loading state; failures are isolated via Promise.allSettled.
 	 */
 	async function hydrateBackground(opts: { arrivedFromLogin: boolean }) {
-		if (!user.value) return;
+		if (!user.value || isHydrating.value) return;
 		isHydrating.value = true;
 
 		const u = user.value;
 
 		try {
-			await Promise.allSettled([
-				useSubscriptionStore().checkProStatus(),
-				useBalloonStore().init(u),
-				useFriendStore().initializeSocialGraph(),
-				useQuotaStore().refresh(true),
-				useChatStore().loadActiveChats(),
-				useModerationStore().initFromUser(u),
-				useInAppNotificationStore().loadInitial(),
-				refreshPublicLobbies(),
-				useInventoryStore().hydrateFromUser(user.value),
-				syncCurrentTimezone(),
-			]);
+			// RevenueCat identity is required before entitlement hydration, but it is
+			// not required to render or route. Keep its SDK parse + network round trip
+			// inside the same idle phase as the paid-feature stores.
+			if (isNative()) {
+				const { identifyBillingUser } = await billing();
+				await identifyBillingUser(u.auth_id);
+			}
+			const { hydrateBackgroundStores } = await import(
+				"@/service/authBackgroundHydration"
+			);
+			await Promise.all([hydrateBackgroundStores(u), syncCurrentTimezone()]);
 
 			if (opts.arrivedFromLogin) {
 				// Await the fingerprint instead of reading the ref. It's populated by
@@ -351,6 +419,15 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 	}
 
+	function scheduleBackgroundHydration(opts: { arrivedFromLogin: boolean }) {
+		const run = () => void hydrateBackground(opts);
+		if ("requestIdleCallback" in window) {
+			window.requestIdleCallback(run, { timeout: 3000 });
+		} else {
+			setTimeout(run, 0);
+		}
+	}
+
 	/**
 	 * REFRESH: re-fetch user + re-hydrate everything that could be stale.
 	 */
@@ -370,14 +447,13 @@ export const useAuthStore = defineStore("auth", () => {
 			}
 			user.value = userValue.user;
 
-			await Promise.allSettled([
-				useInboxStore().getInboxBatch(true),
-				useChatStore().loadActiveChats(),
-				useQuotaStore().refresh(true),
-				useModerationStore().initFromUser(user.value),
-				useInAppNotificationStore().loadInitial(),
-				refreshPublicLobbies(),
-				useInventoryStore().hydrateFromUser(user.value),
+			const { refreshBackgroundStores } = await import(
+				"@/service/authBackgroundHydration"
+			);
+			const { refreshChatShell } = await import("@/service/chatShellHydration");
+			await Promise.all([
+				refreshChatShell(),
+				refreshBackgroundStores(userValue.user),
 				syncCurrentTimezone(),
 			]);
 
@@ -410,12 +486,70 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 	}
 
+	async function setPresenceStatus(status: PresenceStatus): Promise<void> {
+		if (!user.value || presenceUpdating.value) return;
+		if (presenceStatus.value === status) return;
+
+		const previousStatus = presenceStatus.value;
+		const previousInvisible = user.value.presence_invisible === true;
+		presenceUpdating.value = true;
+		user.value.presence_status = status;
+		user.value.presence_invisible = status === "invisible";
+
+		try {
+			const response = await updatePresenceStatus(status);
+			user.value.presence_status = response.presence_status;
+			user.value.presence_invisible = response.presence_invisible;
+		} catch (error) {
+			user.value.presence_status = previousStatus;
+			user.value.presence_invisible = previousInvisible;
+			throw error;
+		} finally {
+			presenceUpdating.value = false;
+		}
+	}
+
 	function initIonRouter(r: UseIonRouterResult) {
 		ionRouter = r;
 	}
 
 	async function logout() {
+		if (isGuestAccount.value && firebaseUser.value && user.value) {
+			// Bootstrap normally provisions this already. Awaiting it here closes the
+			// small first-session race where someone signs out before the background
+			// enrollment has written the device recovery record. The timeout ensures
+			// recovery service trouble can never prevent or stall logout for long.
+			let recoveryTimeout: ReturnType<typeof setTimeout> | undefined;
+			const timeout = new Promise<never>((_, reject) => {
+				recoveryTimeout = setTimeout(
+					() => reject(new Error("Guest recovery enrollment timed out")),
+					2000,
+				);
+			});
+			await Promise.race([
+				ensureGuestRecovery({
+					guestUid: firebaseUser.value.uid,
+					profileName: user.value.name,
+					profileImage: user.value.img,
+				}),
+				timeout,
+			])
+				.catch((error) => {
+					console.warn(
+						"Could not prepare guest recovery before logout:",
+						error,
+					);
+					useToast().toast(
+						"Recovery could not be confirmed, but you can still log out. Local drafts remain on this device.",
+						{ color: "warning" },
+					);
+				})
+				.finally(() => clearTimeout(recoveryTimeout));
+		}
+
 		Preferences.remove({ key: LocalStorage.user_id });
+		Preferences.remove({ key: LocalStorage.recoveredGuestSession });
+		Preferences.remove({ key: LocalStorage.guestRecoveryLinkRequired });
 		// Tells the Android widget this is a real sign-out, not a cold start it
 		// happened to beat — it drops its cached drawing on seeing this.
 		Preferences.set({ key: LocalStorage.loggedOut, value: "1" });
@@ -438,7 +572,13 @@ export const useAuthStore = defineStore("auth", () => {
 			);
 		}
 
-		socketDisconnect();
+		await import("@/service/api/socket/socket.service")
+			.then(({ socketDisconnect }) => socketDisconnect())
+			.catch((error) => console.warn("[socket] disconnect failed", error));
+
+		// Clear RC's appUserID too. Ordering is held by the identity chain, so the
+		// next account's logIn can't be overtaken by this — no need to await.
+		void billing().then(({ resetBillingUser }) => resetBillingUser());
 
 		if (ionRouter) {
 			ionRouter.navigate(FRONTEND_ROUTES.login, "root", "replace");
@@ -450,6 +590,14 @@ export const useAuthStore = defineStore("auth", () => {
 		// above still see `user.value`. Previously 8 of 22 stores were reset by
 		// hand here and the rest carried the old account into the next login.
 		resetAllStores();
+	}
+
+	async function completeGuestRecoveryLink(): Promise<void> {
+		isRecoveredGuestAccount.value = false;
+		await Promise.all([
+			Preferences.remove({ key: LocalStorage.recoveredGuestSession }),
+			Preferences.remove({ key: LocalStorage.guestRecoveryLinkRequired }),
+		]);
 	}
 
 	async function waitUntilInitialized(): Promise<User | undefined> {
@@ -489,9 +637,11 @@ export const useAuthStore = defineStore("auth", () => {
 		firebaseUser.value = undefined;
 		isLoggedIn.value = false;
 		isNewAccount.value = false;
+		isRecoveredGuestAccount.value = false;
 		showTutorial.value = false;
 		lastHydratedAt.value = 0;
 		isHydrating.value = false;
+		presenceUpdating.value = false;
 	}
 
 	function onlineUpdateRequired() {
@@ -506,12 +656,16 @@ export const useAuthStore = defineStore("auth", () => {
 		isLoggedIn,
 		isAuthLoading,
 		isNewAccount,
+		isRecoveredGuestAccount,
+		isGuestAccount,
 		isHydrating,
+		presenceUpdating,
 		lastHydratedAt,
 		showForceUpdateModal,
 		showTutorial,
 		hasConfirmedAge,
 		isUnderAge,
+		presenceStatus,
 		deviceFingerprint,
 		localUserImg,
 		initIonRouter,
@@ -519,7 +673,9 @@ export const useAuthStore = defineStore("auth", () => {
 		hydrateCritical,
 		hydrateBackground,
 		logout,
+		completeGuestRecoveryLink,
 		refresh,
+		setPresenceStatus,
 		waitUntilInitialized,
 		onlineUpdateRequired,
 		resetRuntimeState,

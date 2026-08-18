@@ -97,6 +97,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected overviewTimer: any = null;
 	protected bakeCtrl: AbortController | null = null;
 	protected overviewCtrl: AbortController | null = null;
+	protected overviewPatchCtrl: AbortController | null = null;
 	protected gesturing = false;
 	protected loading = false;
 	protected erasing = false;
@@ -116,7 +117,55 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected baking = false;
 	protected bakeAgain = false;
 	protected pendingDemote = false;
+	/** Additive live objects whose overview handoff is queued or running. */
+	protected readonly overviewHandoffPending = new Set<string>();
+	protected readonly overviewHandoffRebuild = new Set<string>();
+	/** Tier that first received (or started baking) the additive object. */
+	protected readonly overviewHandoffTier = new Map<string, number>();
+	protected readonly overviewHandoffRect = new Map<string, WorldRect>();
 	protected frameCounter = 0;
+
+	/**
+	 * Viewport a bake pass finished against WITHOUT reducing the number of holes
+	 * in it — i.e. the cache cannot hold this view, so re-baking will not help.
+	 *
+	 * `renderNow` reschedules a bake whenever the composite reports anything
+	 * non-fresh. That is right while progress is possible and catastrophic when
+	 * it is not: a pass that has to evict its own earlier tiles leaves exactly as
+	 * many holes as it found, so the engine bakes, repaints, finds the same
+	 * holes, and bakes again — forever, at full main-thread cost, and visibly, as
+	 * the picture flipping between sharp and blurred.
+	 *
+	 * Latching a KEY (not a boolean) is what makes this safe to leave set: the key
+	 * covers both the viewport and the scene's mutation epoch, so any pan, zoom
+	 * or edit stops matching and re-arms baking by itself. The degraded state it
+	 * settles into is a partly soft picture, which is what the fallback ladder is
+	 * for — strictly better than an oscillation that also never lets the main
+	 * thread idle.
+	 */
+	protected bakeStallKey: string | null = null;
+
+	/** Holes the most recent composite reported. Compared across a bake pass to
+	 *  decide whether the pass achieved anything. */
+	protected lastNonFresh = 0;
+
+	/** Set by a completed bake pass for the next composite to judge: which view
+	 *  it ran against, and how many holes it started with. Null = no pass to
+	 *  judge, so the composite leaves the stall latch alone. */
+	protected completedPassView: string | null = null;
+	protected completedPassHoles = 0;
+
+	/**
+	 * Stable identity for "this exact view, over this exact scene".
+	 *
+	 * The mutation epoch is in the key on purpose. A stalled viewport must
+	 * re-arm the moment the drawing changes, and there are ~17 invalidation
+	 * entry points on this engine — hooking each one is a bug waiting to
+	 * happen, so the key simply stops matching instead.
+	 */
+	protected viewKey(vpt: number[]): string {
+		return `${vpt[0]}|${Math.round(vpt[4])}|${Math.round(vpt[5])}|${this.committed.mutationEpoch}`;
+	}
 
 	// remote-modify coalescing
 	protected pendingRemote: WorldRect | null = null;
@@ -170,4 +219,6 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected abstract mergeRects(rects: WorldRect[]): WorldRect[];
 	protected abstract growContentBounds(rect: WorldRect): void;
 	protected abstract additiveInvalidate(rect: WorldRect): void;
+	protected abstract queueOverviewHandoff(obj: T, rect: WorldRect): void;
+	protected abstract cancelOverviewHandoff(id: string): void;
 }

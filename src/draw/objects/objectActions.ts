@@ -7,6 +7,11 @@ import {
 } from "@/draw/actions/drawAction.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { stackPositions } from "@/draw/canvas/objectStack";
+import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
 import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
 import {
 	enlivenAllBatched,
@@ -71,9 +76,9 @@ export async function removeObjects(objects: FabricObject[]) {
 	// history JSON via customProperties, and undoObjectsDeleted re-inserts at
 	// it). Captured against the same full stack → ascending re-insert on undo
 	// reproduces the layering exactly.
-	const stack = c.getObjects();
+	const positions = stackPositions(c);
 	for (const obj of objects) {
-		(obj as any).insertedIndex = stack.indexOf(obj);
+		(obj as any).insertedIndex = positions.get(obj) ?? -1;
 	}
 
 	// Multi-delete: coalesce the N object:removed invalidations into one
@@ -129,8 +134,9 @@ function sortObjectsByLayer(
 	c: Canvas,
 	reverse = false,
 ) {
-	// getObjects() copies the whole stack — never call it inside a comparator.
-	const order = new Map(c.getObjects().map((o, i) => [o, i]));
+	// Positions resolved ONCE, never inside the comparator — and off the internal
+	// stack, so building them does not also copy the scene.
+	const order = stackPositions(c);
 	const sorted = objects.sort(
 		(a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0),
 	);
@@ -663,13 +669,20 @@ export async function addSavedFabricObjectToCanvas(
 		});
 
 		await runSavedImportPhase("selection", () => {
-			if (objects.length === 1) {
-				c.setActiveObject(objects[0]);
-			} else if (objects.length > 1) {
+			const capped = capOrderedSelection(objects);
+			if (capped.objects.length === 1) {
+				c.setActiveObject(capped.objects[0]);
+			} else if (capped.objects.length > 1) {
 				c.setActiveObject(
-					new fabric.ActiveSelection(objects, {
+					new fabric.ActiveSelection(capped.objects, {
 						canvas: c,
 					}),
+				);
+			}
+			if (capped.omitted > 0) {
+				useToast().toast(
+					`Added every object; selected the top ${DRAW_SELECTION_OBJECT_LIMIT} to keep this device responsive.`,
+					{ color: "warning" },
 				);
 			}
 		});

@@ -33,9 +33,18 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 const { cropperMenuOpen } = storeToRefs(useMenuStore());
 const { getCanvas } = useDrawStore();
 
-let cropper: Cropper;
+let cropper: Cropper | undefined;
 const imgRef = ref<HTMLImageElement>();
 const loading = ref(true);
+const handleCropperReady = () => {
+	loading.value = false;
+};
+
+function destroyCropper() {
+	imgRef.value?.removeEventListener("ready", handleCropperReady);
+	cropper?.destroy();
+	cropper = undefined;
+}
 
 defineProps<{
 	imgUrl: string | undefined;
@@ -45,12 +54,13 @@ function close() {
 	cropperMenuOpen.value = false;
 	loading.value = true;
 	setAppColors(routeColorConfig(FRONTEND_ROUTES.draw));
-	if (cropper) cropper.destroy();
+	destroyCropper();
 }
 
 function init() {
 	setAppColors(photoSwiperColorConfig);
-	imgRef.value?.addEventListener("ready", () => (loading.value = false));
+	destroyCropper();
+	imgRef.value?.addEventListener("ready", handleCropperReady, { once: true });
 	cropper = new Cropper(imgRef.value!, {
 		aspectRatio: getCanvas().width! / getCanvas().height!,
 		background: false,
@@ -59,8 +69,12 @@ function init() {
 }
 
 function apply() {
-	const imgUrl = cropper.getCroppedCanvas().toDataURL();
-	// selectAction(DrawAction.AddBackgroundImage, { img: imgUrl })
+	// NOTE: this only closes the modal — the crop is computed and thrown away.
+	// The dispatch below was commented out and the cropped data URL was left
+	// assigned to an unused local, so "Apply" has been a no-op. Restoring it
+	// needs the AddBackgroundImage action re-checked against the tile renderer,
+	// which is a draw-engine change, not a cleanup.
+	//   selectAction(DrawAction.AddBackgroundImage, { img: cropper.getCroppedCanvas().toDataURL() })
 	close();
 }
 </script>

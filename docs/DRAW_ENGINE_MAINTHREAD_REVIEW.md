@@ -3,6 +3,11 @@
 **Written 2026-08-01.** Companion to `DRAW_ENGINE_PERF.md` (worker-era findings)
 and `DRAW_ENGINE_STABILITY_AUDIT.md` (memory/import findings).
 
+For the later build-versus-Fabric decision and staged dependency plan, see
+[`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). It preserves
+this review's conclusion that tiling should stay while separating that decision
+from whether Fabric must remain the canonical object runtime.
+
 Scope: `src/draw/**` with the **`main` render backend assumed**
 (`resolveDrawRenderBackend` defaults to `"main"`,
 [renderBackend.config.ts:35](../src/draw/config/renderBackend.config.ts#L35)).
@@ -396,7 +401,7 @@ ANRs happen**:
 | --- | --- | --- | --- | --- |
 | 1 | **M8** Sentry: native verification, persisted context, long-task breadcrumbs, stall detector | S | Turns every item below from a guess into a measurement | ✅ shipped |
 | 2 | **M1** Cost-estimate gate on all synchronous render paths; drop the first-tile exemption | S | Directly removes the ANR-shaped blocks | ✅ shipped |
-| 3 | **M7** `visibilitychange` release + `onTrimMemory` bridge | S–M | Converts OOM crashes into blurs | ✅ shipped (JS side; native trimMemory bridge still to build) |
+| 3 | **M7** `visibilitychange` release + `onTrimMemory` bridge | S–M | Converts OOM/driver crashes into blurs | ✅ shipped (native bridge; `UI_HIDDEN` immediately purges tiles) |
 | 4 | **M2** Persistent canvas for hot tiles, demote when cold | M | Kills the continuous Adreno texture churn | ✅ shipped |
 | 5 | **M3** Per-tier quota + weaker fallback LRU bump | S | Stops the zoom-oscillation eviction storm | ✅ shipped |
 | 6 | **M6** Integer tile keys, scratch-array queries, allocation-free `prepareForBake` | M | Lowers GC pause frequency | ✅ shipped |
@@ -411,7 +416,7 @@ the field data decides whether they are still the right ones.
 | Area | Landed as |
 | --- | --- |
 | M8 | [`drawDiagnostics.ts`](../src/draw/diagnostics/drawDiagnostics.ts); `enableNdkScopeSync` / `attachThreads` / `maxBreadcrumbs` in [`sentry.ts`](../src/observability/sentry.ts); `io.sentry.**` keeps in `proguard-rules.pro`; ANR v1/v2 + NDK meta-data in `AndroidManifest.xml`; `lastDrawPhase()` + `setLongTaskSink` in `renderMetrics.ts` |
-| M1 | [`renderCost.ts`](../src/draw/rendering/renderCost.ts); `affordsSyncRender` gates in `tileBaker.ts`; cost gate in `WorldOverview.patchRect`; `syncRenderCostBudget` per device class; `rebuildTileSync` returns `repaired \| rebuilt \| declined` |
+| M1 | [`renderCost.ts`](../src/draw/rendering/renderCost.ts); `affordsSyncRender` gates in `tileBaker.ts`; localized overview object repairs now use a yielded scratch build + atomic commit; synchronous overview eraser stamps retain the per-device cost gate; `rebuildTileSync` returns `repaired \| rebuilt \| declined` |
 | M7 | [`drawMemoryPressure.ts`](../src/draw/diagnostics/drawMemoryPressure.ts); `releaseGraphicsMemory()` / `restoreFromRelease()` on the engine |
 | M2 | `TileSurface` union + `isCanvasSurface` / `releaseTileSurface` in `tileStore.ts`; `stampInPlace` / `hotSurfaceFor` / `demoteHotTiles` in `tileStamps.ts`; `hotTileMax` per device class |
 | M3 | Class-ordered eviction in `TileStore.reserve` + `setActiveTier`; weak `touch` for fallback sampling |
@@ -430,12 +435,12 @@ so they can be corrected rather than argued about:
   rises, compositing from a canvas is slower than from a bitmap on that
   hardware and the hot set should shrink (0 disables the path entirely).
 
-### Still to build
+### Still to validate
 
-- The native `onTrimMemory` bridge. `drawMemoryPressure.ts` already listens for
-  a `trimMemory` event on the App plugin and releases at
-  `TRIM_MEMORY_RUNNING_LOW`; nothing emits it yet, so today only
-  `visibilitychange` and `appStateChange` drive the release.
+- The native `onTrimMemory` bridge is implemented in `MainActivity` and the web
+  layer listens for `nativeTrimMemory`. Validate event delivery and resource
+  release on representative API/OEM builds, especially background/foreground
+  and `RUNNING_LOW`/`RUNNING_CRITICAL`; implementation alone is not field proof.
 - **Verify native ANR capture in a real release build before trusting any of
   this.** R8 was only recently enabled. If `ApplicationNotResponding` events do
   not arrive, every other M8 change is inert.
@@ -444,8 +449,12 @@ so they can be corrected rather than argued about:
 
 ## What is *not* worth doing
 
-- `android:largeHeap="true"` — the WebView renderer is a separate process; it
-  does not apply.
+- `android:largeHeap="true"` — still correct to skip. It only changes the app's
+  managed-heap class and is not a direct remedy for WebView/native graphics
+  allocations, GPU hangs or main-thread stalls. WebView output is integrated
+  with the app window's HWUI pipeline, so reducing render work remains relevant;
+  the full ANR trace, rather than a process-model assumption, must establish the
+  dependency chain. See `DRAW_ENGINE_PERF.md` → "0.4.4 field pass".
 - Re-enabling Fabric `objectCaching` globally — it caches at live viewport zoom,
   which is exactly what M4's tier-keyed cache exists to avoid.
 - Abandoning tiling. Both existing audits reach the same conclusion and the code

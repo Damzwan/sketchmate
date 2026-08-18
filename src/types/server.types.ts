@@ -9,6 +9,10 @@ export enum NotificationType {
 	moderation_content = "moderation_content",
 	mate_request = "mate_request",
 	request_accepted = "request_accepted",
+	competition_theme = "competition_theme",
+	competition_last_call = "competition_last_call",
+	competition_results = "competition_results",
+	competition_win = "competition_win",
 
 	// Legacy — remove with legacy config
 	match = "match",
@@ -79,6 +83,8 @@ export type ChatStatus =
 // Standardized ConversationStatus to match ChatStatus for UI consistency
 export type ConversationStatus = ChatStatus;
 
+export type PresenceStatus = "online" | "busy" | "invisible";
+
 export interface Mate {
 	_id: string;
 	name: string;
@@ -128,7 +134,10 @@ export type ReportableType =
 	| "inbox_drawing"
 	| "inbox_comment"
 	| "lobby_message"
-	| "lobby_drawing";
+	| "lobby_drawing"
+	| "lobby_reference"
+	| "competition_entry"
+	| "competition_comment";
 
 export type ReportStatus = "pending" | "auto_actioned" | "upheld" | "dismissed";
 
@@ -241,8 +250,17 @@ export interface User {
 	/** Home feed visibility: 'off' (hidden), 'mates' (connections only) or
 	    'open' (connections + global discovery). Defaults to 'open'. */
 	feed_level?: "off" | "mates" | "open";
+	/** Whether curated artist cards appear on Home. Missing means enabled. */
+	artist_highlights?: {
+		enabled?: boolean;
+		snoozed_until?: string | null;
+	};
 	/** Render the server's censored twin of user text. Defaults on (undefined = on). */
 	profanity_filter?: boolean;
+	/** Private presence preference. Invisible users remain connected but are shown as offline. */
+	presence_invisible?: boolean;
+	/** Account-wide presence mode. `presence_invisible` remains as a legacy mirror. */
+	presence_status?: PresenceStatus;
 	stats: UserStats;
 
 	// Moderation — both optional so legacy clients don't crash if absent.
@@ -267,6 +285,13 @@ export interface User {
 	timezone?: string;
 	last_name_change?: string;
 	migration_version: number;
+
+	/**
+	 * Weekly competition state. `last_seen_results_week` is server-side on
+	 * purpose: the winners moment must fire once per user, not once per device,
+	 * and must not re-fire after a reinstall.
+	 */
+	competition?: UserCompetitionState;
 
 	// Features
 	balloon?: {
@@ -317,6 +342,31 @@ export interface UserStats {
 	followers: number;
 	following: number;
 	mates?: number;
+}
+
+export interface UserCompetitionState {
+	/** Weekly competition pushes. Defaults on; capped at 3 a week server-side. */
+	notifications?: boolean;
+	/** Week key of the last results the user was shown, e.g. "2026-W33". */
+	last_seen_results_week?: string | null;
+	wins?: number;
+}
+
+/**
+ * A user as other users see them — the server's `PUBLIC_USER_FIELDS`
+ * projection. This is what `/user/public_users` returns and what rides along
+ * as the `author` on posts, comments and chat participant lists.
+ *
+ * Everything past the identity triple is optional because `userCache.store`
+ * merges partial payloads from several sources: the batch endpoint omits
+ * nothing, but a chat participant list or an embedded post author carries less.
+ * The cache merges rather than replaces for exactly this reason, so a narrower
+ * payload must be assignable.
+ */
+export interface PublicUser extends Mate {
+	description?: string;
+	stats?: UserStats;
+	competition?: Pick<UserCompetitionState, "wins">;
 }
 
 export interface UserRelationship {
@@ -373,6 +423,23 @@ export interface BasePost {
 	status: ContentModerationStatus;
 	moderation?: ContentModerationMeta;
 	reaction_counts: Record<string, number>;
+	/** Set when this drawing also won a weekly competition. */
+	competition_win?: {
+		week_key: string;
+		category_label: string;
+		theme?: string;
+	};
+}
+
+/**
+ * The trimmed author shape a credit renders with. Deliberately no
+ * `customization`: credits are 20px plain avatars, and the decorated variant is
+ * what would make a feed card expensive.
+ */
+export interface PostCreditUser {
+	_id: string;
+	name: string;
+	img: string;
 }
 
 export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
@@ -382,12 +449,69 @@ export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
 		img: string;
 		customization?: Partial<UserCustomization>;
 	};
+	/**
+	 * Lineage, stamped by the server at publish time when the drawing was
+	 * started from another post's canvas. Absent when the origin author had
+	 * remixes switched off, when the origin is gone, and when you remixed
+	 * yourself — the server decides all three, the client only sends an id.
+	 */
+	remix_of?: {
+		post_id: string;
+		author: PostCreditUser;
+	};
+	/**
+	 * Room peers who actually drew on this canvas, in the order they first did.
+	 * Proposed by the publisher's client (only it saw the session) and verified
+	 * server-side: unknown ids and under-13 accounts are dropped.
+	 */
+	collaborators?: PostCreditUser[];
+	/**
+	 * Shoutouts the artist picked in the composer, in that order. Structured
+	 * ids rather than text parsed out of the caption, so a tag can't be forged
+	 * by typing a name and the tagged person has something concrete to remove.
+	 */
+	mentions?: PostCreditUser[];
 	user_reaction: string | null;
-	comments: any[];
+	/**
+	 * Whether YOU have bookmarked this post. Per-viewer and private: there is no
+	 * public count and the author is never told, so it carries none of the
+	 * social weight a reaction does.
+	 *
+	 * Optional because the customization preview mocks a post that never came
+	 * from the server; every real read path sets it.
+	 */
+	is_saved?: boolean;
+	/**
+	 * Preview slice only — the feed ships the latest two, hydrated with their
+	 * author. The full list arrives from `GET /post/:id/comments`, which returns
+	 * the same shape. `commentsLoaded` marks that the full list has replaced the
+	 * preview.
+	 */
+	comments: HydratedPostComment[];
 	createdAt: string;
 	updatedAt: string;
 	commentsLoaded?: boolean;
 };
+
+export interface ArtistHighlightQuestion {
+	_id: string;
+	question: string;
+	answer: string;
+}
+
+export interface ArtistHighlightEntry {
+	_id: string;
+	questions: ArtistHighlightQuestion[];
+	artist: FeedPost["author"];
+	posts: FeedPost[];
+}
+
+export interface ArtistHighlightConfig {
+	title: string;
+	subtitle?: string;
+	updated_at: string;
+	artists: ArtistHighlightEntry[];
+}
 
 export interface InboxItem {
 	_id: string;
@@ -486,7 +610,14 @@ export interface Report {
 	reason: ReportReason;
 	details?: string;
 	status: ReportStatus;
-	content_snapshot?: any;
+	/**
+	 * Frozen copy of the reported content, taken at report time so the mod queue
+	 * still has something to look at after the author deletes it. Stored as
+	 * `Schema.Types.Mixed` server-side because the shape follows `target_type`
+	 * (a post, an inbox item, a comment, a profile). Nothing in the app reads it
+	 * today; `unknown` keeps it that way until someone narrows it deliberately.
+	 */
+	content_snapshot?: unknown;
 	resolved_at?: string;
 	resolved_by?: string;
 	createdAt: string;
@@ -695,9 +826,26 @@ export interface ChangeUserNameParams {
 	name: string;
 }
 
+// =============================================================================
+// UPLOAD PARAMS — the one place this file and the server's copy genuinely differ
+// =============================================================================
+// This file mirrors `sketchmate_server/src/types/types.ts` by hand, and the two
+// copies agree everywhere except here. The upload interfaces are *handler input*
+// shapes, not wire contracts: server-side `img` is a parsed multipart upload
+// (`{ filepath, mimetype }`, which `mongodb.ts` passes straight to
+// `s3Creator.uploadFile`), while client-side it is whatever gets appended to a
+// `FormData` or wrapped in a `Blob`. One name, two types — which is exactly why
+// both sides had settled on `any`.
+//
+// Typed here from the client's side, since that is the only side this file is
+// compiled against. When these move into a shared domain package, the split to
+// make is upload *transport* (client) vs upload *handler input* (server); do not
+// try to reconcile them into one interface.
+
+/** Server-side handler input. No client call site — see the note above. */
 export interface UploadProfileImgParams {
 	_id: string;
-	img: any;
+	img: unknown;
 	previousImage?: string;
 }
 
@@ -725,11 +873,12 @@ export interface RemoveFromInboxParams {
 	inbox_id: string;
 }
 
+/** Server-side handler input. No client call site — see the note above. */
 export interface CreateBalloonPostParams {
 	sender: string;
 	message: string;
 	drawing: string;
-	img: any;
+	img: unknown;
 	aspect_ratio: number;
 	version?: number;
 }
@@ -740,7 +889,8 @@ export interface CreateBalloonPostRes {
 
 export interface CreateStickerParams {
 	_id: string;
-	img: any;
+	/** Appended to a `FormData` by `user.api.createSticker`. */
+	img: Blob;
 }
 
 export interface DeleteStickerParams {
@@ -750,7 +900,8 @@ export interface DeleteStickerParams {
 
 export interface CreateEmblemParams {
 	_id: string;
-	img: any;
+	/** Appended to a `FormData` by `user.api.createEmblem`. */
+	img: Blob;
 }
 
 export interface DeleteEmblemParams {
@@ -760,8 +911,14 @@ export interface DeleteEmblemParams {
 
 export interface CreateSavedParams {
 	_id: string;
-	img: any;
-	drawing: any;
+	/**
+	 * Raster export of the drawing. `exportBoundingBoxImage` returns
+	 * `string | ArrayBuffer` depending on `asBuffer`, and both callers wrap it in
+	 * a `Blob`/`File`, so the contract is whatever `Blob` accepts.
+	 */
+	img: BlobPart;
+	/** Serialized document JSON, wrapped in an `application/json` Blob. */
+	drawing: string;
 }
 
 export interface DeleteSavedParams {
@@ -811,12 +968,13 @@ export interface UnMatchParams {
 	_id: string;
 }
 
+/** Server-side handler input. No client call site — see the note above. */
 export interface SendParams {
 	_id: string;
 	name: string;
 	followers: string[];
 	drawing: string;
-	img: any;
+	img: unknown;
 	aspect_ratio: number;
 }
 
@@ -875,6 +1033,12 @@ export interface SubmitReportParams {
 	target_type: ReportableType;
 	reason: ReportReason;
 	details?: string;
+	/**
+	 * The lobby the report was raised in. Lobby chat is never persisted, so the
+	 * server can only attach the surrounding exchange to the report if it knows
+	 * which room's live buffer to read at submit time.
+	 */
+	context_room_id?: string;
 }
 
 export interface SubmitReportRes {
@@ -914,6 +1078,7 @@ export interface QuotaSummary {
 export type NotificationKind =
 	| "post_reaction"
 	| "post_comment"
+	| "post_mention"
 	| "inbox_drawing"
 	| "inbox_comment"
 	| "dm_message"
@@ -923,6 +1088,7 @@ export type NotificationKind =
 	// Content lifecycle notice — quarantined / removed / restored, discriminated
 	// by payload.status. Mirrors NotificationKind on the server.
 	| "moderation_content"
+	| "competition"
 	| "lobby_invitation"
 	| "announcement";
 
@@ -942,6 +1108,67 @@ export interface NotificationActor {
 export interface NotificationTargetPreview {
 	thumbnail?: string;
 	text?: string;
+}
+
+/** `payload.kind` for `type: "competition"` entries. */
+export type CompetitionNotificationKind =
+	| "win"
+	| "results"
+	| "submissions_closed"
+	| "entry_comment";
+
+/**
+ * Structured payload the server attaches to system-generated notifications.
+ *
+ * Which fields are present is determined by `Notification["type"]`, and for
+ * `competition` additionally by `payload.kind`:
+ *
+ * | `type`               | `kind`               | fields                                                            |
+ * |----------------------|----------------------|-------------------------------------------------------------------|
+ * | `moderation_strike`  | —                    | the whole of {@link ModerationStrikePayload}                        |
+ * | `moderation_content` | —                    | `status`, `content_type`, `target_id`, `title`, `body`              |
+ * | `competition`        | `win`                | `title`, `body`, `competition_id`, `week_key`, `category_id`, `category_label`, `granted_items`, `vote_count` |
+ * | `competition`        | `results`            | `title`, `body`, `competition_id`, `week_key`, `vote_count?`        |
+ * | `competition`        | `submissions_closed` | `title`, `body`, `competition_id`, `week_key`, `ends_at`            |
+ * | `competition`        | `entry_comment`      | `competition_id`, `entry_id`                                        |
+ * | `moderation_lifted`  | —                    | no payload                                                          |
+ *
+ * Every field is optional rather than this being a discriminated union,
+ * because the discriminant lives on the *entry* (`Notification["type"]`), not
+ * on the payload — and `Notification` is a plain interface built and stored in
+ * bulk by `inAppNotificationStore`. Narrowing therefore happens at the call
+ * site (`NotificationCard` already branches on `type`); this type's job is to
+ * stop the field names being guesswork, not to prove the variant.
+ */
+export interface NotificationPayload {
+	// competition
+	kind?: CompetitionNotificationKind;
+	competition_id?: string;
+	entry_id?: string;
+	week_key?: string;
+	category_id?: string;
+	category_label?: string;
+	granted_items?: string[];
+	vote_count?: number;
+	ends_at?: string;
+
+	// moderation_content
+	status?: "under_review" | "removed" | "restored";
+	content_type?: ReportableType;
+	target_id?: string;
+
+	// moderation_strike — see ModerationStrikePayload, mirrored here because the
+	// server persists the same object it sends over the socket.
+	level?: number;
+	name?: string;
+	description?: string;
+	reason?: ReportReason;
+	expires_at?: string;
+	blocked_capabilities?: Capability[];
+
+	// shared display copy (moderation_content, announcement, competition)
+	title?: string;
+	body?: string;
 }
 
 export interface Notification {
@@ -969,9 +1196,8 @@ export interface Notification {
 	read: boolean;
 	seen: boolean;
 
-	// Free-form payload for moderation/announcement types that need
-	// structured data beyond the standard fields (level, expires_at, etc.)
-	payload?: any;
+	// Structured payload for the system-generated types. See NotificationPayload.
+	payload?: NotificationPayload;
 
 	createdAt: string;
 	updatedAt: string;

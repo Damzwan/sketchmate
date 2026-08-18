@@ -25,16 +25,22 @@ export const useMenuStore = defineStore("menu", () => {
 	const chatMenuOpen = ref(false);
 	const viewProfileMenuOpen = ref(false);
 	const bucketMenuOpen = ref(false);
+	const smudgeMenuOpen = ref(false);
 	const connectionMenuOpen = ref(false);
 	const moderationMenuOpen = ref(false);
 	const sharePostMenuOpen = ref(false);
 	const reportMenuOpen = ref(false);
 	const balloonMenuOpen = ref(false);
 	const textEditMenuOpen = ref(false);
+	const referenceMenuOpen = ref(false);
 	const isShopOpen = ref(false);
 	const isOnlineUpgradeMenuOpen = ref(false);
 	const isPaywallOpen = ref(false);
 	const isWhatsNewOpen = ref(false);
+	// The weekly winners moment. Lives here (not in competition.store) so
+	// ambientPause and the modal-priority checks can see it like any other
+	// full-screen overlay.
+	const isCompetitionResultsOpen = ref(false);
 
 	const shopScrollTarget = ref<string | null>(null);
 	const shopEquipTarget = ref<"profile" | "chat">("profile");
@@ -66,6 +72,7 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.ChatMenuOpen]: chatMenuOpen,
 		[Menu.ViewProfileMenu]: viewProfileMenuOpen,
 		[Menu.Bucket]: bucketMenuOpen,
+		[Menu.Smudge]: smudgeMenuOpen,
 		[Menu.ConnectionMenu]: connectionMenuOpen,
 		[Menu.ModerationMenu]: moderationMenuOpen,
 		[Menu.SharePostMenu]: sharePostMenuOpen,
@@ -74,11 +81,13 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.TextEditMenu]: textEditMenuOpen,
 		[Menu.Shop]: isShopOpen,
 		[Menu.UpgradeOnline]: isOnlineUpgradeMenuOpen,
+		[Menu.Reference]: referenceMenuOpen,
 	};
 
 	const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
 		[DrawTool.Pen]: Menu.Pen,
 		[DrawTool.Bucket]: Menu.Bucket,
+		[DrawTool.Smudge]: Menu.Smudge,
 		[DrawTool.MobileEraser]: Menu.Eraser,
 		[DrawTool.Lasso]: Menu.Select,
 		[DrawTool.Select]: Menu.Select,
@@ -105,6 +114,7 @@ export const useMenuStore = defineStore("menu", () => {
 		for (const open of Object.values(menuMapping)) open.value = false;
 		isPaywallOpen.value = false;
 		isWhatsNewOpen.value = false;
+		isCompetitionResultsOpen.value = false;
 		menuEvent.value = undefined;
 		shopScrollTarget.value = null;
 		shopEquipTarget.value = "profile";
@@ -147,12 +157,14 @@ export const useMenuStore = defineStore("menu", () => {
 		chatMenuOpen,
 		viewProfileMenuOpen,
 		bucketMenuOpen,
+		smudgeMenuOpen,
 		connectionMenuOpen,
 		moderationMenuOpen,
 		sharePostMenuOpen,
 		closeMenu,
 		reportMenuOpen,
 		textEditMenuOpen,
+		referenceMenuOpen,
 		isShopOpen,
 		isOnlineUpgradeMenuOpen,
 		isPaywallOpen,
@@ -160,6 +172,7 @@ export const useMenuStore = defineStore("menu", () => {
 		shopEquipTarget,
 		openShop,
 		isWhatsNewOpen,
+		isCompetitionResultsOpen,
 		resetRuntimeState,
 	};
 });

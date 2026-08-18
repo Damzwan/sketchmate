@@ -4,6 +4,10 @@ import inside from "point-in-polygon";
 import { svgPathProperties } from "svg-path-properties";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { DrawTool, type ToolService } from "@/draw/tools/tool.types";
@@ -11,6 +15,7 @@ import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import * as transform from "@/draw/transform/transformController";
 import type { Rect } from "@/draw/utils/QuadTree";
 import { isMobile } from "@/helper/platform.helper";
+import { useToast } from "@/service/toast.service";
 
 type FabricObjectWithCache = FabricObject & {
 	_lassoPoints?: number[][];
@@ -385,8 +390,21 @@ export function createLassoTool(): ToolService {
 			// select does, else copies of the selection stack in the wrong order.
 			useDrawObjectManager().getZIndexMap();
 			const sortStartedAt = performance.now();
-			const sorted = [...objects].sort(compareRenderOrder);
+			const allSorted = [...objects].sort(compareRenderOrder);
 			recordPhase("lassoSelectionSort", performance.now() - sortStartedAt);
+			// Fabric constructs ActiveSelection synchronously: child coordinate entry,
+			// layout and transform rewriting are one un-yieldable block, followed by a
+			// one-call bitmap prewarm. A dense lasso used to hand it the entire board.
+			// Keep the topmost members — the ones the user can actually see — when the
+			// device-scaled safety ceiling is exceeded.
+			const capped = capOrderedSelection(allSorted);
+			const sorted = capped.objects;
+			if (capped.omitted > 0) {
+				void useToast().toast(
+					`Selected the top ${DRAW_SELECTION_OBJECT_LIMIT} objects to keep this device responsive.`,
+					{ color: "warning" },
+				);
+			}
 			let activeObject: FabricObject | undefined;
 			if (sorted.length > 1) {
 				const constructStartedAt = performance.now();

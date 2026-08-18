@@ -18,6 +18,12 @@ let layers: DrawLayer[] = defaultSoloLayers();
 let orderById = new Map<string, number>([[BASE_LAYER_ID, 0]]);
 let hiddenIds = new Set<string>();
 let lockedIds = new Set<string>();
+/**
+ * Only layers that are NOT fully opaque. Empty in the overwhelmingly common
+ * case, which is what lets `layerOpacity` be one `size` check on the render hot
+ * path instead of a map lookup per object per tile.
+ */
+let fadedById = new Map<string, number>();
 let activeId = BASE_LAYER_ID;
 let policy: LayerPolicy = "mutable";
 
@@ -40,9 +46,12 @@ function reindex(): void {
 	}
 	hiddenIds = new Set();
 	lockedIds = new Set();
+	fadedById = new Map();
 	for (const layer of layers) {
 		if (!layer.visible) hiddenIds.add(layer.id);
 		if (layer.locked) lockedIds.add(layer.id);
+		const opacity = layer.opacity ?? 1;
+		if (opacity < 1) fadedById.set(layer.id, Math.max(0, opacity));
 	}
 	if (!orderById.has(activeId)) {
 		activeId = layers[0]?.id ?? BASE_LAYER_ID;
@@ -140,6 +149,33 @@ export function isLayerHidden(layerId: string | undefined): boolean {
 
 export function isLayerLocked(layerId: string | undefined): boolean {
 	return lockedIds.size > 0 && lockedIds.has(layerId ?? BASE_LAYER_ID);
+}
+
+/** Is anything on the board faded? Lets every render seam skip the lookup. */
+export function hasFadedLayers(): boolean {
+	return fadedById.size > 0;
+}
+
+/**
+ * The faded layers as a plain object, for anything that has to be told rather
+ * than able to ask — the bakery worker, which rasterizes from a JSON mirror and
+ * has no registry of its own.
+ */
+export function fadedLayerMap(): Record<string, number> {
+	const out: Record<string, number> = {};
+	for (const [id, opacity] of fadedById) out[id] = opacity;
+	return out;
+}
+
+/**
+ * The 0–1 multiplier for a layer, 1 when it is fully opaque.
+ *
+ * Read once per OBJECT per render, so the empty-map short-circuit matters: on a
+ * board with no faded layer this is a `size` compare and nothing else.
+ */
+export function layerOpacity(layerId: string | undefined): number {
+	if (fadedById.size === 0) return 1;
+	return fadedById.get(layerId ?? BASE_LAYER_ID) ?? 1;
 }
 
 /**

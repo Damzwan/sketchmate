@@ -3,7 +3,7 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
 import { fitBitmapDimensions } from "@/draw/config/drawMemoryProfile";
 import { getRenderDpr } from "@/draw/config/renderQuality.config";
-import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { compareRenderOrder, layerOpacity } from "@/draw/layers/layerRegistry";
 import {
 	bakeryRenderSelection,
 	isBakeryActive,
@@ -50,6 +50,13 @@ interface Session {
 	vacatedBitmap: ImageBitmap | null;
 	vacatedPromise: Promise<void> | null;
 	oldRegionRetained: boolean;
+	/**
+	 * At overview zoom the drag-start invalidation deliberately left the overview
+	 * untouched, so this session owes it both footprints at commit — as a stamp,
+	 * or as the ordinary retain path for BOTH rects if the stamp cannot run.
+	 * @see RenderInvalidationCoordinator.invalidateUnderTransformCover
+	 */
+	ownsOverview: boolean;
 	releasePending: boolean;
 }
 
@@ -169,8 +176,6 @@ export function markMoved(): void {
 	const s = session;
 	const mgr = useDrawObjectManager();
 	mgr.onTransformStart();
-
-	s.objects.forEach((o) => (o.opacity = 0));
 
 	const repairStartedAt = performance.now();
 	if (s.vacatedBitmap) {
@@ -354,7 +359,33 @@ export function commit(c: Canvas): void {
 			// have. Retain the sharp background at the new position as well; the CSS
 			// selection supplies the only missing pixels until both regions rebake.
 			attempted = true;
-			mgr.retainRegionsUntilRebaked([newRect]);
+			// Overview zoom: there are no tiles to retain, and the drag-start
+			// invalidation left the overview to us. Write the two bitmaps the user
+			// has been looking at straight into it — otherwise this commit costs a
+			// full rebuild of the board and the layers hang on it, which is the
+			// flicker when moving a big selection while zoomed far out.
+			const stampedOverview =
+				s.ownsOverview &&
+				!!s.vacatedBitmap &&
+				mgr.stampTransformIntoOverview(
+					{ rect: newRect, bmp: s.bitmap, m: bitmapToWorldMatrix(s) },
+					{
+						rect: oldRect,
+						bmp: s.vacatedBitmap,
+						m: vacatedBitmapToWorldMatrix(s),
+					},
+				);
+			if (stampedOverview) {
+				// hideWhenReady's `newReady`. `oldReady` is satisfied by the overview
+				// having stayed clean.
+				stamped = true;
+			} else {
+				// Both footprints, not just the new one: when the stamp was owed the
+				// overview and could not deliver, the old one has had no patch either.
+				mgr.retainRegionsUntilRebaked(
+					s.ownsOverview ? [oldRect, newRect] : [newRect],
+				);
+			}
 		} else if (c.viewportTransform![0] === s.baseZoom) {
 			try {
 				attempted = true;
@@ -419,6 +450,12 @@ export function commit(c: Canvas): void {
 	// selection is instant: converts a fast low-quality bake to full quality,
 	// and re-bakes after rotate/scale (which changed the cache key).
 	prewarm(c);
+
+	// Deliberately scheduled from here rather than from each hide site: the
+	// `hideWhenReady` branch above is still holding both layers visible at this
+	// point, and `releaseLayerSurfaces` re-checks that they are hidden before it
+	// touches anything.
+	scheduleLayerSurfaceRelease();
 }
 
 export function cancel(c: Canvas): void {
@@ -463,6 +500,9 @@ let vacatedGeneration = 0;
  * full-quality cache makes it a no-op.
  */
 export function prewarm(c: Canvas): void {
+	// No bitmap layer can be produced on these legacy WebViews. Avoid scheduling
+	// idle work that can only fall back to null; Fabric remains the renderer.
+	if (typeof OffscreenCanvas !== "function") return;
 	if (prewarmHandle !== null) cancelIdle(prewarmHandle);
 	const target = c.getActiveObject();
 	if (target) prewarmVacated(c, target);
@@ -660,6 +700,7 @@ async function renderVacatedLocally(
 	height: number,
 	isCancelled: () => boolean,
 ): Promise<ImageBitmap | null> {
+	if (typeof OffscreenCanvas !== "function") return null;
 	const off = new OffscreenCanvas(width, height);
 	const ctx = off.getContext("2d", { alpha: true });
 	if (!ctx) return null;
@@ -791,6 +832,7 @@ function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
 			: null,
 		vacatedPromise: null,
 		oldRegionRetained: false,
+		ownsOverview: false,
 		releasePending: false,
 	};
 	for (const o of objs) if (o.id) ownedIds.add(o.id);
@@ -841,7 +883,19 @@ function ensureLayer(c: Canvas): HTMLCanvasElement {
 	const wrapper = (c as any).wrapperEl as HTMLElement;
 	const upper = (c as any).upperCanvasEl as HTMLElement;
 
+	// Both layers are about to be needed again — do not let a pending idle
+	// release zero them out from under the drag that is starting.
+	cancelLayerSurfaceRelease();
+
 	if (layerCanvas && layerCanvas.parentElement === wrapper) return layerCanvas;
+
+	// Leaving and re-entering the draw route builds a new fabric canvas, so the
+	// old layer belongs to a wrapper that is gone. Release its pixels rather
+	// than waiting for the element to be collected.
+	if (layerCanvas) {
+		layerCanvas.width = 0;
+		layerCanvas.height = 0;
+	}
 
 	const el = document.createElement("canvas");
 	el.className = "fabric-drag-layer";
@@ -866,6 +920,13 @@ function ensureVacatedLayer(c: Canvas): HTMLCanvasElement {
 	if (vacatedLayerCanvas && vacatedLayerCanvas.parentElement === wrapper) {
 		wrapper.insertBefore(vacatedLayerCanvas, lower);
 		return vacatedLayerCanvas;
+	}
+
+	// See ensureLayer: a stale layer from a previous canvas keeps its backing
+	// store until it is explicitly zeroed.
+	if (vacatedLayerCanvas) {
+		vacatedLayerCanvas.width = 0;
+		vacatedLayerCanvas.height = 0;
 	}
 
 	const el = document.createElement("canvas");
@@ -957,6 +1018,69 @@ function hideVacatedLayer(): void {
 	clearCommittedCanvasMask();
 }
 
+/**
+ * How long the drag layers may sit hidden before their pixels are given back.
+ *
+ * Long enough that a user nudging an object repeatedly never pays a
+ * reallocation (each grab is well inside this), short enough that a session
+ * spent drawing rather than moving does not hold the surfaces at all.
+ */
+const LAYER_RELEASE_IDLE_MS = 8_000;
+
+let layerReleaseHandle: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Give back the drag layers' backing stores while nothing is being dragged.
+ *
+ * `display: none` drops the compositor layer but NOT the canvas allocation:
+ * both elements keep a `transformMaxPixels`-sized accelerated surface — up to
+ * ~5 MB each at the mobile profile — for the rest of the drawing session, even
+ * if the user moves one object once and then draws for twenty minutes. On the
+ * device class in the `libIMGegl` ANR reports, where the WebView's GL runs on
+ * the app's own HWUI RenderThread, that is GPU memory held for nothing.
+ *
+ * A zero resize releases the store and leaves the element reusable;
+ * `placeLayer` / `placeVacatedLayer` already resize on every use, so the next
+ * drag re-allocates at exactly the size it needs with no other change.
+ */
+function releaseLayerSurfaces(): void {
+	layerReleaseHandle = null;
+	// A drag started while the timer was pending, or a layer is still covering
+	// for tiles that have not landed. Either way the pixels are load-bearing.
+	if (session) return;
+	if (layerCanvas && layerCanvas.style.display !== "none") return;
+	if (vacatedLayerCanvas && vacatedLayerCanvas.style.display !== "none") return;
+
+	for (const el of [layerCanvas, vacatedLayerCanvas]) {
+		if (!el || (el.width === 0 && el.height === 0)) continue;
+		el.width = 0;
+		el.height = 0;
+	}
+}
+
+/**
+ * Give the layer pixels back NOW, for the memory-pressure path.
+ *
+ * Skipped while a drag is live: those pixels are the only copy of what the user
+ * is moving. Everything else here is reconstructable on the next grab.
+ */
+export function releaseLayerGraphics(): void {
+	cancelLayerSurfaceRelease();
+	releaseLayerSurfaces();
+}
+
+function scheduleLayerSurfaceRelease(): void {
+	if (!layerCanvas && !vacatedLayerCanvas) return;
+	if (layerReleaseHandle !== null) clearTimeout(layerReleaseHandle);
+	layerReleaseHandle = setTimeout(releaseLayerSurfaces, LAYER_RELEASE_IDLE_MS);
+}
+
+function cancelLayerSurfaceRelease(): void {
+	if (layerReleaseHandle === null) return;
+	clearTimeout(layerReleaseHandle);
+	layerReleaseHandle = null;
+}
+
 function clearCommittedCanvasMask(): void {
 	if (!maskedLowerCanvas) return;
 	const { element, clipPath, webkitClipPath } = maskedLowerCanvas;
@@ -968,7 +1092,19 @@ function clearCommittedCanvasMask(): void {
 function activatePreparedCover(s: Session, mgr = useDrawObjectManager()): void {
 	if (!s.vacatedBitmap || s.oldRegionRetained) return;
 	s.oldRegionRetained = true;
-	mgr.retainRegionsUntilRebaked([sessionOriginRect(s)]);
+	// Hiding the originals belongs HERE, in the same task that reveals the moving
+	// layer and the cover. `markMoved` used to do it unconditionally, before
+	// checking whether the cover was ready — so on a cold selection (nothing
+	// prewarmed, the bake still running) the objects went transparent while the
+	// drag layer was still `display:none`: the selection VANISHED for as long as
+	// the vacated bake took, then popped back at the finger. That is the flicker,
+	// and it scales with scene size, which is why it shows up on big drawings and
+	// on mobile. Until the cover lands the originals now simply stay where they
+	// were committed — exactly what the comment in `markMoved` always claimed.
+	s.objects.forEach((o) => (o.opacity = 0));
+	// At overview zoom this takes the overview out of the drag entirely and hands
+	// both footprints to commit; above it, the ordinary retain-and-repair.
+	s.ownsOverview = mgr.invalidateUnderTransformCover([sessionOriginRect(s)]);
 	showVacatedLayer(s);
 	const moving = ensureLayer(s.canvas);
 	moving.style.display = "block";
@@ -1051,6 +1187,9 @@ function bakeSelectionBitmap(
 	target: FabricObject,
 	fast = false,
 ): { bitmap: ImageBitmap; origin: Origin } | null {
+	// The bitmap drag layer is an optimization. Legacy Android WebViews without
+	// OffscreenCanvas keep Fabric's normal live transform path instead.
+	if (typeof OffscreenCanvas !== "function") return null;
 	const PAD = 8;
 	const b = target.getBoundingRect();
 	const zoom = c.viewportTransform![0];
@@ -1134,10 +1273,16 @@ function bakeSelectionBitmap(
 	const origCaching = prep.objectCaching;
 	const origDirty = prep.dirty;
 	const origVisible = prep.visible;
+	const origOpacity = prep.opacity;
+	// Layer fade, same as isolatedTileRenderer applies. An ActiveSelection has no
+	// layerId of its own and resolves to 1, which is correct: its CHILDREN carry
+	// their own ids and each renders through its own fade.
+	const fade = layerOpacity(prep.layerId);
 	prep.isOnScreen = () => true;
 	prep.objectCaching = false;
 	prep.dirty = true;
 	prep.visible = true;
+	if (fade < 1) prep.opacity = (origOpacity ?? 1) * fade;
 	const renderStartedAt = performance.now();
 	try {
 		target.render(ctx as any);
@@ -1148,6 +1293,7 @@ function bakeSelectionBitmap(
 		prep.objectCaching = origCaching;
 		prep.dirty = origDirty;
 		prep.visible = origVisible;
+		prep.opacity = origOpacity;
 		recordPhase("selectionBake", performance.now() - renderStartedAt);
 	}
 
@@ -1245,6 +1391,7 @@ function vacatedObjects(target: FabricObject, origin: Origin): FabricObject[] {
 }
 
 function transparentBitmap(): ImageBitmap | null {
+	if (typeof OffscreenCanvas !== "function") return null;
 	try {
 		return new OffscreenCanvas(1, 1).transferToImageBitmap();
 	} catch {
@@ -1350,6 +1497,22 @@ function bitmapToWorldMatrix(s: Session): Mat {
 		0,
 		0,
 	]);
+}
+
+/**
+ * Vacated bitmap px → world. Unlike the moving layer's matrix there is no delta
+ * transform: this bitmap was baked for the origin box and stays there.
+ */
+function vacatedBitmapToWorldMatrix(s: Session): Mat {
+	const bmp = s.vacatedBitmap!;
+	return [
+		s.origin.width / bmp.width,
+		0,
+		0,
+		s.origin.height / bmp.height,
+		s.origin.left,
+		s.origin.top,
+	];
 }
 
 function isActiveSelection(t: FabricObject): boolean {

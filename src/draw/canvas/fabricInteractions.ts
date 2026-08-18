@@ -3,6 +3,10 @@ import { type Canvas, type IText, Point, type TPointerEvent } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
+import {
 	activeLayerId,
 	compareRenderOrder,
 	isLayerHidden,
@@ -10,6 +14,7 @@ import {
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
 import * as transform from "@/draw/transform/transformController";
+import { useToast } from "@/service/toast.service";
 
 const HIDDEN_STROKE_OPACITY = "__hiddenLayerStrokeOpacity";
 
@@ -17,7 +22,13 @@ function suppressHiddenLayerStrokePreview(canvas: Canvas): void {
 	if (!isLayerHidden(activeLayerId())) return;
 	const state = canvas as any;
 	const upper = state.upperCanvasEl as HTMLCanvasElement | undefined;
-	if (!upper || Object.hasOwn(state, HIDDEN_STROKE_OPACITY)) return;
+	if (
+		!upper ||
+		Reflect.apply(Object.prototype.hasOwnProperty, state, [
+			HIDDEN_STROKE_OPACITY,
+		])
+	)
+		return;
 	state[HIDDEN_STROKE_OPACITY] = upper.style.opacity;
 	// Opacity preserves pointer events, so Fabric continues collecting the real
 	// stroke while its temporary top-canvas preview remains invisible.
@@ -26,7 +37,12 @@ function suppressHiddenLayerStrokePreview(canvas: Canvas): void {
 
 function restoreHiddenLayerStrokePreview(canvas: Canvas): void {
 	const state = canvas as any;
-	if (!Object.hasOwn(state, HIDDEN_STROKE_OPACITY)) return;
+	if (
+		!Reflect.apply(Object.prototype.hasOwnProperty, state, [
+			HIDDEN_STROKE_OPACITY,
+		])
+	)
+		return;
 	const upper = state.upperCanvasEl as HTMLCanvasElement | undefined;
 	canvas.clearContext(canvas.getTopContext());
 	if (upper) upper.style.opacity = state[HIDDEN_STROKE_OPACITY];
@@ -405,11 +421,19 @@ export function overrideHandleSelection(c: Canvas) {
 		mgr.getZIndexMap();
 		collected.sort((a, b) => compareRenderOrder(b, a)); // topmost first
 
-		const objects = isClick
+		const candidates = isClick
 			? collected[0]
 				? [collected[0]]
 				: []
 			: collected.filter((o) => !(o as any).onSelect({ e })).reverse();
+		const capped = capOrderedSelection(candidates);
+		const objects = capped.objects;
+		if (capped.omitted > 0) {
+			void useToast().toast(
+				`Selected the top ${DRAW_SELECTION_OBJECT_LIMIT} objects to keep this device responsive.`,
+				{ color: "warning" },
+			);
+		}
 
 		if (objects.length > 0) {
 			this.setActiveObject(

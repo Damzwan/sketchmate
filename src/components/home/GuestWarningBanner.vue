@@ -1,8 +1,8 @@
 <template>
   <template v-if="showGuestWarning">
-    <!-- GUEST WARNING — art is only local until they connect an account -->
+    <!-- GUEST WARNING — recovery is device-bound until they connect an account -->
     <section
-      class="bg-amber-50/60 backdrop-blur-sm border border-amber-200/80 rounded-3xl p-4 flex gap-3 shadow-sm cabin-sketch-regular"
+      class="bg-amber-50/60 backdrop-blur-sm border border-amber-200/80 rounded-3xl p-4 flex gap-3 shadow-sm"
     >
       <ion-icon :icon="svg(mdiContentSaveAlertOutline)" class="text-2xl shrink-0 text-amber-700" />
       <div class="flex-1 min-w-0">
@@ -10,7 +10,7 @@
           You're drawing as a guest
         </p>
         <p class="text-sm text-amber-900/90 mt-1 leading-snug">
-          Your art lives only on this device. Connect an account so you never lose it if you log out or switch phones.
+          This profile can be recovered on this device. Connect an account to keep it safe if you switch or lose your phone.
         </p>
         <div class="flex items-center gap-4 mt-3">
           <button
@@ -43,13 +43,14 @@ import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { LocalStorage } from "@/types/storage.types";
 
-// Guest = anonymous firebase account; art is device-only until they link one.
+// Custom-token recovery is not always reported as anonymous by Firebase, so the
+// auth store also tracks recovered, still-unlinked guest sessions.
 const guestUpgradeTriggerId = "home-guest-upgrade-trigger";
-const { firebaseUser } = storeToRefs(useAuthStore());
+const { isGuestAccount } = storeToRefs(useAuthStore());
 const guestWarningDismissed = ref(false);
 
 const showGuestWarning = computed(
-	() => !!firebaseUser.value?.isAnonymous && !guestWarningDismissed.value,
+	() => isGuestAccount.value && !guestWarningDismissed.value,
 );
 
 Preferences.get({ key: LocalStorage.guestUpgradeDismissed }).then(

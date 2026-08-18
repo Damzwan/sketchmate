@@ -111,9 +111,9 @@
     <ConfirmationAlert
       v-model:is-open="logoutWarningOpen"
       confirmationtext="Logout"
-      :header="isGuest ? `Wait! Don't Lose Your Art` : 'Log out?'"
+      :header="isGuest ? 'Log out of this guest profile?' : 'Log out?'"
       :message="isGuest
-        ? `You're drawing as a guest. Logging out will delete your progress forever! Are you sure?`
+        ? 'SketchMate will keep a recovery key and your local drafts on this device. You can recover and protect this profile from the login screen.'
         : `You'll need to sign back in to access your account.`"
       @confirm="logout"
     />
@@ -156,7 +156,7 @@ import { uuidv4 } from "@/utils/uuid";
 
 const { installPrompt } = storeToRefs(useSessionStore());
 const { logout } = useAuthStore();
-const { firebaseUser } = storeToRefs(useAuthStore());
+const { isGuestAccount } = storeToRefs(useAuthStore());
 
 const { openMenu } = useMenuStore();
 
@@ -165,7 +165,7 @@ const r = useIonRouter();
 const pwaInstructionId = uuidv4();
 const logoutWarningOpen = ref(false);
 
-const isGuest = computed(() => !!firebaseUser.value?.isAnonymous);
+const isGuest = computed(() => isGuestAccount.value);
 
 export interface Props {
 	docs?: boolean;

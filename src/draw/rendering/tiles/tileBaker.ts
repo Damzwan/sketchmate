@@ -2,9 +2,16 @@ import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import {
 	recordLocalFallback,
 	recordPhase,
+	recordRenderObject,
 	recordSyncRepairDeclined,
 	recordWorkerDeferral,
+	shouldTimeRenderObject,
 } from "@/draw/rendering/renderMetrics";
+import {
+	type RasterContext,
+	type RasterSurface,
+	snapshotRaster,
+} from "../rasterSurface";
 import { TileCompositor } from "./tileCompositor";
 import { type TileKey, tileKey } from "./tileKey";
 import {
@@ -16,6 +23,7 @@ import {
 	type WorldRect,
 	type Yieldable,
 } from "./tileLayerBase";
+import type { TileSurface } from "./tileStore";
 
 /** Relative cost of a full tile rebuild vs a sub-rect repair. Used to budget
  *  synchronous repair by work rather than by tile count. */
@@ -34,8 +42,8 @@ interface PreparedRegionRepair<T> {
 	sub: WorldRect;
 	objects: T[];
 	builtGen: number;
-	off: OffscreenCanvas;
-	c2d: OffscreenCanvasRenderingContext2D;
+	off: RasterSurface;
+	c2d: RasterContext;
 }
 
 export class TileBaker<T extends Bounded> extends TileCompositor<T> {
@@ -71,7 +79,22 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			w: vw.w + 2 * tws,
 			h: vw.h + 2 * tws,
 		};
-		const range = this.tileRange(padded, tier);
+		// The pad is a ring of tiles just off-screen, so a small pan finds them
+		// already baked. It is not free: `tileRange` snaps outward, so it adds a
+		// full cell on all four sides — on a desktop viewport that is 6x4 cells
+		// becoming 8x6, i.e. it DOUBLES the working set.
+		//
+		// That only pays if the cache can hold two tiers' worth. Zooming leaves
+		// the previous tier resident (`NEAR_TIER_DISTANCE` deliberately protects
+		// it), so the real requirement is ~2x the pass. Where it does not fit, the
+		// pass evicts its own earlier tiles, every composite still reports holes,
+		// and the engine re-bakes forever — the sharp/blurred oscillation. Giving
+		// up the prefetch ring is much cheaper than that: the fallback ladder
+		// already covers a freshly panned-to edge with a coarser tier.
+		let range = this.tileRange(padded, tier);
+		if (2 * this.cellCount(range) > this.tileCapacity()) {
+			range = this.tileRange(vw, tier);
+		}
 		const cx = (range.tx0 + range.tx1) / 2,
 			cy = (range.ty0 + range.ty1) / 2;
 
@@ -233,7 +256,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 					// top on the main thread. The baker guarantees those all sit z-above
 					// what's in the bitmap. `skipped` empty → pure worker bitmap, no
 					// overlay (the common case).
-					let bmp: ImageBitmap | null = res.bitmap;
+					let bmp: TileSurface | null = res.bitmap;
 					if (res.skipped.length) {
 						bmp = this.overlaySkipped(res.bitmap, res.skipped, world, scale, q);
 						if (!bmp) {
@@ -242,7 +265,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 						}
 					}
 					if (signal.aborted) {
-						bmp?.close();
+						this.discardTile(bmp);
 						return;
 					}
 					if (bmp) {
@@ -250,7 +273,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 						if (
 							!this.commitRemoteBitmap(key, tier, tx, ty, bmp, bytes, builtGen)
 						) {
-							bmp.close();
+							this.discardTile(bmp);
 							return;
 						}
 						return;
@@ -342,7 +365,36 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 					}
 				}
 				try {
-					this.renderer(c2d as any, objects[i], scale, q);
+					// A merged Group is ONE object whose render can be longer than the
+					// whole rest of the tile put together; the split renderer breaks it
+					// on the same yielder the object loop uses.
+					if (this.splitRenderer?.canSplit(objects[i])) {
+						await this.splitRenderer.render(
+							c2d as any,
+							objects[i],
+							scale,
+							q,
+							yielder,
+							() => signal.aborted,
+							(ms, object) => recordRenderObject("localBakeObject", ms, object),
+						);
+						if (signal.aborted) {
+							c2d.restore();
+							this.release(off);
+							return;
+						}
+					} else {
+						const timed = shouldTimeRenderObject();
+						const objectStartedAt = timed ? performance.now() : 0;
+						this.renderer(c2d as any, objects[i], scale, q);
+						if (timed) {
+							recordRenderObject(
+								"localBakeObject",
+								performance.now() - objectStartedAt,
+								objects[i],
+							);
+						}
+					}
 				} catch (err) {
 					if (this.debug) console.warn("[Committed] render threw", err);
 				}
@@ -357,32 +409,32 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			}
 			c2d.restore();
 
-			// Zero-copy transfer
-			let bmp: ImageBitmap;
-			try {
-				bmp = off.transferToImageBitmap();
-			} catch {
-				this.release(off);
-				return;
-			}
-			this.release(off);
+			// Zero-copy transfer where the platform offers one; on Gecko the scratch
+			// canvas simply becomes the tile (see rasterSurface.ts).
+			const transferStartedAt = performance.now();
+			const bmp = this.harvest(off);
+			recordPhase("localBakeTransfer", performance.now() - transferStartedAt);
+			if (!bmp) return;
 			if (signal.aborted) {
-				bmp.close();
+				this.discardTile(bmp);
 				return;
 			}
 
 			// Gen may have advanced during an await yield above → drop stale bitmap;
 			if ((this.gen.get(key) ?? 0) !== builtGen) {
-				bmp.close();
+				this.discardTile(bmp);
 				return;
 			}
 
+			const commitStartedAt = performance.now();
 			const bytes = this.BMP * this.BMP * 4;
 			if (!this.ensureMemory(bytes)) {
-				bmp.close();
+				this.discardTile(bmp);
+				recordPhase("localBakeCommit", performance.now() - commitStartedAt);
 				return;
 			}
 			this.store(key, tier, tx, ty, bmp, bytes, builtGen);
+			recordPhase("localBakeCommit", performance.now() - commitStartedAt);
 			recordPhase("localBake", performance.now() - __tLocal);
 		} finally {
 			this.tileStore.finishFlight(key);
@@ -467,7 +519,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		world: WorldRect,
 		scale: number,
 		q: WorldRect,
-	): ImageBitmap | null {
+	): TileSurface | null {
 		const __t0 = performance.now();
 		let childCount = 0;
 		for (let i = 0; i < skipped.length; i++) {
@@ -516,14 +568,8 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			}
 		}
 		c2d.restore();
-		let out: ImageBitmap;
-		try {
-			out = off.transferToImageBitmap();
-		} catch {
-			this.release(off);
-			return null;
-		}
-		this.release(off);
+		const out = this.harvest(off);
+		if (!out) return null;
 		recordPhase("overlaySkipped", performance.now() - __t0);
 		return out;
 	}
@@ -751,23 +797,17 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			return false;
 		}
 
-		let bmp: ImageBitmap;
-		try {
-			bmp = off.transferToImageBitmap();
-		} catch {
-			this.release(off);
-			return false;
-		}
-		this.release(off);
+		const bmp = this.harvest(off);
+		if (!bmp) return false;
 		// A yielded repair may race a new edit. The offscreen pixels are then a
 		// mixture of generations and must never be promoted to a fresh tile.
 		if ((this.gen.get(key) ?? 0) !== builtGen) {
-			bmp.close();
+			this.discardTile(bmp);
 			return false;
 		}
 		const bytes = this.BMP * this.BMP * 4;
 		if (!this.ensureMemory(bytes)) {
-			bmp.close();
+			this.discardTile(bmp);
 			return false;
 		}
 		this.store(key, tier, tx, ty, bmp, bytes, builtGen);
@@ -827,7 +867,32 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 
 		for (let i = 0; i < objects.length; i++) {
 			try {
-				this.renderer(c2d as any, objects[i], scale, sub);
+				// Same split as the full-tile loop: one merged Group can outweigh every
+				// other object in the repair put together.
+				if (this.splitRenderer?.canSplit(objects[i])) {
+					await this.splitRenderer.render(
+						c2d as any,
+						objects[i],
+						scale,
+						sub,
+						yielder,
+						() => signal.aborted,
+						(ms, object) => recordRenderObject("localBakeObject", ms, object),
+					);
+					if (signal.aborted)
+						return this.finishTileRegionRepair(prepared, false);
+				} else {
+					const timed = shouldTimeRenderObject();
+					const objectStartedAt = timed ? performance.now() : 0;
+					this.renderer(c2d as any, objects[i], scale, sub);
+					if (timed) {
+						recordRenderObject(
+							"localBakeObject",
+							performance.now() - objectStartedAt,
+							objects[i],
+						);
+					}
+				}
 			} catch (err) {
 				if (this.debug) console.warn("[Committed] region repair threw", err);
 			}
@@ -909,17 +974,11 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		}
 		c2d.restore();
 
-		let bmp: ImageBitmap;
-		try {
-			bmp = off.transferToImageBitmap();
-		} catch {
-			this.release(off);
-			return "rebuilt";
-		}
-		this.release(off);
+		const bmp = this.harvest(off);
+		if (!bmp) return "rebuilt";
 		const bytes = this.BMP * this.BMP * 4;
 		if (!this.ensureMemory(bytes)) {
-			bmp.close();
+			this.discardTile(bmp);
 			return "rebuilt";
 		}
 		this.store(key, tier, tx, ty, bmp, bytes, builtGen);
@@ -941,7 +1000,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		tier: number,
 		tx: number,
 		ty: number,
-		bitmap: ImageBitmap,
+		bitmap: TileSurface,
 		bytes: number,
 		builtGen: number,
 	): boolean {
@@ -962,7 +1021,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		tier: number,
 		tx: number,
 		ty: number,
-		bitmap: ImageBitmap | null,
+		bitmap: TileSurface | null,
 		bytes: number,
 		builtGen: number,
 		usable = (this.gen.get(key) ?? 0) === builtGen,
@@ -986,6 +1045,22 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		return true;
 	}
 
+	/**
+	 * True when the rect's pixels are ALREADY in present, fresh tiles at the tier
+	 * being composited — i.e. a live overlay for that rect would paint the same
+	 * ink a second time.
+	 *
+	 * Deliberately false at overview tier, where `isRegionReady` is not: a
+	 * live-covered stroke's overview patch is DEFERRED until demote, so the
+	 * overview does not contain it yet and hiding the overlay would make the
+	 * stroke disappear instead of merely doubling.
+	 */
+	isRegionTileBacked(rect: WorldRect, zoom: number): boolean {
+		const tier = this.pickActiveTier(zoom);
+		if (tier <= this.OVERVIEW_TIER) return false;
+		return this.canStampAll(rect, tier);
+	}
+
 	/** True only if EVERY active-tier tile the rect covers is present, has a
 	 *  bitmap, and is fresh — i.e. additiveStamp would FULLY cover the rect. A
 	 *  partial stamp would leave stale tiles showing old content with no live
@@ -1003,16 +1078,55 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	}
 
 	// ── memory + pool ─────────────────────────────────────────────────────────
+	/** How many tiles the hard budget can hold at once. */
+	tileCapacity(): number {
+		return Math.max(1, Math.floor(this.MEM_HARD / (this.BMP * this.BMP * 4)));
+	}
+
+	protected cellCount(range: {
+		tx0: number;
+		tx1: number;
+		ty0: number;
+		ty1: number;
+	}): number {
+		return (range.tx1 - range.tx0 + 1) * (range.ty1 - range.ty0 + 1);
+	}
+
 	protected ensureMemory(need: number): boolean {
 		return this.tileStore.reserve(need);
 	}
 
-	protected acquire(): OffscreenCanvas {
+	protected acquire(): RasterSurface {
 		return this.tileStore.acquireCanvas();
 	}
 
-	protected release(c: OffscreenCanvas): void {
+	protected release(c: RasterSurface): void {
 		this.tileStore.releaseCanvas(c);
+	}
+
+	/**
+	 * Turn a finished scratch surface into a tile surface, and dispose of the
+	 * scratch correctly either way.
+	 *
+	 * Two outcomes, and the caller must not care which:
+	 *   • `ImageBitmap` — the pixels were snapshotted (zero-copy on Chromium) and
+	 *     the scratch went back to the pool.
+	 *   • the SURFACE itself — Gecko, where snapshotting is a real copy off an
+	 *     unaccelerated context. The tile adopts it, so it is deliberately NOT
+	 *     pooled; the pool refills from `discardTile` when the tile is evicted.
+	 *
+	 * `null` means the snapshot failed; the scratch is already back in the pool
+	 * and the caller has nothing to store.
+	 */
+	protected harvest(off: RasterSurface): TileSurface | null {
+		const produced = snapshotRaster(off);
+		if (produced !== off) this.release(off);
+		return produced;
+	}
+
+	/** Give back a surface `harvest` produced but that never reached the cache. */
+	protected discardTile(surface: TileSurface | null): void {
+		this.tileStore.discard(surface);
 	}
 
 	/** Call when idle (gesture-end / bake-done) to release pooled backing store. */
@@ -1024,5 +1138,10 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	 * sparse infinite canvas. Empty tiles cost ~nothing to rebuild on revisit. */
 	pruneEmpties(maxAgeMs = 30_000): void {
 		this.tileStore.pruneEmpty(maxAgeMs);
+	}
+
+	/** Idle-time headroom trim. See `TileStore.trimToHeadroom`. */
+	trimToHeadroom(targetFraction?: number): number {
+		return this.tileStore.trimToHeadroom(targetFraction);
 	}
 }

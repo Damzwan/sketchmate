@@ -12,8 +12,12 @@
 //   4. longTasks                      — is the main thread blocked at all?
 //
 // Everything here is integer adds plus a couple of `performance.now()` pairs
-// around blocks that already cost milliseconds, so there is no sampling gate —
-// collection is always on and effectively free. Only REPORTING is throttled.
+// around blocks that already cost milliseconds, so collection is always on and
+// effectively free. Only REPORTING is throttled.
+//
+// ONE exception: the per-OBJECT phases are SAMPLED. Those sit inside loops that
+// run once per object per tile, around renders measured in microseconds, where
+// the clock reads cost more than the work — see RENDER_OBJECT_SAMPLE_STRIDE.
 //
 // There is deliberately no network call in this file. The app has no analytics
 // transport today; `setDrawMetricsSink` is the seam to wire one in later.
@@ -54,6 +58,29 @@ export interface LongFrameScriptAttribution {
 	invoker: string;
 	invokerType: string;
 	yieldLabel: string;
+}
+
+export type RenderObjectPhase =
+	| "localBakeObject"
+	| "overviewPatchObject"
+	| "overviewBuildObject"
+	| "overviewOverlayObject"
+	| "overviewEraseObject";
+
+/**
+ * Shape of the slowest indivisible Fabric render seen in this session.
+ * Deliberately excludes object ids and user content; only structural cost
+ * signals are persisted to Sentry.
+ */
+export interface SlowRenderObject {
+	phase: RenderObjectPhase;
+	ms: number;
+	type: string;
+	pathCommands: number;
+	groupChildren: number;
+	clipChildren: number;
+	hasClipPath: boolean;
+	objectCaching: boolean;
 }
 
 export interface DrawMetricsSnapshot {
@@ -181,17 +208,32 @@ export interface DrawMetricsSnapshot {
 	//
 	//   flushBake      — toJSON + structured clone inside a tile's bake prologue
 	//   flushIdle      — the same, on the background drain
-	//   localBake      — a tile the worker refused → full main-thread render
+	//   localBake      — WALL CLOCK for a yielded local tile bake
+	//   localBakeObject — one indivisible Fabric object render (ANR atom)
+	//   localBakeTransfer — synchronous transferToImageBitmap / GPU flush
+	//   localBakeCommit — synchronous cache admission + replacement
 	//   overlaySkipped — hybrid tile: worker bitmap + main-thread objects on top
-	//   overviewPatch  — patchRect: clear + redraw a region of the overview
+	//   overviewPatch  — WALL CLOCK for a yielded localized overview repair
+	//   overviewPatchObject — one indivisible object render in that repair
+	//   overviewPatchCommit — atomic clear + bitmap copy into the live overview
 	//   overviewBuild  — full O(scene) overview render
 	//   rebuildSync    — synchronous tile repair (destructiveInvalidate et al)
+	//
+	// SAMPLED: the per-OBJECT phases (`*Object`, `documentSerializeObject`) are
+	// recorded for 1 in `RENDER_OBJECT_SAMPLE_STRIDE` renders — timing every one
+	// cost more than the renders did. Read their `Total` and `Count` as a sample,
+	// not a sum; `phaseMsMax` and `slowestRenderObject` remain meaningful.
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
+	/** Structural attribution for the worst single Fabric render. */
+	slowestRenderObject: SlowRenderObject | null;
 
 	// ── main thread blocked at all ─────────────────────────────────────────
 	longTasks: number;
+	/** Tasks at or above the near-ANR threshold. Counted directly, not inferred
+	 * from the session maximum (two severe tasks need not set two new maxima). */
+	longTasksSevere: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
 	longTaskObserved: boolean;
@@ -272,7 +314,9 @@ interface Counters {
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
+	slowestRenderObject: SlowRenderObject | null;
 	longTasks: number;
+	longTasksSevere: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
 	longAnimationFrames: number;
@@ -348,7 +392,9 @@ function blank(): Counters {
 		phaseMsTotal: {},
 		phaseMsMax: {},
 		phaseCount: {},
+		slowestRenderObject: null,
 		longTasks: 0,
+		longTasksSevere: 0,
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
 		longAnimationFrames: 0,
@@ -544,9 +590,17 @@ export type DrawPhase =
 	| "overviewResultCommit"
 	| "overviewOverlayObject"
 	| "localBake"
+	| "localBakeObject"
+	| "localBakeTransfer"
+	| "localBakeCommit"
 	| "overlaySkipped"
 	| "overviewPatch"
+	| "overviewPatchObject"
+	| "overviewPatchCommit"
 	| "overviewBuild"
+	| "overviewBuildObject"
+	| "overviewEraseObject"
+	| "overviewStampRegion"
 	| "rebuildSync"
 	| "eraseClipApply"
 	| "eraseClipUndo"
@@ -625,9 +679,111 @@ export function recordPhase(phase: DrawPhase, ms: number): void {
 	m.phaseMsTotal[phase] = (m.phaseMsTotal[phase] ?? 0) + ms;
 	if (ms > (m.phaseMsMax[phase] ?? 0)) m.phaseMsMax[phase] = ms;
 	m.phaseCount[phase] = (m.phaseCount[phase] ?? 0) + 1;
+	// These phases deliberately span awaits/yields. Their totals describe job
+	// latency, not one continuous main-thread block, so they must never be used
+	// as the causal label for a late timer or long task.
+	if (
+		phase === "localBake" ||
+		phase === "overviewPatch" ||
+		phase === "overviewBuild" ||
+		phase === "historyOp" ||
+		phase === "historyBurstFlush" ||
+		phase === "eraseCommit" ||
+		phase === "erasedSweep"
+	)
+		return;
 	lastPhaseName = phase;
 	lastPhaseMs = ms;
 	lastPhaseAt = performance.now();
+}
+
+/**
+ * How often a per-OBJECT render is timed at all.
+ *
+ * The comment on `recordPhase` — "call sites wrap work that already costs
+ * milliseconds, so the two `performance.now()` reads are free" — is true for
+ * phases and false for objects. A per-object site pays THREE clock reads
+ * (two at the call site, one for `lastPhaseAt`) plus three map updates around
+ * a render that is frequently tens of microseconds, and it runs once per object
+ * PER TILE: a dense board hands one tile a few thousand objects and a bake pass
+ * covers ~40 of them. The overview build is worse — every object on the board,
+ * in one pass. That is six figures of clock reads per pass, which is real money
+ * on the low-end Android this instrumentation exists to protect.
+ *
+ * So sample. `phaseMsMax` and `slowestRenderObject` are the diagnostics that
+ * matter here and both are extreme-value statistics: a stride still sees
+ * thousands of objects per pass and finds the pathological ones. What it costs
+ * is the per-object phase TOTALS, which become 1-in-N samples rather than sums
+ * — noted on `phaseMsTotal` in the snapshot.
+ *
+ * Larger stride where the overhead hurts most and the object counts are
+ * highest.
+ */
+const RENDER_OBJECT_SAMPLE_STRIDE =
+	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent)
+		? 31
+		: 7;
+
+let renderObjectSampleCounter = 0;
+
+/**
+ * Should this object's render be timed? Counts across ALL per-object sites from
+ * one shared counter, so the sample stays uniform whichever loop is running.
+ *
+ * Call it ONCE per object and reuse the answer for both the clock read and the
+ * record, or the two will disagree.
+ *
+ * The stride is PRIME on purpose. Two sites interleaving in lockstep — a tile
+ * bake and an overview build alternating — hit every other counter value, so an
+ * even stride can be aliased away entirely and starve one site of samples
+ * completely. A prime cannot be aliased by any smaller period.
+ */
+export function shouldTimeRenderObject(): boolean {
+	return ++renderObjectSampleCounter % RENDER_OBJECT_SAMPLE_STRIDE === 0;
+}
+
+/**
+ * Record one indivisible Fabric render and retain structural details only when
+ * it becomes the session maximum. The hot path is therefore the same counter
+ * updates plus one comparison; property inspection is rare and guarded.
+ */
+export function recordRenderObject(
+	phase: RenderObjectPhase,
+	ms: number,
+	object: unknown,
+): void {
+	recordPhase(phase, ms);
+	if (ms <= (m.slowestRenderObject?.ms ?? 0)) return;
+
+	try {
+		const candidate = object as any;
+		const clip = candidate?.clipPath;
+		m.slowestRenderObject = {
+			phase,
+			ms,
+			type: String(
+				candidate?.type ?? candidate?.constructor?.name ?? "unknown",
+			).slice(0, 64),
+			pathCommands: Array.isArray(candidate?.path) ? candidate.path.length : 0,
+			groupChildren: Array.isArray(candidate?._objects)
+				? candidate._objects.length
+				: 0,
+			clipChildren: Array.isArray(clip?._objects) ? clip._objects.length : 0,
+			hasClipPath: Boolean(clip),
+			objectCaching: candidate?.objectCaching === true,
+		};
+	} catch {
+		m.slowestRenderObject = {
+			phase,
+			ms,
+			type: "unknown",
+			pathCommands: 0,
+			groupChildren: 0,
+			clipChildren: 0,
+			hasClipPath: false,
+			objectCaching: false,
+		};
+	}
 }
 
 function roundMap(src: Record<string, number>): Record<string, number> {
@@ -711,7 +867,11 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 		phaseMsTotal: roundMap(m.phaseMsTotal),
 		phaseMsMax: roundMap(m.phaseMsMax),
 		phaseCount: { ...m.phaseCount },
+		slowestRenderObject: m.slowestRenderObject
+			? { ...m.slowestRenderObject, ms: round2(m.slowestRenderObject.ms) }
+			: null,
 		longTasks: m.longTasks,
+		longTasksSevere: m.longTasksSevere,
 		longTaskMsTotal: Math.round(m.longTaskMsTotal),
 		longTaskMsMax: Math.round(m.longTaskMsMax),
 		longTaskObserved: longTaskObserver !== null,
@@ -738,10 +898,22 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 }
 
 export function resetDrawMetrics(): void {
+	// A manual benchmark can reset counters while the draw observers stay active.
+	// Drain anything already queued so it is not charged to the new interval.
+	try {
+		longTaskObserver?.takeRecords();
+		longAnimationFrameObserver?.takeRecords();
+	} catch {
+		/* an observer shim may not implement takeRecords */
+	}
 	const workerProtocolVersion = m.workerProtocolVersion;
 	m = blank();
 	m.workerProtocolVersion = workerProtocolVersion;
 	startedAt = Date.now();
+	lastPhaseName = "";
+	lastPhaseMs = 0;
+	lastPhaseAt = 0;
+	renderObjectSampleCounter = 0;
 }
 
 // ── reporting seam ───────────────────────────────────────────────────────────
@@ -794,6 +966,12 @@ export function setDrawMetricsSink(fn: Sink | null, intervalMs = 60_000): void {
  */
 export const LONG_TASK_REPORT_MS = 250;
 
+/** One task this long consumed most of Android's 5 s input timeout budget. */
+export const SEVERE_LONG_TASK_MS = 2_000;
+
+/** A completed phase older than this is context, not attribution. */
+export const LONG_TASK_PHASE_MAX_AGE_MS = 1_000;
+
 export interface LongTaskReport {
 	durationMs: number;
 	/** Phase that was running when the block started, if any. */
@@ -823,15 +1001,18 @@ function startLongTaskObserver(): void {
 		const obs = new PerformanceObserver((list) => {
 			for (const entry of list.getEntries()) {
 				m.longTasks++;
+				if (entry.duration >= SEVERE_LONG_TASK_MS) m.longTasksSevere++;
 				m.longTaskMsTotal += entry.duration;
 				if (entry.duration > m.longTaskMsMax) m.longTaskMsMax = entry.duration;
 				if (longTaskSink && entry.duration >= LONG_TASK_REPORT_MS) {
 					const phase = lastDrawPhase();
+					const phaseIsRecent =
+						phase.ageMs >= 0 && phase.ageMs <= LONG_TASK_PHASE_MAX_AGE_MS;
 					try {
 						longTaskSink({
 							durationMs: Math.round(entry.duration),
-							phase: phase.phase,
-							phaseMs: phase.ms,
+							phase: phaseIsRecent ? phase.phase : "",
+							phaseMs: phaseIsRecent ? phase.ms : 0,
 							phaseAgeMs: phase.ageMs,
 						});
 					} catch {
@@ -840,7 +1021,10 @@ function startLongTaskObserver(): void {
 				}
 			}
 		});
-		obs.observe({ type: "longtask", buffered: true });
+		// Session policy must not ingest startup work that happened before the draw
+		// engine was opened. In particular, a buffered auth/startup task must never
+		// demote drawing quality on an otherwise healthy device.
+		obs.observe({ type: "longtask" });
 		longTaskObserver = obs;
 	} catch {
 		/* unsupported — counters stay 0, longTaskObserved stays false */
@@ -925,7 +1109,8 @@ function startLongAnimationFrameObserver(): void {
 			);
 			m.longFrameScripts.length = Math.min(8, m.longFrameScripts.length);
 		});
-		observer.observe({ type: "long-animation-frame", buffered: true } as any);
+		// A draw session must not ingest buffered auth/startup frames.
+		observer.observe({ type: "long-animation-frame" } as any);
 		longAnimationFrameObserver = observer;
 	} catch {
 		/* unsupported */
@@ -942,6 +1127,7 @@ export function stopDrawMetrics(): void {
 		clearInterval(sinkTimer);
 		sinkTimer = null;
 	}
+	sink = null;
 }
 
 /**

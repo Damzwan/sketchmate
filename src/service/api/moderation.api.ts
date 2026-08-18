@@ -60,12 +60,14 @@ export function reportUser(
 	user_id: string,
 	reason: ReportReason,
 	details?: string,
+	context_room_id?: string,
 ) {
 	return submitReport({
 		target_id: user_id,
 		target_type: "user",
 		reason,
 		details,
+		context_room_id,
 	});
 }
 
@@ -92,6 +94,27 @@ export function reportInboxDrawing(
 		target_type: "inbox_drawing",
 		reason,
 		details,
+	});
+}
+
+/**
+ * A shared reference is identified by the uuid its owner's client made, and it
+ * exists nowhere but the live room — so the room id is mandatory. The server
+ * reads the image and its real author out of that room's state; both would be
+ * unverifiable coming from here.
+ */
+export function reportLobbyReference(
+	reference_id: string,
+	room_id: string,
+	reason: ReportReason,
+	details?: string,
+) {
+	return submitReport({
+		target_id: reference_id,
+		target_type: "lobby_reference",
+		reason,
+		details,
+		context_room_id: room_id,
 	});
 }
 

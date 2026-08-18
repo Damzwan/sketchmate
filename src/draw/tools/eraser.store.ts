@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { type Ref, ref, watch } from "vue";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import { stackPositions } from "@/draw/canvas/objectStack";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { objectMutationRevision } from "@/draw/objects/objectSerialization";
@@ -295,9 +296,13 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		// restore each object at its original z instead of dropping it on top.
 		// All indexes are captured against the same full stack, so ascending
 		// re-insertion reproduces them exactly.
-		const stack = c.getObjects();
+		// ONE pass over the stack, not one scan per removed object. This sweep
+		// routinely removes hundreds of objects at once, so `indexOf` per record
+		// was O(removed x scene) — quadratic exactly when the scene is big enough
+		// for it to hurt.
+		const positions = stackPositions(c);
 		for (const record of removable) {
-			const index = stack.indexOf(record.object);
+			const index = positions.get(record.object) ?? -1;
 			(record.object as any).insertedIndex = index;
 			record.json.insertedIndex = index;
 		}
@@ -560,12 +565,19 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		b.targetCandidatesProvider = (path: Path) => {
 			const r = (path as any).getBoundingRect();
 			const pad = (path as any).strokeWidth ?? 0;
-			return objMgr.querySelectable({
-				x: r.left - pad,
-				y: r.top - pad,
-				w: r.width + 2 * pad,
-				h: r.height + 2 * pad,
-			});
+			// Pinned to the active layer, never the "Select across layers" switch:
+			// erasing is not selecting, and `erasePolicy` gates on the active layer
+			// independently — a wider candidate set here would only feed it objects
+			// it is about to reject.
+			return objMgr.querySelectable(
+				{
+					x: r.left - pad,
+					y: r.top - pad,
+					w: r.width + 2 * pad,
+					h: r.height + 2 * pad,
+				},
+				"activeLayer",
+			);
 		};
 	}
 

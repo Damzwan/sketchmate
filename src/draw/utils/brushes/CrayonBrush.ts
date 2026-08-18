@@ -3,7 +3,8 @@ import { type Canvas, FabricImage, PatternBrush, Point } from "fabric";
 import { isLayerHidden } from "@/draw/layers/layerRegistry";
 import {
 	enlivenStrokeProps,
-	TEXTURE_SUPERSAMPLE,
+	fitTextureRaster,
+	toObjectWithoutSrc,
 } from "@/draw/utils/brushes/brush.helpers";
 
 // Deterministic PRNG so the random crayon texture regenerates identically from
@@ -104,12 +105,15 @@ export function generateCrayonImage(
 
 	// Textural brush → softening on extreme zoom-in is acceptable; keep memory
 	// modest with a small headroom multiplier.
-	// Device-independent — see TEXTURE_SUPERSAMPLE.
-	const dpr = TEXTURE_SUPERSAMPLE;
+	// Device-independent — see TEXTURE_SUPERSAMPLE. Clamped, because the stroke
+	// bounding box is unbounded on an infinite canvas — see fitTextureRaster.
+	const raster = fitTextureRaster(w, h);
+	if (!raster) return null;
+	const dpr = raster.scale;
 
 	const off = document.createElement("canvas");
-	off.width = Math.ceil(w * dpr);
-	off.height = Math.ceil(h * dpr);
+	off.width = raster.width;
+	off.height = raster.height;
 	const ctx = off.getContext("2d");
 	if (!ctx) return null;
 	ctx.scale(dpr, dpr);
@@ -148,8 +152,8 @@ export function generateCrayonImage(
 }
 
 export class CrayonStroke extends FabricImage {
-	static type = "CrayonStroke";
-	static cacheProperties = [
+	static override type = "CrayonStroke";
+	static override cacheProperties = [
 		...FabricImage.cacheProperties,
 		"color",
 		"baseWidth",
@@ -206,17 +210,19 @@ export class CrayonStroke extends FabricImage {
 			lastX = ix;
 			lastY = iy;
 		}
-		const baseObj = super.toObject([
+		// Drops the bitmap — the payload win — WITHOUT encoding it first. See
+		// toObjectWithoutSrc: `super.toObject()` would PNG-encode the whole stroke
+		// raster synchronously just so this line could delete it.
+		const baseObj = toObjectWithoutSrc(this, (p) => super.toObject(p as any), [
 			"color",
 			"baseWidth",
 			"seed",
 			...additionalProperties,
-		] as any);
-		delete (baseObj as any).src; // drop the bitmap — the payload win
+		]);
 		return { ...baseObj, compressedTrace: flat };
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Pixels supplied by the tile worker (transferred ImageBitmap). Use them
 		// directly instead of re-running the generator on every enliven — that
 		// regeneration is why these strokes were refused off-thread.
@@ -269,18 +275,26 @@ export class CrayonBrush extends PatternBrush {
 		this.strokeLineJoin = "round";
 	}
 
-	needsFullRender() {
-		return true;
+	override needsFullRender() {
+		// Opaque crayon strokes are append-only, so Fabric's incremental segment
+		// path is exact and turns the live preview from O(n²) into O(n). Keep the
+		// full redraw only when BaseBrush requires it (alpha/shadow), where drawing
+		// overlapping segments would change the appearance.
+		return super.needsFullRender();
 	}
 	_needsFullRender() {
-		return true;
+		return this.needsFullRender();
 	}
 
-	onMouseDown(pointer: Point, ev: any) {
+	override onMouseDown(pointer: Point, ev: any) {
 		// New seed + pattern per stroke; the SAME pattern drives the live preview
 		// AND the committed flatten, so they can't disagree.
 		this._seed = Math.floor(Math.random() * 1_000_000);
 		this._patternCanvas = buildPatternCanvas(this._seed, this.color as string);
+		// PatternBrush's incremental branch takes its stroke style from `source`.
+		// Without this assignment it would fall back to Fabric's default dot
+		// pattern; the old full-redraw override hid that mismatch at O(n²) cost.
+		this.source = this._patternCanvas;
 		super.onMouseDown(pointer, ev);
 	}
 
@@ -288,7 +302,7 @@ export class CrayonBrush extends PatternBrush {
 	// tiling in world space (ctx is viewport-transformed here), so the texture
 	// layout matches the committed image exactly — no solid→pattern pop, no phase
 	// mismatch.
-	_render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
+	override _render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
 		const pts = (this as any)._points as Point[];
 		if (!pts || pts.length === 0 || !this._patternCanvas) return;
 
@@ -313,13 +327,13 @@ export class CrayonBrush extends PatternBrush {
 		ctx.restore();
 	}
 
-	onMouseUp(o: { e: any }): boolean {
+	override onMouseUp(o: { e: any }): boolean {
 		if (!this.canvas._isMainEvent?.(o.e)) return true;
 		this._finalizeAndAddPath();
 		return false;
 	}
 
-	_finalizeAndAddPath(): void {
+	override _finalizeAndAddPath(): void {
 		const topCtx = this.canvas.contextTop;
 		const pts = ((this as any)._points as Point[]) || [];
 
@@ -337,7 +351,9 @@ export class CrayonBrush extends PatternBrush {
 		);
 		if (img) {
 			const stroke = new CrayonStroke(img.getElement(), {
-				...img.toObject(),
+				// Encoding the raster here cost a synchronous PNG on the commit frame
+				// for a `src` nothing reads. See toObjectWithoutSrc.
+				...toObjectWithoutSrc(img, (p) => img.toObject(p as any)),
 				color: this.color,
 				baseWidth: this.width,
 				seed: this._seed,

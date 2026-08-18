@@ -5,17 +5,11 @@ import {
 	type ActionPerformed,
 	PushNotifications,
 } from "@capacitor/push-notifications";
-import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { isNative } from "@/helper/platform.helper";
 import router from "@/router";
-import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
-import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useInboxStore } from "@/store/inbox.store";
 import { useNotificationStore } from "@/store/notification.store";
-import { useQuotaStore } from "@/store/quota.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { QuotaState } from "@/types/server.types";
 import { NotificationType } from "@/types/server.types";
@@ -40,9 +34,10 @@ export async function requestNotifications(): Promise<boolean> {
 			const granted = await ensureNativePermission();
 			if (!granted) return false;
 			await registerForPush();
-			const quota = useQuotaStore();
-			await quota.refresh(true);
-			await syncPostQuotaResetReminder(quota.posts);
+			const { refreshNotificationQuota } = await import(
+				"@/service/notificationActions"
+			);
+			await syncPostQuotaResetReminder(await refreshNotificationQuota());
 		} else {
 			const ok = await pwaRequestNotifications();
 			if (!ok) return false;
@@ -395,20 +390,25 @@ const pushToRoute = (path: FRONTEND_ROUTES, query?: Record<string, string>) =>
 	router.push(query ? { path, query } : { path });
 
 const navigateToChat = async (conversation_id: string) => {
-	useChatWidgetStore().openPrivateChat(conversation_id);
+	const { openNotificationChat } = await import(
+		"@/service/notificationActions"
+	);
+	await openNotificationChat(conversation_id);
 };
 
 const handlers: Partial<Record<NotificationType, NotificationHandler>> = {
 	[NotificationType.lobby_invitation]: async (data) => {
 		await pushToRoute(FRONTEND_ROUTES.draw);
-		await socketLoggedInPromise;
-		socketJoinRoom({ roomId: data.lobby_id, intent: "join" });
+		const { joinNotificationLobby } = await import(
+			"@/service/notificationActions"
+		);
+		await joinNotificationLobby(data.lobby_id);
 	},
 	[NotificationType.drawing_received]: async (data) => {
-		const item = await useInboxStore().fetchSingleInboxItem(
-			data.conversation_id,
+		const { openNotificationDrawing } = await import(
+			"@/service/notificationActions"
 		);
-		if (item) useInboxSwiper().openInboxSwiper([item], 0);
+		await openNotificationDrawing(data.conversation_id);
 	},
 	[NotificationType.dm_message]: async (d) => navigateToChat(d.conversation_id),
 	[NotificationType.mate_request]: async (d) =>
@@ -417,6 +417,26 @@ const handlers: Partial<Record<NotificationType, NotificationHandler>> = {
 		navigateToChat(d.conversation_id),
 	[NotificationType.balloon_match]: async (d) =>
 		navigateToChat(d.conversation_id),
+	// Theme/last-call pushes open the live page. Results carry the exact
+	// competition id and open that week's winners, even after Monday rollover.
+	[NotificationType.competition_theme]: async () => {
+		pushToRoute(FRONTEND_ROUTES.competition);
+	},
+	[NotificationType.competition_last_call]: async () => {
+		pushToRoute(FRONTEND_ROUTES.competition);
+	},
+	[NotificationType.competition_results]: async (data) => {
+		const { openNotificationCompetition } = await import(
+			"@/service/notificationActions"
+		);
+		await openNotificationCompetition(data.competition_id);
+	},
+	[NotificationType.competition_win]: async (data) => {
+		const { openNotificationCompetition } = await import(
+			"@/service/notificationActions"
+		);
+		await openNotificationCompetition(data.competition_id);
+	},
 	[NotificationType.moderation_strike]: async () => {
 		pushToRoute(FRONTEND_ROUTES.moderation);
 	},

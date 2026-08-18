@@ -139,7 +139,10 @@
           v-if="previewPartner"
           class="relative z-10 flex-1 min-h-0 flex flex-col justify-end gap-2 px-2.5 py-3 overflow-hidden"
         >
-          <img
+<img
+            width="1"
+            height="1"
+            loading="lazy"
             v-if="style.backgroundImageUrl"
             :src="style.backgroundImageUrl"
             alt=""

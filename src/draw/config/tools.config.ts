@@ -1,4 +1,5 @@
 import {
+	mdiBlurLinear,
 	mdiBrushOutline,
 	mdiBrushVariant,
 	mdiCircleOutline,
@@ -29,8 +30,22 @@ import { NeonBrush } from "@/draw/utils/brushes/NeonSignBrush";
 import { PixelBrush } from "@/draw/utils/brushes/PixelBrush";
 import { WaterColorBrush } from "@/draw/utils/brushes/WaterColorBrush";
 
+/**
+ * Smudge is built but not shipped — too large a feature to land unfinished.
+ *
+ * The flag hides every ENTRY POINT (pen-menu launcher, its menu, the dock slot
+ * sharing) and nothing else. The tool, its store and `SmudgeStroke` stay
+ * registered on purpose: a drawing that already contains a smudge patch must
+ * still load and render, and turning the feature back on has to be a one-line
+ * change rather than an archaeology exercise.
+ */
+export const SMUDGE_ENABLED = false;
+
 export const ERASERS = [DrawTool.MobileEraser];
-export const PENMENUTOOLS = [DrawTool.Pen];
+// Both render into the dock's pen slot, which shows whichever was used last.
+export const PENMENUTOOLS = SMUDGE_ENABLED
+	? [DrawTool.Pen, DrawTool.Smudge]
+	: [DrawTool.Pen];
 export const SELECTMENUTOOLS = [DrawTool.Select, DrawTool.Lasso];
 export const eraserIconMapping: { [key in Eraser]: string } = {
 	[DrawTool.MobileEraser]: mdiEraser,
@@ -62,3 +77,10 @@ export const penIconMapping: { [key in BrushType]: string } = {
 	[BrushType.Neon]: mdiFlare,
 	[BrushType.CalliGraphy]: mdiBrushOutline,
 };
+
+/**
+ * Smudge is not a brush type, so its icon lives on its own. `mdiBlurLinear`
+ * over a hand or fingerprint glyph: at 20px in the dock a hand is a blob, while
+ * the fading rule reads as "smeared" at any size, and no other tool uses it.
+ */
+export const SMUDGE_ICON = mdiBlurLinear;

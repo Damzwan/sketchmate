@@ -13,6 +13,16 @@ export enum LocalStorage {
 	notificationToken = "notification_token",
 	installId = "install_id",
 	guestUpgradeDismissed = "guest_upgrade_dismissed",
+	guestRecovery = "guest_recovery",
+	/**
+	 * `{ userId, cursor }` for the incremental cloud draft pull. Stored with the
+	 * account id because the local draft database outlives a logout, so a cursor
+	 * carried into the next login would skip that account's whole history.
+	 */
+	draftSyncCursor = "draft_sync_cursor",
+	recoveredGuestSession = "recovered_guest_session",
+	/** Legacy migration key from the briefly forced account-linking flow. */
+	guestRecoveryLinkRequired = "guest_recovery_link_required",
 	/**
 	 * Set on logout, cleared on login. Read by the ANDROID home-screen widget
 	 * (Widget.java), which otherwise cannot tell "signed out" from "the WebView
@@ -20,4 +30,10 @@ export enum LocalStorage {
 	 * has to treat every missing id as a hard logout and show an error card.
 	 */
 	loggedOut = "widget_logged_out",
+	/**
+	 * `{ day, used: { [itemId]: strokes } }` — the daily free-stroke allowance for
+	 * locked brushes. Deliberately device-local and unsynced: it gates a trial, so
+	 * the worst case of losing it is that someone gets to try a brush again.
+	 */
+	brushTrial = "brush_trial",
 }

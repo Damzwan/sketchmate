@@ -49,11 +49,83 @@ export interface DrawMemoryDevice {
 	deviceMemoryGB: number;
 	hardwareConcurrency: number;
 	/**
+	 * The ANR cohort, as decided by `renderQuality.config`.
+	 *
+	 * Optional and defaulted so this stays a pure, independently testable
+	 * policy: omitting it reproduces the original local rule
+	 * (`deviceMemoryGB <= 2 || hardwareConcurrency <= 2`). The caller passes it
+	 * because the real predicate also folds in the GPU family and Android's
+	 * `isLowRamDevice()`, neither of which is expressible from these fields.
+	 */
+	severelyConstrained?: boolean;
+	/**
 	 * Longest screen edge in RENDER pixels (CSS px x the capped render DPR).
 	 * Optional: omitted in tests and on any host without a screen, where the
 	 * device-class `overviewPx` stands on its own.
 	 */
 	screenEdgePx?: number;
+	/**
+	 * Are tile surfaces CANVASES rather than immutable `ImageBitmap`s?
+	 *
+	 * True on Gecko, where a main-thread `OffscreenCanvas` 2D context is
+	 * unaccelerated and the engine therefore rasterizes into DOM canvases and
+	 * keeps them (see `rendering/rasterSurface.ts`). Optional: omitted everywhere
+	 * else, and in tests, where the bitmap budgets above stand unchanged.
+	 */
+	canvasTileSurfaces?: boolean;
+}
+
+/**
+ * Ceiling on tile bytes when tiles are canvas-backed, set so the resident tile
+ * COUNT lands below the platform's accelerated-canvas knee.
+ *
+ * The constraint Gecko imposes is a COUNT, not a size. Measured on Firefox 153
+ * / macOS — cost of baking one more canvas while N of that size are live:
+ *
+ *   tile 516²  fast to ~96 surfaces  (97 MB)   → 8-20 ms beyond
+ *   tile 384²  fast to ~96 surfaces  (54 MB)   → 8-15 ms beyond
+ *   tile 256²  fast to ~112 surfaces (28 MB)   → 4-10 ms beyond
+ *
+ * The knee sits at the same ~100 SURFACES whatever they weigh, so shrinking
+ * tiles buys nothing and costs screen coverage. (An earlier revision of this
+ * file shrank the tile size for exactly the opposite, and wrong, reason, and
+ * made the cache smaller than the viewport working set — which thrashes, and
+ * thrash reads as the picture flipping between sharp and blurred.)
+ *
+ * THE ARITHMETIC THIS NUMBER ENCODES, at the desktop 512 tile (516² = 1.02 MB):
+ *
+ *   resident tiles = (96 - overview 16 - pool 4.1) / 1.02  ≈ 74
+ *   plus overview 1 + pool 4 + fabric lower/upper 2 + transform 2  ≈ 83 surfaces
+ *
+ * — comfortably inside the knee, with the byte total also clear of the range
+ * where allocation slows on its own (a fresh canvas measured 21.8 ms with
+ * ~235 MB of bitmaps alive). Raising this without re-measuring pushes every
+ * tile back into software, which is the failure this whole path exists to fix.
+ *
+ * Firefox therefore caches fewer tiles than Chromium (~74 against ~93). That
+ * is a platform ceiling, not a tuning choice.
+ */
+const CANVAS_SURFACE_BUDGET_MB = 96;
+
+function withCanvasSurfaceCap(
+	profile: DrawMemoryProfile,
+	device: DrawMemoryDevice,
+): DrawMemoryProfile {
+	if (!device.canvasTileSurfaces) return profile;
+	return {
+		...profile,
+		tileBudgetMB: Math.min(profile.tileBudgetMB, CANVAS_SURFACE_BUDGET_MB),
+		// Pooled scratch competes for the same surface pool, and matters less
+		// here: an evicted tile hands its canvas straight back, so the pool
+		// refills from eviction rather than from allocation.
+		tilePoolMax: Math.min(profile.tilePoolMax, 4),
+		// Every tile is already stampable in place, and demoting one needs a
+		// bitmap snapshot a DOM canvas cannot give synchronously — so the hot-set
+		// quota has nothing left to gate. `TileStamps.hotSurfaceFor` returns an
+		// already-canvas tile before consulting it, so in-place stamping still
+		// works with this at 0.
+		hotTileMax: 0,
+	};
 }
 
 /**
@@ -107,10 +179,15 @@ export function resolveDrawMemoryProfile(
 	device: DrawMemoryDevice,
 	maxOverviewUpscale = MAX_OVERVIEW_UPSCALE,
 ): DrawMemoryProfile {
-	return withScreenOverviewFloor(
-		resolveDeviceClassProfile(device),
+	// The canvas cap runs LAST: it is a hard platform ceiling, and the screen
+	// floor is an aspiration that must not be allowed to push back through it.
+	return withCanvasSurfaceCap(
+		withScreenOverviewFloor(
+			resolveDeviceClassProfile(device),
+			device,
+			maxOverviewUpscale,
+		),
 		device,
-		maxOverviewUpscale,
 	);
 }
 
@@ -151,7 +228,8 @@ function resolveDeviceClassProfile(
 	}
 
 	const severelyConstrained =
-		device.deviceMemoryGB <= 2 || device.hardwareConcurrency <= 2;
+		device.severelyConstrained ??
+		(device.deviceMemoryGB <= 2 || device.hardwareConcurrency <= 2);
 	return {
 		tileBudgetMB: severelyConstrained ? 24 : 32,
 		// 768² is 2.25 MB instead of 4 MB at 1024², and also cuts overview

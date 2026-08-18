@@ -7,6 +7,9 @@ import {
 	MAX_SYNC_REPAIR_TILES,
 } from "./renderEngineBase";
 
+/** Bitmap px → world, the 2x3 form `CanvasRenderingContext2D.transform` takes. */
+type StampMatrix = readonly [number, number, number, number, number, number];
+
 export abstract class RenderInvalidationCoordinator<
 	T extends Bounded,
 > extends RenderBakeCoordinator<T> {
@@ -33,7 +36,18 @@ export abstract class RenderInvalidationCoordinator<
 		if (canStamp) {
 			this.committed.dropOtherTiers(rect, tier);
 			this.committed.additiveStamp(rect, obj, tier);
-			this.patchOverview(rect);
+			// The stamp exists only at this tier. Keep a live copy for every other
+			// tier until the async overview patch commits. The handoff is deliberately
+			// NOT queued here: a fallback add can cover several tiles and starting the
+			// overview while even one is still stale makes the low-res overview and the
+			// full live stroke overlap. demoteSettled starts it at the tile-ready seam.
+			if (this.live.add(obj, rect, "additive")) {
+				if (obj.id) this.overviewHandoffTier.set(obj.id, tier);
+			} else {
+				// Only possible for malformed objects without an id: keep the ordinary
+				// eventual-repair path as a defensive fallback.
+				this.patchOverview(rect);
+			}
 			this.requestFrame();
 			this.scheduleBake();
 			return;
@@ -52,12 +66,17 @@ export abstract class RenderInvalidationCoordinator<
 			topmost &&
 			stampSafe &&
 			this.intersectsView(rect) &&
-			this.live.add(obj, rect, "normal");
+			this.live.add(obj, rect, "additive");
 		if (willLive) {
 			this.committed.markStale(rect);
-			// Do NOT patch the overview here — the live overlay is the sole copy
-			// during the bake window, so a semi-transparent stroke stays single.
-			// The overview is folded in at demote (see demoteSettled).
+			// Only the active tier may retain its incomplete sharp tile. Once the
+			// live bridge retires, every other tier must take the updated overview
+			// rather than a stale usable tile that predates this stroke.
+			this.committed.dropOtherTiers(rect, tier);
+			if (obj.id) this.overviewHandoffTier.set(obj.id, tier);
+			// The live copy remains the only cross-tier representation until the
+			// current fine tier is complete. demoteSettled then starts an atomic,
+			// abortable overview handoff and retains this item until its commit.
 		} else {
 			// An insertion never makes the old pixels incorrect; they are only
 			// missing the new object. For a non-topmost object (a bucket fill, or a
@@ -112,6 +131,7 @@ export abstract class RenderInvalidationCoordinator<
 
 	removeLiveObject(id: string): void {
 		this.live.remove(id);
+		this.cancelOverviewHandoff(id);
 	}
 
 	onObjectChanged(obj: T, oldRect?: WorldRect): void {
@@ -483,6 +503,78 @@ export abstract class RenderInvalidationCoordinator<
 		if (this.intersectsView(rect)) this.requestFrame();
 		this.scheduleBake(); // stamped tiles are stale — bake repaints them exactly
 		return complete;
+	}
+
+	/**
+	 * Drag start, where a CSS cover already hides the old footprint and the
+	 * commit will supply the replacement pixels itself.
+	 *
+	 * Above the overview tier this is the ordinary retain-and-repair path. AT the
+	 * overview tier it deliberately leaves the overview alone: there are no tiles
+	 * to repair, so `patchOverview` here only queues a deferred patch, and with
+	 * the remote renderer that patch is a markDirty + FULL rebuild of the board —
+	 * flushed the instant the gesture ends, which is exactly when the commit
+	 * needs a clean overview to stamp into. One move then cost a whole-board
+	 * rebuild, and the next move aborted it half-done.
+	 *
+	 * @returns true when the caller now OWNS the overview for these rects and
+	 *   must write them itself (`stampTransformIntoOverview`) or fall back to
+	 *   `retainRegionsUntilRebaked` for all of them.
+	 */
+	invalidateUnderTransformCover(rects: readonly WorldRect[]): boolean {
+		if (rects.length === 0) return false;
+		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
+		if (tier > this.committed.overviewTier) {
+			this.retainRegionsUntilRebaked(rects);
+			return false;
+		}
+		for (const rect of rects) {
+			this.growContentBounds(rect);
+			this.committed.markDirty(rect);
+		}
+		this.requestFrame();
+		this.scheduleBake();
+		return true;
+	}
+
+	/**
+	 * Transform commit at overview zoom: write the drag layer's own pixels into
+	 * the overview instead of rebuilding it.
+	 *
+	 * `stampRegionBitmap` cannot help at this tier — there are no tiles — so this
+	 * is the same trade one level down: O(2 drawImage) now, exact-but-approximate
+	 * z (see `WorldOverview.stampRegion`). The tiles at every tier are marked
+	 * dirty because they still hold pre-move pixels, but the OVERVIEW stays
+	 * clean, so `isRegionBaked` is true immediately and the drag layers hide on
+	 * the next frame rather than waiting out a rebuild.
+	 *
+	 * Both regions are checked for coverage BEFORE anything is written: a
+	 * half-applied stamp would leave a hole in the only picture this zoom has.
+	 */
+	stampTransformIntoOverview(
+		moved: { rect: WorldRect; bmp: ImageBitmap; m: StampMatrix },
+		vacated?: { rect: WorldRect; bmp: ImageBitmap; m: StampMatrix } | null,
+	): boolean {
+		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
+		if (tier > this.committed.overviewTier) return false;
+		const overview = this.committed.overview;
+		if (overview.isDirty()) return false; // a rebuild already owns the picture
+		if (!overview.covers(moved.rect)) return false;
+		if (vacated && !overview.covers(vacated.rect)) return false;
+
+		if (
+			vacated &&
+			!overview.stampRegion(vacated.rect, vacated.bmp, vacated.m, true)
+		)
+			return false;
+		if (!overview.stampRegion(moved.rect, moved.bmp, moved.m)) return false;
+
+		this.growContentBounds(moved.rect);
+		this.committed.markDirty(moved.rect);
+		if (vacated) this.committed.markDirty(vacated.rect);
+		this.requestFrame();
+		this.scheduleBake();
+		return true;
 	}
 
 	// ── direct live control ──────────────────────────────────────────────────

@@ -122,5 +122,7 @@ declare module "fabric" {
 		undo: any;
 		redo: any;
 		"erasing:cleanup_done": any;
+		/** Smudge could not sample the canvas — see SmudgeBrush._beginStroke. */
+		"smudge:blocked": any;
 	}
 }

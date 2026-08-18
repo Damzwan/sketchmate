@@ -1,10 +1,12 @@
 <template>
   <PenMenu />
+  <SmudgeMenu v-if="SMUDGE_ENABLED" />
   <BucketMenu />
   <EraserMenu />
   <SelectMenu />
   <ShapesMenu />
   <MoreToolsMenu />
+  <DrawingReferenceMenu />
   <SavedDrawingMenu/>
   <SelectExtraOptionsMenu />
   <SelectImgStyleMenu :img="selectedObjectsRef[0] as any"
@@ -33,6 +35,7 @@
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import BucketMenu from "@/components/draw/menus/BucketMenu.vue";
+import DrawingReferenceMenu from "@/components/draw/menus/DrawingReferenceMenu.vue";
 import EraserMenu from "@/components/draw/menus/EraserMenu.vue";
 import FontMenu from "@/components/draw/menus/FontMenu.vue";
 import HelpMenu from "@/components/draw/menus/HelpMenu.vue";
@@ -45,19 +48,19 @@ import SelectExtraOptionsMenu from "@/components/draw/menus/SelectExtraOptionsMe
 import SelectImgStyleMenu from "@/components/draw/menus/SelectImgStyleMenu.vue";
 import SelectMenu from "@/components/draw/menus/SelectMenu.vue";
 import ShapesMenu from "@/components/draw/menus/ShapesMenu.vue";
+import SmudgeMenu from "@/components/draw/menus/SmudgeMenu/SmudgeMenu.vue";
 import TextMenu from "@/components/draw/menus/TextMenu.vue";
 import TextEditMenu from "@/components/draw/TextEditMenu.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { SMUDGE_ENABLED } from "@/draw/config/tools.config";
 import { ObjectType } from "@/draw/objects/object.types";
 import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { useShapeCreation } from "@/draw/tools/shapeCreation.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 const { selectedObjectsRef } = storeToRefs(useSelect());
 const { selectAction } = useDrawStore();
-const { roomId } = storeToRefs(useDrawSyncer());
 
 const isText = computed(
 	() =>

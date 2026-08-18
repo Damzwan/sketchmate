@@ -3,8 +3,13 @@ import { defineStore } from "pinia";
 import { type Ref, ref } from "vue";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import { bucketFill, shutdownBucketFillWorker } from "@/draw/tools/bucketFill";
+import {
+	bucketFill,
+	releaseFillBuffer,
+	shutdownBucketFillWorker,
+} from "@/draw/tools/bucketFill";
 import type { ToolService } from "@/draw/tools/tool.types";
+import { readCanvasPixel } from "@/draw/utils/canvasPixelRead";
 import { isMobile } from "@/helper/platform.helper";
 
 interface Bucket extends ToolService {
@@ -38,12 +43,14 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 
 				const screenPoint = c!.getViewportPoint(o.e);
 				const ctx = c!.getContext();
-				const [r, g, b, a] = ctx.getImageData(
-					Math.round(screenPoint.x * dpr),
-					Math.round(screenPoint.y * dpr),
-					1,
-					1,
-				).data;
+				const px = Math.round(screenPoint.x * dpr);
+				const py = Math.round(screenPoint.y * dpr);
+				// Through the shared 1x1 scratch, not off the live canvas: repeated
+				// readbacks make Chromium drop the drawing surface to software for the
+				// rest of the session. See readCanvasPixel.
+				const [r, g, b, a] =
+					readCanvasPixel(c!.getElement(), px, py) ??
+					ctx.getImageData(px, py, 1, 1).data;
 
 				const hex =
 					"#" +
@@ -137,6 +144,9 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 	function destroy() {
 		sessionAbortController.abort();
 		shutdownBucketFillWorker();
+		// The buffer is up to 16.8 MB of GPU surface and is worthless outside a
+		// drawing session.
+		releaseFillBuffer();
 		fillInProgress = false;
 		isFilling.value = false;
 		c = undefined;

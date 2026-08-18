@@ -37,7 +37,6 @@ export function gestureDetector(
 	let initialDistance = 0;
 	let initialX = 0,
 		initialY = 0;
-	let _initialAngle = 0;
 	let previousAngle = 0;
 	let previousScale = 1;
 	let previousCenterX = 0,
@@ -62,7 +61,7 @@ export function gestureDetector(
 			initialY = previousCenterY = (y1 + y2) / 2;
 
 			previousScale = 1;
-			_initialAngle = previousAngle = calculateAngle(x1, y1, x2, y2);
+			previousAngle = calculateAngle(x1, y1, x2, y2);
 			initialDistance = Math.hypot(x2 - x1, y2 - y1);
 
 			options.onGestureStart?.();

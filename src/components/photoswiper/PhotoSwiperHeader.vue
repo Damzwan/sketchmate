@@ -6,7 +6,7 @@
       </ion-button>
     </ion-buttons>
 
-    <div v-if="type === 'post'" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
+    <div v-if="type === 'post' || type === 'competition'" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
       <!-- UserAvatar rather than a plain <img>: the fullscreen viewer is the
            one place a post was shown without its author's frame/decoration,
            so a customised artist lost their look exactly where the artwork is
@@ -34,9 +34,21 @@
           {{ currItem.author?.name || 'Sketcher' }}
         </span>
       </button>
-      <p v-if="currItem.description" class="text-[13px] cabin-sketch-regular opacity-85 line-clamp-2 leading-snug">
+      <p v-if="currItem.description" class="text-[13px] opacity-85 line-clamp-2 leading-snug">
         {{ currItem.description }}
       </p>
+
+      <!-- Same credit rows as the feed card, so opening a post fullscreen never
+           drops an attribution the smaller view showed. Fixed light-on-dark
+           colours rather than the card's palette: this toolbar is its own
+           surface (a flat black scrim), not the artist's themed card. -->
+      <PostCredits
+        v-if="type === 'post'"
+        :post="currItem"
+        label-color="rgba(255,255,255,0.85)"
+        ring-color="rgba(0,0,0,0.6)"
+        @open-user="openCreditedUser"
+      />
     </div>
 
     <ion-buttons slot="end" class="self-start mt-1">
@@ -50,7 +62,11 @@
         class="flex -space-x-6 pr-2 cursor-pointer"
         @click="$emit('open-followers')"
       >
-        <img
+<img
+          width="36"
+          height="36"
+          loading="lazy"
+          decoding="async"
           v-for="(follower, i) in [...currItem.followers].reverse().slice(0, badgesCountToShow)"
           :key="follower"
           :src="senderImg(resolveUser(follower))"
@@ -73,13 +89,14 @@
 <script setup lang="ts">
 import { IonButton, IonButtons, IonIcon, IonToolbar } from "@ionic/vue";
 import { arrowBack } from "ionicons/icons";
+import PostCredits from "@/components/home/posts/PostCredits.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { senderImg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	currItem: any;
-	type: "post" | "inbox";
+	type: "post" | "inbox" | "competition";
 	userLookup?: (userId: string) => any;
 }>();
 
@@ -94,6 +111,8 @@ const openAuthor = () => {
 	if (!id) return;
 	openUserActions({ _id: id, name: author?.name, img: author?.img });
 };
+
+const openCreditedUser = (userId: string) => openUserActions({ _id: userId });
 
 function resolveUser(userId: string) {
 	return props.userLookup ? props.userLookup(userId) : userId;

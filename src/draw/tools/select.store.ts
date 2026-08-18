@@ -6,15 +6,21 @@ import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
+import {
+	capOrderedSelection,
+	DRAW_SELECTION_OBJECT_LIMIT,
+} from "@/draw/config/selectionBudget";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { getAbsoluteState } from "@/draw/objects/objectSerialization";
 import { isText } from "@/draw/tools/textEditing";
 import type { ToolService } from "@/draw/tools/tool.types";
 import * as transform from "@/draw/transform/transformController";
+import { useToast } from "@/service/toast.service";
 import { v4 } from "@/utils/uuid";
 
 interface Select extends ToolService {
 	unSelect: () => void;
+	selectAll: () => FabricObject[];
 	getSelectedObjects: () => FabricObject[];
 	isSelectActive: Ref<boolean>;
 	selectedObjectsRef: Ref<FabricObject[]>;
@@ -27,6 +33,9 @@ interface Select extends ToolService {
 export const useSelect = defineStore("select", (): Select => {
 	let c: Canvas | undefined;
 	let gestureRestoreTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Long enough to sit behind the viewport's own post-gesture settle. */
+	const ZOOM_PREWARM_DELAY = 400;
+	let zoomPrewarmTimer: ReturnType<typeof setTimeout> | null = null;
 	const isSelectActive = ref(false);
 
 	let selectedObjects: FabricObject[] = [];
@@ -36,7 +45,6 @@ export const useSelect = defineStore("select", (): Select => {
 	let clicksAfterSelectionActive = 0;
 
 	const isEditingText = ref(false);
-	const _isBottomHalf = ref(false);
 
 	let wasDragging = false;
 	let pointerDownPos: Point | null = null;
@@ -100,6 +108,26 @@ export const useSelect = defineStore("select", (): Select => {
 		);
 
 		if (newObjects.length) {
+			if (currentSelection.length >= DRAW_SELECTION_OBJECT_LIMIT) {
+				// discardActiveObject() above restores members to the canvas plane.
+				// Rebuild the already-bounded selection so refusing one extra member
+				// does not unexpectedly clear the user's current selection.
+				const capped = capOrderedSelection(currentSelection);
+				void actionWithoutEvents(() => {
+					c!.setActiveObject(
+						capped.objects.length === 1
+							? capped.objects[0]
+							: new fabric.ActiveSelection(capped.objects, { canvas: c }),
+					);
+					selectedObjects = capped.objects;
+					selectedObjectsRef.value = [...capped.objects];
+				});
+				void useToast().toast(
+					`Selection is limited to ${DRAW_SELECTION_OBJECT_LIMIT} objects on this device.`,
+					{ color: "warning" },
+				);
+				return;
+			}
 			void actionWithoutEvents(() => {
 				const newSelection = [...currentSelection, ...newObjects.slice(0, 1)];
 				c!.setActiveObject(
@@ -220,6 +248,24 @@ export const useSelect = defineStore("select", (): Select => {
 			on: "gestureEnd",
 			handler: () => {
 				isUsingGestures = false;
+				// Both transform caches are keyed on ZOOM, and nothing re-warmed them
+				// after a pinch: select, zoom out, then grab, and mouse:down had to
+				// render every member of the selection synchronously on the main
+				// thread (and the vacated cover started from cold too). On a
+				// whole-drawing selection that is the freeze-then-jump people see as
+				// flicker, and it got worse the further out you zoomed because more of
+				// the selection was on screen. A pan leaves the zoom alone, so this is
+				// a cache hit and a no-op in that case.
+				//
+				// Delayed past the viewport's own settle: the engine re-bakes tiles for
+				// the new tier right after a pinch, and dispatching a whole-selection
+				// render into the same worker at that moment would only extend the
+				// post-zoom blur it is trying to clear.
+				if (zoomPrewarmTimer) clearTimeout(zoomPrewarmTimer);
+				zoomPrewarmTimer = setTimeout(() => {
+					zoomPrewarmTimer = null;
+					if (c?.getActiveObject()) transform.prewarm(c);
+				}, ZOOM_PREWARM_DELAY);
 			},
 		},
 	];
@@ -232,6 +278,8 @@ export const useSelect = defineStore("select", (): Select => {
 	function destroy() {
 		if (gestureRestoreTimer) clearTimeout(gestureRestoreTimer);
 		gestureRestoreTimer = null;
+		if (zoomPrewarmTimer) clearTimeout(zoomPrewarmTimer);
+		zoomPrewarmTimer = null;
 		selectedObjects = [];
 		selectedObjectsRef.value = [];
 		isSelectActive.value = false;
@@ -253,6 +301,60 @@ export const useSelect = defineStore("select", (): Select => {
 		isSelectActive.value = false;
 		selectedObjects = [];
 		selectedObjectsRef.value = [];
+	}
+
+	/**
+	 * Select everything the current scope allows.
+	 *
+	 * Goes through the spatial index rather than `canvas.getObjects()` so it
+	 * inherits every rule the other selection paths already obey — hidden and
+	 * locked layers, the "Select across layers" switch, room claim areas — and
+	 * cannot drift from them.
+	 *
+	 * Returns the objects selected so a caller can report on it; empty means
+	 * there was nothing selectable, and the existing selection is left alone
+	 * rather than being cleared for no gain.
+	 */
+	function selectAll(): FabricObject[] {
+		if (!c) return [];
+		const manager = useDrawObjectManager();
+		const claim = useClaimArea();
+		const bounds = manager.getContentBounds();
+		if (!bounds || bounds.w <= 0 || bounds.h <= 0) return [];
+
+		const candidates = manager
+			.querySelectable(bounds)
+			.filter(
+				(obj) => obj.selectable && obj.visible && !claim.isObjectProtected(obj),
+			);
+		if (candidates.length === 0) return [];
+
+		manager.getZIndexMap();
+		// Bottom-to-top, which is the order `capOrderedSelection` expects: when
+		// the cap bites it keeps the TOP of the stack, i.e. what the user can see.
+		candidates.sort(compareRenderOrder);
+		const capped = capOrderedSelection(candidates);
+		if (capped.omitted > 0) {
+			void useToast().toast(
+				`Selected the top ${DRAW_SELECTION_OBJECT_LIMIT} objects to keep this device responsive.`,
+				{ color: "warning" },
+			);
+		}
+
+		const { actionWithoutEvents } = useDrawEventManager();
+		void actionWithoutEvents(() => {
+			c!.discardActiveObject();
+			c!.setActiveObject(
+				capped.objects.length === 1
+					? capped.objects[0]
+					: new fabric.ActiveSelection(capped.objects, { canvas: c }),
+			);
+			selectedObjects = capped.objects;
+			selectedObjectsRef.value = [...capped.objects];
+		});
+		isSelectActive.value = true;
+		c.requestRenderAll();
+		return capped.objects;
 	}
 
 	function getSelectedObjects() {
@@ -323,6 +425,7 @@ export const useSelect = defineStore("select", (): Select => {
 		destroy,
 		events,
 		unSelect,
+		selectAll,
 		isSelectActive,
 		getSelectedObjects,
 		selectedObjectsRef,

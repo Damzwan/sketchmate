@@ -1,6 +1,7 @@
 import type { FabricObjectProps } from "fabric";
 import type { HistoryAction } from "@/draw/history/history.types";
 import type { LayerOp } from "@/draw/layers/layer.types";
+import type { SharedDrawingReference } from "@/draw/references/reference.store";
 
 export enum DrawSyncingEvent {
 	added = "added",
@@ -32,6 +33,8 @@ export enum DrawSyncingEvent {
 	 * version before enabling this in production.
 	 */
 	LayerDocument = "LayerDocument",
+	ReferenceAdded = "ReferenceAdded",
+	ReferenceRemoved = "ReferenceRemoved",
 }
 
 type ShowAvatarActionParams = { creator?: string };
@@ -94,6 +97,12 @@ export type DrawSyncingMap = {
 		newText: string;
 	};
 	[DrawSyncingEvent.LayerDocument]: ShowAvatarActionParams & { op: LayerOp };
+	[DrawSyncingEvent.ReferenceAdded]: ShowAvatarActionParams & {
+		reference: SharedDrawingReference;
+	};
+	[DrawSyncingEvent.ReferenceRemoved]: ShowAvatarActionParams & {
+		referenceId: string;
+	};
 };
 
 export type DrawSyncingParams<T extends DrawSyncingEvent> = DrawSyncingMap[T];

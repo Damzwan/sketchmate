@@ -28,6 +28,7 @@
 
 import type { FabricObject } from "fabric";
 import { getWorkerProtocolMode } from "@/draw/config/workerProtocol.config";
+import { fadedLayerMap } from "@/draw/layers/layerRegistry";
 import { serializeOnce } from "@/draw/objects/objectSerialization";
 import { BakeryAssets } from "@/draw/rendering/bakery/assets";
 import type { BakeryResponse } from "@/draw/rendering/bakery/bakery.types";
@@ -48,6 +49,7 @@ import type {
 	RemoteBakeResult,
 	WorldRect,
 } from "@/draw/rendering/committedLayer";
+import { RASTER_SOFTWARE } from "@/draw/rendering/rasterSurface";
 import {
 	type RefusalReason,
 	recordBakeHardError,
@@ -375,6 +377,8 @@ function getWorker(): Worker | null {
 		liveMax: liveMaxConfig,
 		idleMax: idleMaxConfig,
 		jsonMaxBytes: jsonMaxBytesConfig,
+		softwareRaster: RASTER_SOFTWARE,
+		layerOpacity: fadedLayerMap(),
 	});
 	return worker;
 }
@@ -419,6 +423,17 @@ export function initTileBakery(): void {
 	idleMaxConfig = lowEnd ? 128 : mobile ? 256 : 768;
 	jsonMaxBytesConfig = (lowEnd ? 24 : mobile ? 48 : 96) * 1024 * 1024;
 	getWorker(); // spawn now; the config message goes out with it
+}
+
+/**
+ * Re-send the layer fade map after a slider change.
+ *
+ * Cheap and idempotent: the worker replaces its map wholesale, and an inert
+ * bakery (the production default) short-circuits before touching anything.
+ */
+export function bakerySyncLayerOpacity(): void {
+	if (!enabled || disabled || !worker) return;
+	worker.postMessage({ t: "config", layerOpacity: fadedLayerMap() });
 }
 
 export function isBakeryActive(): boolean {

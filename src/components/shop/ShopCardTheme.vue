@@ -19,7 +19,11 @@
               class="w-8 h-8 rounded-[0.75rem] border shadow-sm shrink-0 relative flex items-center justify-center bg-white/20 overflow-hidden"
               :style="{ borderColor: theme.cardBorderColor }"
             >
-              <img
+<img
+                width="1"
+                height="1"
+                loading="lazy"
+                decoding="async"
                 :src="user?.img || 'https://placehold.co/100x100/FAF6F0/3d1a14?text=🎨'"
                 class="w-full h-full object-cover"
                 alt="Mini Avatar"

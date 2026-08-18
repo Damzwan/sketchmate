@@ -1,7 +1,5 @@
-import { alertController } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { isInRoom } from "@/draw/sync/syncStatus";
-import router from "@/router";
+import { useDrawingRemix } from "@/composables/gallery/useDrawingRemix";
 import {
 	commentOnInbox,
 	removeFromInbox,
@@ -12,7 +10,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useUserCacheStore } from "@/store/userCache.store";
-import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { InboxItem } from "@/types/server.types";
 
 export function useInboxSwiper() {
 	const swiperStore = usePhotoSwiper();
@@ -21,8 +19,9 @@ export function useInboxSwiper() {
 	const { removeFromLocalInbox, findUserInInboxUsers } = useInboxStore();
 
 	const userCache = useUserCacheStore();
+	const { openDrawingCopy } = useDrawingRemix();
 
-	function seeItem(item: any) {
+	function seeItem(item: InboxItem) {
 		if (!item._id || !user.value) return;
 		const userId = user.value._id;
 		if (
@@ -35,7 +34,7 @@ export function useInboxSwiper() {
 		}
 	}
 
-	function openInboxSwiper(inboxItems: any[], index: number) {
+	function openInboxSwiper(inboxItems: InboxItem[], index: number) {
 		swiperStore.openSwiper(inboxItems, index, {
 			type: "inbox",
 			imageResolver: (item) => item.image,
@@ -57,66 +56,18 @@ export function useInboxSwiper() {
 
 			canReply: true,
 			onReply: async (item) => {
-				if (isInRoom()) {
-					toast("Not allowed when in a lobby", { color: "warning" });
-					return;
-				}
-
-				const isOnDrawPage =
-					router.currentRoute.value.path === `/${FRONTEND_ROUTES.draw}`;
-
-				const alert = await alertController.create({
+				await openDrawingCopy({
+					canvasUrl: item.drawing,
 					header: "Copy and Edit Drawing?",
-					subHeader: isOnDrawPage
-						? "This will replace your current canvas."
-						: "Create a copy of this drawing to make your own edits.",
-					message: isOnDrawPage
-						? "Your current unsaved changes will be lost. Do you want to load this drawing as a new template?"
-						: "This will open a copy of the drawing in your workspace. Your original drawing remains safe.",
-					cssClass: "liquid-alert",
-					buttons: [
-						{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-						{
-							text: "Copy & Edit",
-							cssClass: "alert-button-confirm",
-							handler: async () => {
-								swiperStore.close();
-
-								const queryParams = {
-									canvas_url: item.drawing,
-									mode: "solo",
-									id: crypto.randomUUID(),
-								};
-
-								if (isOnDrawPage) {
-									await router.replace({ query: queryParams });
-
-									const { useDrawStore } = await import(
-										"@/draw/session/draw.store"
-									);
-									const drawStore = useDrawStore();
-									const mainCanvasElement = document.getElementById(
-										"mainCanvas",
-									) as HTMLCanvasElement;
-
-									if (mainCanvasElement) {
-										await drawStore.initCanvas(mainCanvasElement, {
-											isLobby: false,
-											draftId: queryParams.id,
-											canvasUrl: queryParams.canvas_url,
-										});
-									}
-								} else {
-									router.push({
-										path: FRONTEND_ROUTES.draw,
-										query: queryParams,
-									});
-								}
-							},
-						},
-					],
+					message:
+						"This will open a copy of the drawing in your workspace. Your original drawing remains safe.",
+					confirmText: "Copy & Edit",
+					replaceCurrent: {
+						subHeader: "This will replace your current canvas.",
+						message:
+							"Your current unsaved changes will be lost. Do you want to load this drawing as a new template?",
+					},
 				});
-				await alert.present();
 			},
 
 			// Try inbox users first, fall back to userCache
@@ -130,13 +81,13 @@ export function useInboxSwiper() {
 				if (!user.value) return;
 
 				try {
-					const commentRes: any = await commentOnInbox(item._id, {
+					const comment = await commentOnInbox(item._id, {
 						message: message,
 						followers: item.followers,
 					});
 
 					const { addComment } = useInboxStore();
-					addComment(commentRes);
+					addComment({ comment, inbox_item_id: item._id });
 				} catch (error) {
 					console.error("Failed to post comment:", error);
 				}

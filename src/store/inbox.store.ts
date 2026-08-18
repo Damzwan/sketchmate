@@ -30,6 +30,7 @@ export const useInboxStore = defineStore("inbox", () => {
 	const hasFetchedInitial = ref(false);
 
 	const PAGE_SIZE = 30;
+	const MAX_COMMENT_PREVIEWS = 20;
 
 	/**
 	 * Hard ceiling on retained inbox items.
@@ -172,7 +173,11 @@ export const useInboxStore = defineStore("inbox", () => {
 		);
 		if (alreadyExists) return;
 
-		inbox.value[index].comments.push(commentRes.comment);
+		const comments = inbox.value[index].comments;
+		comments.push(commentRes.comment);
+		if (comments.length > MAX_COMMENT_PREVIEWS) {
+			comments.splice(0, comments.length - MAX_COMMENT_PREVIEWS);
+		}
 		inbox.value[index].comment_count += 1;
 		inbox.value[index].comments_seen_by = [commentRes.comment.sender];
 	}

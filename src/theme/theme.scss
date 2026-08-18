@@ -29,7 +29,9 @@
   --ion-color-dark: #3D1A14;
   --ion-color-dark-rgb: 61, 26, 20;
 
-  --ion-font-family: 'Cabin Sketch', sans-serif;
+  /* Ionic chrome is small text throughout — it gets the UI face, not the
+     display face. Cabin Sketch is opted in per element via .cabin-sketch-regular. */
+  --ion-font-family: 'Nunito', -apple-system, 'system-ui', 'Segoe UI', Roboto, sans-serif;
 }
 
 .ion-color-background {

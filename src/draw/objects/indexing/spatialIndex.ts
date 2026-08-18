@@ -11,6 +11,10 @@ import {
 	layerOrderOf,
 } from "@/draw/layers/layerRegistry";
 import {
+	type SelectionScope,
+	selectionScope,
+} from "@/draw/layers/selectionScope";
+import {
 	bakeryClipSet,
 	bakeryMarkDirty,
 	bakeryZOrder,
@@ -75,19 +79,40 @@ export function createDrawingSpatialIndex(
 	// making correctness depend on every path that can change an object's layer
 	// remembering to invalidate a cached stamp — an undo of a layer move goes
 	// through generic style-restore code that knows nothing about layers.
+	/**
+	 * Whether the per-object layer-rank stamp has to be refreshed at query time.
+	 *
+	 * The stamp is a `layerOrderOf()` MAP LOOKUP plus a property write on a
+	 * megamorphic fabric object, paid once per object per query. On a dense board
+	 * one tile query returns a few thousand objects and a bake pass runs ~40 of
+	 * them, so this is ~65k lookups per pass — measurably a fifth of the index
+	 * bookkeeping, spent to compute a constant.
+	 *
+	 * On a SINGLE-layer document every rank is 0 by definition, so the lookup has
+	 * exactly one possible answer. Writing the constant still clears any rank left
+	 * over from a multi-layer state, so the comparator can never read a stale one.
+	 * Multi-layer documents keep the original behaviour, which is deliberately
+	 * paranoid: it means correctness does not depend on every path that can move
+	 * an object between layers remembering to invalidate something.
+	 */
+	function stampLayerRank(a: any, single: boolean): void {
+		a.__lo = single ? 0 : layerOrderOf(a.layerId);
+	}
+
 	const spatialIndex = {
 		query: (rect: WorldRect): FabricObject[] => {
 			getZIndexMap(); // ensure __z / __lo stamps are current
 			const entries = quadtree.query(rect, takeScratch());
 			const objs: FabricObject[] = [];
 			const filterHidden = hasHiddenLayers();
+			const single = layerCount() < 2;
 			try {
 				for (let i = 0; i < entries.length; i++) {
 					const o = objectMap.get(entries[i].id);
 					if (!o) continue;
 					const a = o as any;
 					if (filterHidden && isLayerHidden(a.layerId)) continue;
-					a.__lo = layerOrderOf(a.layerId);
+					stampLayerRank(a, single);
 					objs.push(o);
 				}
 			} finally {
@@ -118,12 +143,13 @@ export function createDrawingSpatialIndex(
 			const entries = quadtree.query(rect);
 			const out: { obj: FabricObject; bounds: WorldRect }[] = [];
 			const filterHidden = hasHiddenLayers();
+			const single = layerCount() < 2;
 			for (let i = 0; i < entries.length; i++) {
 				const o = objectMap.get(entries[i].id);
 				if (!o) continue;
 				const a = o as any;
 				if (filterHidden && isLayerHidden(a.layerId)) continue;
-				a.__lo = layerOrderOf(a.layerId);
+				stampLayerRank(a, single);
 				out.push({ obj: o, bounds: entries[i].bounds });
 			}
 			return out.sort((a, b) => compareRenderOrder(a.obj, b.obj));
@@ -131,14 +157,61 @@ export function createDrawingSpatialIndex(
 	};
 
 	// ── geometry / index helpers ─────────────────────────────────────────────
-	function boundsSig(obj: FabricObject): string {
-		const a = obj as any;
-		const g = obj.group as any; // <-- Check for parent group (ActiveSelection)
+	/**
+	 * Fold one value into a 32-bit running hash.
+	 *
+	 * Numbers go in through their bit pattern (via a shared Float64Array view, so
+	 * no allocation), strings through their characters. This replaced a template
+	 * literal that CONCATENATED a dozen numbers into an ~90-character string on
+	 * every bounds measurement: number→string is one of the most expensive
+	 * conversions in JS, and the result was allocated, compared once and thrown
+	 * away. Loading a 7,000-object drawing paid it 7,000 times before the first
+	 * frame, and every drag pays it per selected object per commit.
+	 */
+	const sigBuffer = new Float64Array(1);
+	const sigBytes = new Int32Array(sigBuffer.buffer);
 
-		let sig =
-			`${a.left},${a.top},${a.scaleX},${a.scaleY},${a.angle},` +
-			`${a.skewX},${a.skewY},${a.flipX},${a.flipY},` +
-			`${a.width},${a.height},${a.strokeWidth}`;
+	function mixNumber(hash: number, value: number): number {
+		sigBuffer[0] = typeof value === "number" ? value : Number.NaN;
+		let h = (hash ^ sigBytes[0]) >>> 0;
+		h = Math.imul(h, 0x01000193) >>> 0;
+		h = (h ^ sigBytes[1]) >>> 0;
+		return Math.imul(h, 0x01000193) >>> 0;
+	}
+
+	function mixString(hash: number, value: unknown): number {
+		if (typeof value !== "string") return mixNumber(hash, Number.NaN);
+		let h = hash >>> 0;
+		for (let i = 0; i < value.length; i++) {
+			h = Math.imul(h ^ value.charCodeAt(i), 0x01000193) >>> 0;
+		}
+		return h;
+	}
+
+	/**
+	 * A change detector, not an identity: two different geometries colliding on a
+	 * 32-bit hash would leave a stale bounds cache. At one measurement per object
+	 * per edit that is a ~1-in-4-billion event per comparison, against a string
+	 * build on every single one — and the failure mode (a tile repaints from
+	 * slightly stale bounds until the next edit) is cosmetic and self-healing.
+	 */
+	function boundsSig(obj: FabricObject): number {
+		const a = obj as any;
+		const g = obj.group as any; // parent group (ActiveSelection)
+
+		let h = 0x811c9dc5;
+		h = mixNumber(h, a.left);
+		h = mixNumber(h, a.top);
+		h = mixNumber(h, a.scaleX);
+		h = mixNumber(h, a.scaleY);
+		h = mixNumber(h, a.angle);
+		h = mixNumber(h, a.skewX);
+		h = mixNumber(h, a.skewY);
+		h = mixNumber(h, a.flipX ? 1 : 0);
+		h = mixNumber(h, a.flipY ? 1 : 0);
+		h = mixNumber(h, a.width);
+		h = mixNumber(h, a.height);
+		h = mixNumber(h, a.strokeWidth);
 
 		// Text re-lays-out on any of these, and width/height only catch it AFTER
 		// fabric's initDimensions has run. Signing the layout inputs themselves
@@ -146,15 +219,27 @@ export function createDrawingSpatialIndex(
 		// skipped — the difference between "stale cache heals" and "the old
 		// glyphs stay baked into the tiles as artifacts".
 		if (a.text !== undefined) {
-			sig +=
-				`,${a.text.length},${a.fontFamily},${a.fontSize},${a.fontWeight},` +
-				`${a.fontStyle},${a.textAlign},${a.lineHeight},${a.charSpacing}`;
+			h = mixNumber(h, a.text.length);
+			h = mixString(h, a.fontFamily);
+			h = mixNumber(h, a.fontSize);
+			h = mixString(h, String(a.fontWeight));
+			h = mixString(h, a.fontStyle);
+			h = mixString(h, a.textAlign);
+			h = mixNumber(h, a.lineHeight);
+			h = mixNumber(h, a.charSpacing);
 		}
 
 		if (g) {
-			sig += `|g:${g.left},${g.top},${g.scaleX},${g.scaleY},${g.angle}`;
+			h = mixNumber(h, g.left);
+			h = mixNumber(h, g.top);
+			h = mixNumber(h, g.scaleX);
+			h = mixNumber(h, g.scaleY);
+			h = mixNumber(h, g.angle);
+			// A grouped object and an ungrouped one must never hash alike just
+			// because the group sits at the origin with no scale.
+			h = (h ^ 0x9e3779b9) >>> 0;
 		}
-		return sig;
+		return h;
 	}
 
 	function cachedBounds(obj: FabricObject): WorldRect {
@@ -423,13 +508,14 @@ export function createDrawingSpatialIndex(
 		const entries = quadtree.query(rect, takeScratch());
 		const out: FabricObject[] = [];
 		const filterHidden = hasHiddenLayers();
+		const single = layerCount() < 2;
 		try {
 			for (let i = 0; i < entries.length; i++) {
 				const o = objectMap.get(entries[i].id);
 				if (!o) continue;
 				const a = o as any;
 				if (filterHidden && isLayerHidden(a.layerId)) continue;
-				a.__lo = layerOrderOf(a.layerId);
+				stampLayerRank(a, single);
 				out.push(o);
 			}
 		} finally {
@@ -459,17 +545,31 @@ export function createDrawingSpatialIndex(
 	}
 
 	/**
-	 * SELECTION targets — the active layer only, the standard layer-editor rule
-	 * ("you edit the layer you are on"). Without it, tapping picks whatever is
-	 * under the finger and the active layer stops meaning anything for every
-	 * operation except drawing.
+	 * SELECTION targets — the active layer only by default, the standard
+	 * layer-editor rule ("you edit the layer you are on"). Without it, tapping
+	 * picks whatever is under the finger and the active layer stops meaning
+	 * anything for every operation except drawing.
+	 *
+	 * `scope` widens that to every layer the user can touch, driven by the
+	 * "Select across layers" switch (see `layers/selectionScope.ts`). It defaults
+	 * to that switch so all four selection paths — tap, Fabric's marquee, lasso,
+	 * select-all — follow one rule without each having to remember to ask. The
+	 * ERASER passes `"activeLayer"` explicitly: erasing is not selecting, and it
+	 * must stay on the active layer whatever the switch says.
+	 *
+	 * Hidden and locked layers are already gone by the time this runs
+	 * (`queryInteractiveObjects`), so "all layers" means "all visible, unlocked
+	 * layers" with no extra rule here.
 	 *
 	 * Single-layer drawings (every legacy document, and most new ones) skip the
 	 * filter entirely, so this changes nothing for them.
 	 */
-	function querySelectableObjects(rect: WorldRect): FabricObject[] {
+	function querySelectableObjects(
+		rect: WorldRect,
+		scope: SelectionScope = selectionScope(),
+	): FabricObject[] {
 		const objs = queryInteractiveObjects(rect);
-		if (layerCount() < 2) return objs;
+		if (scope === "allLayers" || layerCount() < 2) return objs;
 		const active = activeLayerId();
 		return objs.filter((o) => ((o as any).layerId ?? BASE_LAYER_ID) === active);
 	}

@@ -15,11 +15,13 @@ import {
 	redoLayerAdded,
 	redoLayerDeleted,
 	redoLayerFlattened,
+	redoLayerOpacityChanged,
 	redoLayerRenamed,
 	redoLayerReordered,
 	undoLayerAdded,
 	undoLayerDeleted,
 	undoLayerFlattened,
+	undoLayerOpacityChanged,
 	undoLayerRenamed,
 	undoLayerReordered,
 } from "@/draw/history/operations/layerDocumentHistory";
@@ -116,6 +118,7 @@ export const undoActionMapping: {
 	[HistoryEvent.LayerAdded]: undoLayerAdded,
 	[HistoryEvent.LayerDeleted]: undoLayerDeleted,
 	[HistoryEvent.LayerRenamed]: undoLayerRenamed,
+	[HistoryEvent.LayerOpacityChanged]: undoLayerOpacityChanged,
 	[HistoryEvent.LayerReordered]: undoLayerReordered,
 	[HistoryEvent.LayerFlattened]: undoLayerFlattened,
 };
@@ -146,6 +149,7 @@ export const redoActionMapping: {
 	[HistoryEvent.LayerAdded]: redoLayerAdded,
 	[HistoryEvent.LayerDeleted]: redoLayerDeleted,
 	[HistoryEvent.LayerRenamed]: redoLayerRenamed,
+	[HistoryEvent.LayerOpacityChanged]: redoLayerOpacityChanged,
 	[HistoryEvent.LayerReordered]: redoLayerReordered,
 	[HistoryEvent.LayerFlattened]: redoLayerFlattened,
 };

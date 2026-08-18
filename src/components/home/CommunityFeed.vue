@@ -5,12 +5,18 @@
   >
     <!-- Header Subhead Segment -->
     <div class="flex items-center justify-between px-1 mb-3 pt-2">
-      <h2 class="uppercase tracking-widest font-black text-black/80">
+      <h2 class="cabin-sketch-regular uppercase tracking-widest font-black text-black/80">
         Community Vibes
       </h2>
     </div>
 
-    <!-- Feed tabs. Each is its own capped fetch — no infinite scroll anywhere. -->
+    <!-- Feed tabs. Each is its own capped fetch — no infinite scroll anywhere.
+
+         ArtistHighlights used to sit HERE, between this header and the tabs. It
+         is ~560px tall, which put the first feed post about two screens down and
+         defeated the point of having a feed on the home screen at all. It now
+         rides in the stream as the second card (below), so opening the app shows
+         the tabs and a real post. -->
     <div v-if="!feedOff" class="flex gap-1.5 mb-4 px-0.5">
       <button
         v-for="tab in TABS"
@@ -47,31 +53,39 @@
       </div>
 
       <!-- Nothing in this tab yet (usually Mates before you've added any) -->
-      <div
-        v-else-if="posts.length === 0"
-        key="empty"
-        class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
-      >
-        <p class="cabin-sketch-regular text-xl font-black text-black mb-1.5">
-          {{ emptyState.title }}
-        </p>
-        <p class="text-base text-black/80 leading-snug">{{ emptyState.body }}</p>
+      <div v-else-if="posts.length === 0" key="empty" class="space-y-6">
+        <div
+          class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
+        >
+          <p class="cabin-sketch-regular text-xl font-black text-black mb-1.5">
+            {{ emptyState.title }}
+          </p>
+          <p class="text-base text-black/80 leading-snug">{{ emptyState.body }}</p>
+        </div>
+        <!-- An empty tab is exactly when there IS something worth showing. -->
+        <ArtistHighlights />
       </div>
 
       <!-- Main Activity Stream List -->
       <div v-else :key="`data-${activeTab}`" class="space-y-6 overflow-visible">
-        <FeedPostCard
-          v-for="post in posts"
-          :key="post._id"
-          :ref="(el: any) => registerPostRef(el, post._id)"
-          :post="post"
-          :is-mine="post.author_id === user?._id"
-          @open-comments="openComments"
-          @open-reaction-popover="handleOpenReactionPopover"
-          @open-reaction-breakdown="openReactionBreakdown"
-          @open-fullscreen="handleOpenFullscreen"
-          @delete-post="handleDelete"
-        />
+        <template v-for="(post, postIndex) in posts" :key="post._id">
+          <FeedPostCard
+            :ref="(el: any) => registerPostRef(el, post._id)"
+            :post="post"
+            :is-mine="post.author_id === user?._id"
+            :priority="postIndex === 0"
+            @open-comments="openComments"
+            @open-reaction-popover="handleOpenReactionPopover"
+            @open-reaction-breakdown="openReactionBreakdown"
+            @open-fullscreen="handleOpenFullscreen"
+            @delete-post="handleDelete"
+          />
+
+          <!-- Second card in the stream: one real post first, then the
+               highlights. Far enough down that the feed reads as a feed,
+               early enough that nobody has to hunt for it. -->
+          <ArtistHighlights v-if="postIndex === 0" />
+        </template>
 
         <!-- End of Feed Tactile Caught-Up Graphics Block.
              There is deliberately no load-more trigger here: the feed is one
@@ -99,10 +113,12 @@
     />
 
     <!-- Comments Drawer Slide Controller -->
-    <PostCommentDrawer
-      :is-open="isCommentsOpen"
-      :post="activePost"
-      @close="isCommentsOpen = false"
+    <CommentDrawer
+      :open="isCommentsOpen"
+      :curr-item="activePost"
+      type="post"
+      :user="user"
+      @update:open="isCommentsOpen = $event"
     />
 
     <!-- One sheet for the feed. It used to be instantiated once per post. -->
@@ -116,16 +132,18 @@
 </template>
 
 <script setup lang="ts">
-import { useIntersectionObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
+import CommentDrawer from "@/components/general/CommentDrawer.vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
+import ArtistHighlights from "@/components/home/ArtistHighlights.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
-import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
+import { provideOverlayScrollGuard } from "@/composables/general/useOverlayScrollGuard";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { usePostViewTracking } from "@/composables/home/usePostViewTracking";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
-import { deletePost, type FeedTab, logPostViews } from "@/service/api/post.api";
+import { deletePost, type FeedTab } from "@/service/api/post.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
@@ -140,6 +158,7 @@ const quotaStore = useQuotaStore();
 const photoSwiperStore = usePhotoSwiper();
 const { openPostSwiper } = usePostSwiper();
 const { toast } = useToast();
+const { registerPostRef, stopAllPostObservers } = usePostViewTracking();
 
 const { user } = storeToRefs(authStore);
 const { feedByTab, fetchedTabs, isFeedDirty } = storeToRefs(postStore);
@@ -192,100 +211,17 @@ const REACTION_POPOVER_SPACING = 10;
 // it. Hold both scrollTop and Chromium's scroll anchor for the full overlay
 // lifetime, then keep pinning through the dismissal/update frames.
 const rootEl = ref<HTMLElement | null>(null);
-let scrollEl: HTMLElement | null = null;
-let savedScrollTop = 0;
-let previousOverflowAnchor: string | null = null;
-let scrollGuardFrame: number | null = null;
-let scrollGuardUntil = 0;
-let releaseAnchorWhenGuardEnds = false;
-
-async function resolveScrollEl(): Promise<HTMLElement | null> {
-	if (scrollEl?.isConnected) return scrollEl;
-	const content = rootEl.value?.closest("ion-content") as any;
-	scrollEl = content?.getScrollElement
-		? await content.getScrollElement()
-		: null;
-	return scrollEl;
-}
-
-function blurOverlayTrigger() {
-	const active = document.activeElement;
-	if (active instanceof HTMLElement && active !== document.body) active.blur();
-}
-
-async function captureOverlayScroll() {
-	const el = await resolveScrollEl();
-	if (!el) return;
-
-	if (scrollGuardFrame !== null) cancelAnimationFrame(scrollGuardFrame);
-	scrollGuardFrame = null;
-	scrollGuardUntil = 0;
-	releaseAnchorWhenGuardEnds = false;
-
-	savedScrollTop = el.scrollTop;
-	if (previousOverflowAnchor === null) {
-		previousOverflowAnchor = el.style.overflowAnchor;
-		el.style.overflowAnchor = "none";
-	}
-	blurOverlayTrigger();
-}
-
-function pinScroll() {
-	if (
-		scrollEl?.isConnected &&
-		Math.abs(scrollEl.scrollTop - savedScrollTop) > 2
-	)
-		scrollEl.scrollTop = savedScrollTop;
-}
-
-function releaseScrollAnchor() {
-	if (scrollEl?.isConnected && previousOverflowAnchor !== null) {
-		scrollEl.style.overflowAnchor = previousOverflowAnchor;
-	}
-	previousOverflowAnchor = null;
-}
-
-function stopScrollGuard(releaseAnchor = true) {
-	if (scrollGuardFrame !== null) cancelAnimationFrame(scrollGuardFrame);
-	scrollGuardFrame = null;
-	scrollGuardUntil = 0;
-	releaseAnchorWhenGuardEnds = false;
-	if (releaseAnchor) releaseScrollAnchor();
-}
-
-function guardScroll(duration = 500, releaseAnchorAfter = false) {
-	scrollGuardUntil = Math.max(scrollGuardUntil, performance.now() + duration);
-	releaseAnchorWhenGuardEnds ||= releaseAnchorAfter;
-	if (scrollGuardFrame !== null) return;
-
-	const tick = () => {
-		pinScroll();
-		if (performance.now() < scrollGuardUntil) {
-			scrollGuardFrame = requestAnimationFrame(tick);
-			return;
-		}
-
-		scrollGuardFrame = null;
-		if (releaseAnchorWhenGuardEnds) releaseScrollAnchor();
-		releaseAnchorWhenGuardEnds = false;
-	};
-	scrollGuardFrame = requestAnimationFrame(tick);
-}
-
-function cancelScrollGuardOnInteraction() {
-	if (!popoverOpen.value && !feedFullscreenOpen) stopScrollGuard();
-}
-const scrollIntentListenerOptions: AddEventListenerOptions = {
-	capture: true,
-	passive: true,
-};
+// Provided, not just used: the feed cards and the artist highlights carousel
+// open their own overlays and must share this one guard (see the note on
+// provideOverlayScrollGuard about two guards fighting over overflowAnchor).
+const { captureOverlayScroll, guardScroll, stopScrollGuard, endOverlay } =
+	provideOverlayScrollGuard(rootEl);
 
 function closeReactionPopover() {
 	popoverOpen.value = false;
 	// `close` is emitted on ion-popover's didDismiss. At this point the
 	// animation is over, so only cover the final focus-restoration frames.
-	stopScrollGuard(false);
-	guardScroll(48, true);
+	endOverlay();
 }
 
 const openComments = (post: FeedPost) => {
@@ -376,92 +312,6 @@ const handleDelete = async (post: FeedPost) => {
 	}
 };
 
-/* --- LOGICAL INTERSECTION VIEW OBSERVERS --- */
-const pendingViewSync = new Set<string>();
-const postElements = new Map<string, HTMLElement>();
-const postObservers = new Map<
-	string,
-	{ stop: () => void; timer: ReturnType<typeof setTimeout> | null }
->();
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const flushViewSync = async () => {
-	if (syncTimeout) clearTimeout(syncTimeout);
-	syncTimeout = null;
-	if (pendingViewSync.size === 0) return;
-
-	const idsToSync = Array.from(pendingViewSync);
-	pendingViewSync.clear();
-	try {
-		await logPostViews(idsToSync);
-	} catch (e) {
-		console.error("View sync failed", e);
-	}
-};
-
-const scheduleViewSync = () => {
-	if (syncTimeout) return;
-	syncTimeout = setTimeout(() => void flushViewSync(), 3000);
-};
-
-const stopPostObserver = (postId: string) => {
-	const observer = postObservers.get(postId);
-	if (observer?.timer) clearTimeout(observer.timer);
-	observer?.stop();
-	postObservers.delete(postId);
-	postElements.delete(postId);
-};
-
-const stopAllPostObservers = () => {
-	for (const postId of [...postObservers.keys()]) stopPostObserver(postId);
-};
-
-const registerPostRef = (el: any, postId: string) => {
-	if (!el) {
-		stopPostObserver(postId);
-		return;
-	}
-	const target =
-		el.$el instanceof HTMLElement
-			? el.$el
-			: el instanceof HTMLElement
-				? el
-				: null;
-	if (!target || postElements.has(postId)) return;
-
-	postElements.set(postId, target);
-	let timer: ReturnType<typeof setTimeout> | null = null;
-
-	const { stop } = useIntersectionObserver(
-		target,
-		([{ isIntersecting }]) => {
-			if (postStore.hasViewedFeedPost(postId)) {
-				stopPostObserver(postId);
-				return;
-			}
-			if (isIntersecting && !timer) {
-				timer = setTimeout(() => {
-					if (postStore.markFeedPostViewed(postId)) {
-						pendingViewSync.add(postId);
-						scheduleViewSync();
-					}
-					stopPostObserver(postId);
-				}, 1500);
-				const observer = postObservers.get(postId);
-				if (observer) observer.timer = timer;
-			} else if (timer) {
-				clearTimeout(timer);
-				timer = null;
-				const observer = postObservers.get(postId);
-				if (observer) observer.timer = null;
-			}
-		},
-		{ threshold: 0.6 },
-	);
-	postObservers.set(postId, { stop, timer });
-};
-
-// 'off' hides the feed entirely — no fetch, a small placeholder instead.
 const feedOff = computed(() => user.value?.feed_level === "off");
 
 function loadFeedIfNeeded() {
@@ -522,50 +372,8 @@ function reloadIfDirty() {
 
 defineExpose({ reloadIfDirty });
 
-onMounted(() => {
-	// Warm the scroll-element handle so the reaction picker can read/pin scroll
-	// synchronously on first use.
-	void resolveScrollEl();
-
-	// Ionic overlays remain above the feed during their leave animation. Listen
-	// at document capture level so the first touch after close can cancel the
-	// guard even if that fading overlay, rather than this section, receives it.
-	document.addEventListener(
-		"pointerdown",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.addEventListener(
-		"touchstart",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.addEventListener(
-		"wheel",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-});
-
 onUnmounted(() => {
-	document.removeEventListener(
-		"pointerdown",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.removeEventListener(
-		"touchstart",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
-	document.removeEventListener(
-		"wheel",
-		cancelScrollGuardOnInteraction,
-		scrollIntentListenerOptions,
-	);
 	stopScrollGuard();
-	stopAllPostObservers();
-	void flushViewSync();
 });
 </script>
 

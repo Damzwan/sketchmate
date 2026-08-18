@@ -217,7 +217,24 @@ CommunityFeed.vue
 
 `hydrateFeedPosts` (in `post.service.ts`) is shared by all three tabs: they
 select posts differently but present them identically. It runs a fixed number of
-queries regardless of page size.
+queries regardless of page size — four: comment previews, viewer reactions,
+viewer bookmarks, and one user lookup that covers post authors, comment authors
+and credited users together.
+
+> This claim used to be false. The comment previews were fetched with
+> `Promise.all(postIds.map(id => find().sort().limit(2)))` — one query per post,
+> so **20 round trips** for a 20-post page. They now come back from a single
+> correlated `$lookup` (`fetchCommentPreviews`). The `$lookup` keeps the per-post
+> `sort + limit`, which matters: a plain `$in` + group-in-memory would read every
+> comment on every post in the page to keep two of them, so one post with a few
+> thousand comments would cost more than the N+1 did. Measured on production: 40
+> documents examined for 40 returned comments, index-driven off
+> `{ post_id: 1, createdAt: -1 }`.
+
+Grid surfaces (the profile gallery, the saved-posts page) use `hydrateGridPosts`
+instead. A grid draws a thumbnail and nothing else, so it skips the comment
+previews entirely; tapping a tile opens the photoswiper, which fetches the real
+thread itself.
 
 Impressions flow back independently:
 

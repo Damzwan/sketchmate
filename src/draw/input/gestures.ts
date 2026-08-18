@@ -3,6 +3,7 @@ import { storeToRefs } from "pinia";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import { wheelDeltaPixels } from "@/draw/input/wheelDelta";
 import { cancelPreviousAction } from "@/draw/tools/cancelTools";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import { useSelect } from "@/draw/tools/select.store";
@@ -17,6 +18,7 @@ import { isMobile } from "@/helper/platform.helper";
 function zoomLimits() {
 	return useDrawObjectManager().getZoomLimits();
 }
+
 let visibilityTimeout: any = null;
 const SETTLE_DELAY = 180;
 
@@ -47,7 +49,7 @@ function cancelPendingSettle() {
 	clearTimeout(visibilityTimeout);
 }
 
-function syncVisuals(_c: Canvas) {
+function syncVisuals(c: Canvas) {
 	// renderViewportNow, NOT renderViewport. We are already inside a RAF callback
 	// here, and renderViewport() only *schedules* another one — so the composite
 	// for this gesture frame landed on the NEXT frame, putting every pan and zoom
@@ -57,6 +59,7 @@ function syncVisuals(_c: Canvas) {
 
 	const { recalculateAvatarPositions } = useDrawUIStore();
 	recalculateAvatarPositions();
+	c.fire("viewport:changed");
 }
 
 function endViewportGesture(c: Canvas) {
@@ -104,7 +107,7 @@ export function enablePCGestures(c: Canvas) {
 					c.fire("gestureStart");
 				}
 
-				const rawZoomFactor = Math.exp(-e.deltaY / 300);
+				const rawZoomFactor = Math.exp(-wheelDeltaPixels(e) / 300);
 				const newZoom = Math.max(
 					limits.min,
 					Math.min(c.getZoom() * rawZoomFactor, limits.max),

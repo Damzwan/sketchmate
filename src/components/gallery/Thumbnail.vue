@@ -14,7 +14,9 @@
   ]"
       :style="{ height: inboxItem.aspect_ratio ? `${renderHeight}px` : '110px' }"
     >
-      <img
+<img
+        width="1"
+        height="1"
         :src="inboxItem.thumbnail"
         :alt="inboxItem.date"
         @contextmenu.prevent
@@ -51,7 +53,11 @@
         </div>
 
         <div class="absolute right-2 top-2 flex -space-x-2.5 pointer-events-auto overflow-visible">
-          <img
+<img
+            width="24"
+            height="24"
+            loading="lazy"
+            decoding="async"
             v-for="(follower, i) in [...inboxItem.followers].reverse().slice(0, badgesCountToShow)"
             :key="follower"
             :src="senderImg(findUserInInboxUsers(follower))"

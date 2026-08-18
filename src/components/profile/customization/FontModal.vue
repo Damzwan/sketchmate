@@ -1,39 +1,30 @@
 <template>
-  <BaseSheetModal
+  <CatalogPickerModal
     :is-open="isOpen"
-    scrollable
     title="Font"
+    :user="user"
+    :preview-customization="previewCustomization"
+    :preview-mode="previewMode"
+    :selection-locked="selectionLocked"
+    :selection-name="selectionName"
+    :purchasing="purchasing"
+    apply-label="Apply Font"
     @close="handleDismiss"
+    @apply="confirm"
+    @unlock="unlock"
   >
-    <template #sub-header>
-      <div class="px-3">
-        <ChatWidgetStylePager v-if="previewMode === 'chat'" :customization="previewCustomization" :user="user" />
-        <PreviewSurfacePager
-          v-else
-          :user="user"
-          :customization="previewCustomization"
-          :active="isOpen"
-          v-bind="pickerPreview"
-        />
-      </div>
-    </template>
-
     <div
       data-content-scroll="true"
       @touchmove.stop
       class="grid grid-cols-2 gap-3 pb-4"
     >
-      <button
+      <CatalogPickerTile
         v-for="f in FONTS"
         :key="f.value"
-        class="relative rounded-[2rem] cursor-pointer border-2 bg-tertiary p-4 active:scale-95 transition-all overflow-hidden text-left"
-        :class="[
-          localSelection === f.value
-            ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-primary/40 shadow-sm',
-          !isItemOwned(f.value) && 'locked-tile'
-        ]"
-        @click="localSelection = f.value"
+        class="rounded-[2rem] p-4 text-left"
+        :selected="localSelection === f.value"
+        :owned="isItemOwned(f.value)"
+        @select="localSelection = f.value"
       >
         <span class="block text-2xl font-bold leading-tight truncate" :style="{ fontFamily: f.family }">
           {{ f.preview }}
@@ -42,128 +33,56 @@
           {{ f.label }}
         </span>
 
-        <div
-          v-if="!isItemOwned(f.value)"
-          class="absolute inset-0 bg-black/25 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
-        >
-          <div class="bg-white/95 rounded-full w-9 h-9 flex items-center justify-center shadow-lg">
-            <ion-icon :icon="svg(mdiLock)" class="text-base text-black/70" />
-          </div>
-        </div>
-
-        <div
-          v-if="localSelection === f.value && isItemOwned(f.value)"
-          class="absolute top-2 right-2 w-6 h-6 rounded-full bg-secondary shadow-lg flex items-center justify-center"
-        >
-          <ion-icon :icon="svg(mdiCheck)" class="text-white text-sm" />
-        </div>
-      </button>
+      </CatalogPickerTile>
     </div>
 
-    <template #footer>
-      <div class="px-1 pt-2 pb-1 bg-background">
-        <ion-button
-          v-if="selectionLocked"
-          expand="block"
-          color="secondary"
-          shape="round"
-          size="large"
-          :disabled="purchasing"
-          @click="unlock"
-        >
-          <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
-          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
-        </ion-button>
-        <ion-button
-          v-else
-          expand="block"
-          color="secondary"
-          shape="round"
-          size="large"
-          @click="confirm"
-        >
-          Apply Font
-        </ion-button>
-      </div>
-    </template>
-  </BaseSheetModal>
+  </CatalogPickerModal>
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiCheck, mdiLock } from "@mdi/js";
-import { computed, defineAsyncComponent, ref, watch } from "vue";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
-import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import { buildItemId } from "@/config/catalog.config";
-import { usePickerPreview } from "@/config/preview.config";
+import { computed } from "vue";
+import CatalogPickerModal from "@/components/profile/customization/CatalogPickerModal.vue";
+import CatalogPickerTile from "@/components/profile/customization/CatalogPickerTile.vue";
+import { useCatalogPicker } from "@/composables/profile/useCatalogPicker";
 import {
 	type Customization,
 	DEFAULT_FONT_ID,
 	FONTS,
 } from "@/config/profile_options.config";
-import { svg } from "@/helper/general.helper";
-import { useInventoryStore } from "@/store/inventory.store";
-
-const ChatWidgetStylePager = defineAsyncComponent(
-	() => import("@/components/chat/ChatWidgetStylePager.vue"),
-);
-const pickerPreview = usePickerPreview();
+import type { User } from "@/types/server.types";
 
 const props = defineProps<{
 	isOpen: boolean;
-	user: any;
+	user?: User;
 	customization: Partial<Customization>;
 	previewMode?: "profile" | "chat";
 }>();
 
-const emit = defineEmits(["close", "select"]);
+const emit = defineEmits<{ close: []; select: [id: string] }>();
 
-const inventoryStore = useInventoryStore();
-const { purchasing, unlockItem } = useUnlockItem();
-
-const localSelection = ref(props.customization.fontId || DEFAULT_FONT_ID);
-
-watch(
-	() => props.isOpen,
-	(open) => {
-		if (open)
-			localSelection.value = props.customization.fontId || DEFAULT_FONT_ID;
-	},
-);
-
-const isItemOwned = (fontId: string) =>
-	inventoryStore.isOwned(buildItemId("font", fontId));
-
-const selectionLocked = computed(() => !isItemOwned(localSelection.value));
-
-const selectionName = computed(
-	() => FONTS.find((f) => f.value === localSelection.value)?.label || "",
-);
+const {
+	localSelection,
+	isItemOwned,
+	selectionLocked,
+	selectionName,
+	purchasing,
+	confirm,
+	unlock,
+} = useCatalogPicker({
+	isOpen: () => props.isOpen,
+	initialId: () => props.customization.fontId || DEFAULT_FONT_ID,
+	items: FONTS,
+	category: "font",
+	idOf: (font) => font.value,
+	nameOf: (font) => font.label,
+	onSelect: (id) => emit("select", id),
+	onClose: () => emit("close"),
+});
 
 const previewCustomization = computed(() => ({
 	...props.customization,
 	fontId: localSelection.value,
 }));
 
-const confirm = () => {
-	if (selectionLocked.value) return unlock();
-	emit("select", localSelection.value);
-	emit("close");
-};
-
-const unlock = async () => {
-	const ok = await unlockItem(buildItemId("font", localSelection.value));
-	if (ok) {
-		emit("select", localSelection.value);
-		emit("close");
-	}
-};
-
 const handleDismiss = () => emit("close");
 </script>
-
-<style scoped>
-.locked-tile { opacity: 0.92; }
-</style>

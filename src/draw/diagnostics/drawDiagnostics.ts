@@ -24,7 +24,10 @@
 // Everything here is off the render hot path: one interval, one observer sink
 // and one stall timer. No allocation happens per frame or per tile.
 
+import { App as CapacitorApp } from "@capacitor/app";
+import type { PluginListenerHandle } from "@capacitor/core";
 import * as Sentry from "@sentry/capacitor";
+import { DRAW_QUALITY_DEMOTION } from "@/draw/config/qualityDemotion";
 import type { DrawRenderBackend } from "@/draw/config/renderBackend.config";
 import {
 	DRAW_DEVICE_MEMORY_GB,
@@ -32,8 +35,10 @@ import {
 	getRenderDpr,
 	IS_LOW_END_DEVICE,
 	IS_MOBILE_DEVICE,
+	IS_SEVERELY_CONSTRAINED_DEVICE,
 	isRenderDprCapped,
 } from "@/draw/config/renderQuality.config";
+import { RASTER_SOFTWARE } from "@/draw/rendering/rasterSurface";
 import {
 	type DrawMetricsSnapshot,
 	type LongTaskReport,
@@ -42,6 +47,7 @@ import {
 	setLongTaskSink,
 	snapshotDrawMetrics,
 } from "@/draw/rendering/renderMetrics";
+import { deviceProfile } from "@/service/deviceProfile";
 
 /**
  * How often the engine snapshot is written to the Sentry scope.
@@ -65,6 +71,20 @@ const CONTEXT_INTERVAL_MS = 10_000;
 const STALL_TICK_MS = 1_000;
 const STALL_THRESHOLD_MS = 3_000;
 
+/**
+ * Android resumes the WebView before all lifecycle/timer bookkeeping has
+ * settled. A suspended interval can therefore run just after `visible` /
+ * `isActive=true` and look several minutes late. Ignore that first wake-up;
+ * real foreground stalls remain observable from the following tick onward.
+ */
+const STALL_RESUME_GRACE_MS = STALL_TICK_MS * 2;
+
+/**
+ * `lastDrawPhase` is a completed phase marker, not a stack sample. Once it is
+ * older than this it is no longer evidence for the delayed timer's cause.
+ */
+const STALL_PHASE_MAX_AGE_MS = STALL_TICK_MS;
+
 /** Don't spam the issue stream from one bad session. */
 const MAX_STALL_REPORTS_PER_SESSION = 5;
 
@@ -72,6 +92,10 @@ let installed = false;
 let stallTimer: ReturnType<typeof setInterval> | null = null;
 let lastTick = 0;
 let stallReports = 0;
+let lifecycleHidden = false;
+let resumedAt = 0;
+let visibilityListener: (() => void) | null = null;
+let appStateListener: PluginListenerHandle | null = null;
 
 function safe(fn: () => void): void {
 	try {
@@ -108,6 +132,7 @@ function compactContext(s: DrawMetricsSnapshot): Record<string, unknown> {
 
 		// Main-thread blocking: the ANR cohort.
 		longTasks: s.longTasks,
+		longTasksSevere: s.longTasksSevere,
 		longTaskMsMax: s.longTaskMsMax,
 		longTaskObserved: s.longTaskObserved,
 		loafMsMax: s.longAnimationFrameMsMax,
@@ -119,6 +144,7 @@ function compactContext(s: DrawMetricsSnapshot): Record<string, unknown> {
 		// Which block is costing. `phaseMsMax` alone answers most questions.
 		phaseMsMax: s.phaseMsMax,
 		lastPhase: lastDrawPhase(),
+		slowestRenderObject: s.slowestRenderObject,
 
 		// Only meaningful in `worker` mode; cheap to keep so the two cohorts stay
 		// comparable if the backend is ever flipped by experiment.
@@ -136,18 +162,37 @@ function compactContext(s: DrawMetricsSnapshot): Record<string, unknown> {
  *
  * Set once — none of them change during a session (`getRenderDpr` is cached on
  * purpose, see renderQuality.config).
+ *
+ * `draw.gpu` is the one that closes the loop with Play Console. Its ANR clusters
+ * are named after the driver that stalled — `libIMGegl.so`, `libGLESv2_adreno`,
+ * `libgsl` — and nothing else we record identifies the GPU, so until this tag
+ * existed the two data sets could not be joined at all. `draw.gpu` is only
+ * populated from the SECOND launch onwards (see service/deviceProfile.ts).
  */
 function setStaticTags(backend: DrawRenderBackend): void {
 	const rawDpr =
 		typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+	const profile = deviceProfile();
 	Sentry.setTag("draw.backend", backend);
+	Sentry.setTag("draw.raster", RASTER_SOFTWARE ? "cpu" : "gpu");
 	Sentry.setTag("draw.renderDpr", String(getRenderDpr()));
 	Sentry.setTag("draw.rawDpr", String(rawDpr));
 	Sentry.setTag("draw.dprCapped", String(isRenderDprCapped()));
 	Sentry.setTag("draw.lowEnd", String(IS_LOW_END_DEVICE));
+	Sentry.setTag("draw.severe", String(IS_SEVERELY_CONSTRAINED_DEVICE));
 	Sentry.setTag("draw.mobile", String(IS_MOBILE_DEVICE));
 	Sentry.setTag("draw.deviceMemoryGB", String(DRAW_DEVICE_MEMORY_GB));
+	Sentry.setTag("draw.totalMemMB", String(profile.totalMemMB ?? "unknown"));
 	Sentry.setTag("draw.cores", String(DRAW_HARDWARE_CONCURRENCY));
+	Sentry.setTag("draw.qualityDemotion", String(DRAW_QUALITY_DEMOTION));
+	Sentry.setTag("draw.gpu", profile.gpu ?? "unknown");
+	Sentry.setTag("draw.gpuClass", profile.gpuClass);
+	Sentry.setTag(
+		"draw.lowRam",
+		profile.lowRam === undefined ? "unknown" : String(profile.lowRam),
+	);
+	Sentry.setTag("draw.webViewPackage", profile.webViewPackage ?? "unknown");
+	Sentry.setTag("draw.webViewVersion", profile.webViewVersion ?? "unknown");
 }
 
 function reportLongTask(report: LongTaskReport): void {
@@ -166,6 +211,43 @@ function reportLongTask(report: LongTaskReport): void {
 	});
 }
 
+function noteLifecycleState(hidden: boolean): void {
+	lifecycleHidden = hidden;
+	lastTick = performance.now();
+	if (!hidden) resumedAt = lastTick;
+}
+
+function bindLifecycle(): void {
+	if (typeof document !== "undefined") {
+		visibilityListener = () =>
+			noteLifecycleState(document.visibilityState === "hidden");
+		document.addEventListener("visibilitychange", visibilityListener);
+		noteLifecycleState(document.visibilityState === "hidden");
+	} else {
+		noteLifecycleState(false);
+	}
+
+	void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+		noteLifecycleState(!isActive);
+	})
+		.then((handle) => {
+			if (installed) appStateListener = handle;
+			else void handle.remove();
+		})
+		.catch(() => {
+			/* web / unsupported platform — visibilitychange is sufficient */
+		});
+}
+
+function unbindLifecycle(): void {
+	if (visibilityListener && typeof document !== "undefined") {
+		document.removeEventListener("visibilitychange", visibilityListener);
+	}
+	visibilityListener = null;
+	void appStateListener?.remove();
+	appStateListener = null;
+}
+
 /**
  * Backstop for the case where native ANR reporting turns out not to work at all
  * (unverified against the R8 release build at time of writing).
@@ -177,22 +259,30 @@ function reportLongTask(report: LongTaskReport): void {
  */
 function startStallDetector(): void {
 	if (stallTimer !== null) return;
-	lastTick = performance.now();
+	bindLifecycle();
 	stallTimer = setInterval(() => {
 		const now = performance.now();
 		const late = now - lastTick - STALL_TICK_MS;
 		lastTick = now;
-		if (late < STALL_THRESHOLD_MS) return;
 		// A backgrounded WebView has its timers throttled or suspended outright,
-		// so lateness there says nothing about main-thread health.
+		// so lateness there says nothing about main-thread health. Checking only
+		// `visibilityState` here is insufficient: on resume it is already visible,
+		// while this interval still carries the entire suspended duration.
 		if (
-			typeof document !== "undefined" &&
-			document.visibilityState === "hidden"
+			lifecycleHidden ||
+			(typeof document !== "undefined" &&
+				(document.visibilityState === "hidden" ||
+					now - resumedAt < STALL_RESUME_GRACE_MS))
 		)
 			return;
+		if (late < STALL_THRESHOLD_MS) return;
 		if (stallReports >= MAX_STALL_REPORTS_PER_SESSION) return;
 		stallReports++;
-		const phase = lastDrawPhase();
+		const lastPhase = lastDrawPhase();
+		const phase =
+			lastPhase.ageMs >= 0 && lastPhase.ageMs <= STALL_PHASE_MAX_AGE_MS
+				? lastPhase
+				: { phase: "", ms: 0, ageMs: lastPhase.ageMs };
 		safe(() => {
 			Sentry.captureMessage(
 				`Draw main-thread stall ${Math.round(late)}ms${phase.phase ? ` near ${phase.phase}` : ""}`,
@@ -220,6 +310,7 @@ function startStallDetector(): void {
 export function installDrawDiagnostics(backend: DrawRenderBackend): void {
 	if (installed) return;
 	installed = true;
+	stallReports = 0;
 
 	safe(() => setStaticTags(backend));
 
@@ -247,4 +338,8 @@ export function uninstallDrawDiagnostics(): void {
 		clearInterval(stallTimer);
 		stallTimer = null;
 	}
+	unbindLifecycle();
+	lifecycleHidden = false;
+	resumedAt = 0;
+	lastTick = 0;
 }

@@ -13,9 +13,9 @@
 
 import type { Bounded, WorldRect } from "./committedLayer";
 
-export type LiveMode = "normal" | "erase";
+export type LiveMode = "normal" | "additive" | "erase";
 
-interface LiveItem<T> {
+export interface LiveItem<T> {
 	obj: T;
 	mode: LiveMode;
 	rect: WorldRect;
@@ -45,7 +45,16 @@ export class LiveLayer<T extends Bounded> {
 
 	add(obj: T, rect: WorldRect, mode: LiveMode = "normal"): boolean {
 		if (!obj.id) return false;
-		if (!this.items.has(obj.id) && this.items.size >= this.MAX) return false;
+		// MAX is a performance cap, not permission to break the cross-tier
+		// correctness handoff. Additive entries are short-lived and already exist
+		// in the scene; retaining the reference until its overview job commits is
+		// safer than dropping the only pixels a zoomed-out frame can render.
+		if (
+			mode !== "additive" &&
+			!this.items.has(obj.id) &&
+			this.items.size >= this.MAX
+		)
+			return false;
 		this.items.set(obj.id, { obj, mode, rect, addedAt: performance.now() });
 		return true;
 	}
@@ -75,6 +84,10 @@ export class LiveLayer<T extends Bounded> {
 		const now = performance.now();
 		const expired: WorldRect[] = [];
 		for (const [id, it] of this.items) {
+			// Additive items are a correctness bridge between zoom tiers. They leave
+			// only after the overview handoff has actually committed; expiring one on
+			// a timer can make a newly-drawn stroke disappear during a long gesture.
+			if (it.mode === "additive") continue;
 			const ttl = it.mode === "erase" ? ERASE_TTL_MS : NORMAL_TTL_MS;
 			if (now - it.addedAt > ttl) {
 				if (it.mode === "normal") expired.push(it.rect);
@@ -84,30 +97,41 @@ export class LiveLayer<T extends Bounded> {
 		return expired;
 	}
 
-	settledIds(isReady: (rect: WorldRect) => boolean): string[] {
-		const out: string[] = [];
-		for (const [id, it] of this.items) if (isReady(it.rect)) out.push(id);
+	settledItems(isReady: (rect: WorldRect) => boolean): [string, LiveItem<T>][] {
+		const out: [string, LiveItem<T>][] = [];
+		for (const entry of this.items) if (isReady(entry[1].rect)) out.push(entry);
 		return out;
 	}
 
-	rectOf(id: string): WorldRect | undefined {
-		return this.items.get(id)?.rect;
-	}
-
-	/** Render all live items in world space, viewport-culled. */
+	/**
+	 * Render all live items in world space, viewport-culled.
+	 *
+	 * `alreadyPainted` hides an item whose pixels the caller has ALREADY drawn
+	 * this frame (its tile baked and was composited underneath). Drawing it again
+	 * on top is invisible at full alpha but doubles a semi-transparent stroke
+	 * (0.45 + 0.45 ≈ 0.70) for every frame between the bake landing and the item
+	 * being demoted — the low-opacity brush flicker. Demotion still does the
+	 * bookkeeping; this just stops the overlap being visible in the meantime.
+	 */
 	composite(
 		ctx: CanvasRenderingContext2D,
 		vpt: number[],
 		dpr: number,
 		render: LiveRenderer<T>,
 		viewWorld?: WorldRect,
+		alreadyPainted?: (
+			rect: WorldRect,
+			item: LiveItem<T>,
+			id: string,
+		) => boolean,
 	): void {
 		if (this.items.size === 0) return;
 		ctx.save();
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
-		for (const it of this.items.values()) {
+		for (const [id, it] of this.items) {
 			if (viewWorld && !this.intersects(it.rect, viewWorld)) continue;
+			if (alreadyPainted?.(it.rect, it, id)) continue;
 			ctx.save();
 			if (it.mode === "erase") ctx.globalCompositeOperation = "destination-out";
 			try {

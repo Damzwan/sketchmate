@@ -15,7 +15,7 @@
           <span class="text-lg font-black text-heading">{{ saveStatusText }}</span>
         </div>
         <p class="text-base text-black/80 mt-1 mb-3 cabin-sketch-regular leading-snug">
-          Your drawing autosaves to this device every {{ AUTOSAVE_SECONDS }}s.
+          Your drawing saves after you pause and keeps a local recovery copy.
         </p>
         <ion-button
           @click="onSaveNow"
@@ -41,8 +41,6 @@ import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { useDocumentStore } from "@/draw/document/document.store";
 import { svg } from "@/helper/general.helper";
-
-const AUTOSAVE_SECONDS = 20;
 
 const { isSaving, isDirty } = storeToRefs(useDocumentStore());
 const { saveNow } = useDocumentStore();

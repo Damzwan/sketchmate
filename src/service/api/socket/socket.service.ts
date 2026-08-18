@@ -54,10 +54,6 @@ export async function socketConnect(): Promise<void> {
 		socketLogin({ _id: user.value._id });
 	});
 
-	socket.on("disconnect", () => {
-		const _store = useAuthStore();
-	});
-
 	socket.on(SOCKET_ENDPONTS.login, () => {
 		resolveSocketLoggedIn?.();
 	});

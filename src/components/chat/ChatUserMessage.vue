@@ -20,66 +20,92 @@
          to a message (see composables/chat/useMessageActions). An attribute, not
          a listener, so adding message actions costs this list nothing per row. -->
     <div
-      class="flex flex-col max-w-[75%] overflow-visible"
-      :class="{ 'items-end': isMe }"
+      class="flex flex-col overflow-visible"
+      :class="isMe ? 'items-end max-w-[75%]' : 'max-w-[calc(75%+2.75rem)]'"
       :data-msg-id="msg._id || msg.id"
     >
-      <ChatMediaMessage
-        v-if="isMediaMessage"
-        :msg="msg"
-        :is-me="isMe"
-        :active-tab="activeTab"
-      />
+      <!-- Bubble + its actions trigger on one line. `data-msg-menu` is the
+           explicit tap target for the same sheet long-press opens; both are
+           resolved by the thread-level delegated handlers, so this row still
+           adds no listeners of its own. -->
+      <div class="message-line flex items-center max-w-full min-w-0" :class="{ 'flex-row-reverse': isMe }">
+        <ChatMediaMessage
+          v-if="isMediaMessage"
+          :msg="msg"
+          :is-me="isMe"
+          :active-tab="activeTab"
+        />
 
-      <div
-        v-else
-        class="py-2 px-3 text-[15px] shadow-sm cabin-sketch-regular tracking-wide relative max-w-full overflow-visible"
-        :class="isMe
-          ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
-          : 'bg-white text-black rounded-2xl rounded-tl-sm border border-primary/40'"
-      >
         <div
-          v-if="!isCompact && !isMe && activeTab === 'lobby'"
-          class="mb-1 flex items-baseline gap-1 leading-none min-w-0 max-w-full"
+          v-else
+          class="py-2 px-3 text-[15px] shadow-sm cabin-sketch-regular tracking-wide relative max-w-full min-w-0 overflow-visible"
+          :class="isMe
+            ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
+            : 'bg-white text-black rounded-2xl rounded-tl-sm border border-primary/40'"
         >
-          <span
-            class="text-xs font-black uppercase tracking-tight truncate min-w-0"
-            :style="{ color: theme.nameColorOnLight, fontFamily: resolvedFontFamily }"
+          <div
+            v-if="!isCompact && !isMe && activeTab === 'lobby'"
+            class="mb-1 flex items-baseline gap-1 leading-none min-w-0 max-w-full"
           >
-            {{ sender?.name }}
-          </span>
-          <span
-            v-if="displayTitle"
-            class="text-[10px] uppercase tracking-widest opacity-80 truncate min-w-0"
-            :style="{ color: theme.descColorOnLight, fontFamily: resolvedFontFamily }"
-          >
-            • {{ displayTitle }}
-          </span>
+            <span
+              class="text-xs font-black uppercase tracking-tight truncate min-w-0"
+              :style="{ color: theme.nameColorOnLight, fontFamily: resolvedFontFamily }"
+            >
+              {{ sender?.name }}
+            </span>
+            <span
+              v-if="displayTitle"
+              class="text-[10px] uppercase tracking-widest opacity-80 truncate min-w-0"
+              :style="{ color: theme.descColorOnLight, fontFamily: resolvedFontFamily }"
+            >
+              • {{ displayTitle }}
+            </span>
+          </div>
+
+          <div class="cabin-sketch-regular leading-snug break-words pr-2">
+            {{ displayText }}
+          </div>
+
+          <div class="text-xs mt-1 opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
+            <span>{{ dayjs(msg.createdAt).format("HH:mm") }}</span>
+            <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center leading-none">
+              <svg viewBox="0 0 24 24" class="w-3 h-3 fill-current" :class="statusTick.classOnBubble" aria-hidden="true">
+                <path :d="statusTick.path" />
+              </svg>
+            </span>
+          </div>
         </div>
 
-        <div class="cabin-sketch-regular leading-snug break-words pr-2">
-          {{ displayText }}
-        </div>
-
-        <div class="text-xs mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
-          <span>{{ dayjs(msg.createdAt).format("HH:mm") }}</span>
-          <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center leading-none">
-            <svg viewBox="0 0 24 24" class="w-3 h-3 fill-current" :class="statusTick.classOnBubble" aria-hidden="true">
-              <path :d="statusTick.path" />
-            </svg>
-          </span>
-        </div>
+        <!-- Reporting is relevant to received messages, so keep one explicit,
+             accessible route there. Own messages retain long-press for Copy
+             without paying for a permanent control on every row. -->
+        <button
+          v-if="!isMe"
+          type="button"
+          data-msg-menu
+          class="msg_menu_btn text-black/70"
+          aria-label="Actions for this message"
+        >
+          <ion-icon :icon="svg(mdiDotsHorizontal)" class="pointer-events-none text-base" />
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { mdiAlertCircleOutline, mdiCheckAll, mdiClockOutline } from "@mdi/js";
+import { IonIcon } from "@ionic/vue";
+import {
+	mdiAlertCircleOutline,
+	mdiCheckAll,
+	mdiClockOutline,
+	mdiDotsHorizontal,
+} from "@mdi/js";
 import dayjs from "dayjs";
 import { computed } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useSenderStyle } from "@/composables/chat/useSenderStyle";
+import { svg } from "@/helper/general.helper";
 import { safeText } from "@/helper/profanity.helper";
 import ChatMediaMessage from "./ChatMediaMessage.vue";
 
@@ -123,3 +149,27 @@ const statusTick = computed(() => {
 	return { path: mdiCheckAll, classOnBubble: "text-white/80" };
 });
 </script>
+
+<style scoped>
+@reference "@/theme/main.css";
+
+.msg_menu_btn {
+  @apply w-11 h-11 shrink-0 rounded-full flex items-center justify-center
+  cursor-pointer transition-[color,background-color,transform,opacity]
+  hover:bg-black/5 focus-visible:bg-black/5 focus-visible:outline-2
+  focus-visible:outline-offset-[-2px] focus-visible:outline-secondary
+  active:scale-90;
+  opacity: 0.55;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .msg_menu_btn {
+    opacity: 0.28;
+  }
+
+  .message-line:hover .msg_menu_btn,
+  .msg_menu_btn:focus-visible {
+    opacity: 1;
+  }
+}
+</style>

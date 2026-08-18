@@ -9,7 +9,7 @@ import {
 
 export class FastSprayBrush extends BaseBrush {
 	/** Width of a spray */
-	width = 10;
+	override width = 10;
 
 	/** Density of a spray (number of dots per chunk) */
 	density = 20;
@@ -56,7 +56,9 @@ export class FastSprayBrush extends BaseBrush {
 			);
 			if (img) {
 				const stroke = new SprayStroke(img.getElement(), {
-					...img.toObject(),
+					// Encoding the raster here cost a synchronous PNG on the commit
+					// frame for a `src` nothing reads. See toObjectWithoutSrc.
+					...toObjectWithoutSrc(img, (p) => img.toObject(p as any)),
 					color: this.color,
 					dotWidth: this.dotWidth,
 					dots: [...this.sprayDots],
@@ -118,7 +120,8 @@ export class FastSprayBrush extends BaseBrush {
 
 import {
 	enlivenStrokeProps,
-	TEXTURE_SUPERSAMPLE,
+	fitTextureRaster,
+	toObjectWithoutSrc,
 } from "@/draw/utils/brushes/brush.helpers";
 
 // Pure renderer: (dots, color, dpr) → spray bitmap. Deterministic given the
@@ -153,11 +156,15 @@ export function generateSprayImage(
 
 	// Device-independent — see TEXTURE_SUPERSAMPLE. (Also fixes NaN dimensions:
 	// the old expression had no `|| 1`, so off-main it read undefined.)
-	const dpr = TEXTURE_SUPERSAMPLE;
+	// Clamped, because the dot cloud's bounding box is unbounded on an infinite
+	// canvas — see fitTextureRaster.
+	const raster = fitTextureRaster(w, h);
+	if (!raster) return null;
+	const dpr = raster.scale;
 
 	const off = document.createElement("canvas");
-	off.width = w * dpr;
-	off.height = h * dpr;
+	off.width = raster.width;
+	off.height = raster.height;
 	const ctx = off.getContext("2d");
 	if (!ctx) return null;
 	ctx.scale(dpr, dpr);
@@ -183,8 +190,8 @@ export function generateSprayImage(
 }
 
 export class SprayStroke extends FabricImage {
-	static type = "SprayStroke";
-	static cacheProperties = [
+	static override type = "SprayStroke";
+	static override cacheProperties = [
 		...FabricImage.cacheProperties,
 		"color",
 		"dotWidth",
@@ -244,16 +251,17 @@ export class SprayStroke extends FabricImage {
 			lastX = ix;
 			lastY = iy;
 		}
-		const baseObj = super.toObject([
+		// Drops the bitmap — the payload win — without the throwaway PNG encode
+		// `super.toObject()` would otherwise run first. See toObjectWithoutSrc.
+		const baseObj = toObjectWithoutSrc(this, (p) => super.toObject(p as any), [
 			"color",
 			"dotWidth",
 			...additionalProperties,
-		] as any);
-		delete (baseObj as any).src; // drop the bitmap — the payload win
+		]);
 		return { ...baseObj, compressedDots: flat };
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Pixels supplied by the tile worker (transferred ImageBitmap). Use them
 		// directly instead of re-running the generator on every enliven — that
 		// regeneration is why these strokes were refused off-thread.

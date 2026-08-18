@@ -32,6 +32,7 @@
           <ProfileWorld
             :world-id="authorCustomization.worldId"
             :accent="theme.accentColor"
+            :dark="theme.isDark"
             static-mode
             banner
             contained
@@ -100,12 +101,42 @@
           </div>
         </div>
 
-        <p v-if="post.description"
-           class="cabin-sketch-regular font-bold line-clamp-2 mt-2 px-0.5 leading-snug"
-           :class="isTexturedEffect ? 'text-[17px]' : 'text-base'"
-           :style="{ color: headerPalette.desc, textShadow: headerTextShadow }">
-          {{ post.description }}
-        </p>
+        <!-- Credits sit between the author block and the caption: they are part
+             of who made this, not part of what the artist wrote about it. Kept
+             off the artwork on purpose — its four corners are already spoken
+             for by the competition badge, the fullscreen control and the
+             signature. -->
+        <PostCredits
+          :post="post"
+          :label-color="headerPalette.desc"
+          :ring-color="theme.isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.75)'"
+          :text-shadow="headerTextShadow"
+          @open-user="openUser"
+        />
+
+        <!-- The artist's own words, so this is prose the reader has to get
+             through, not a label to glance at. It stays in the UI face: the
+             display faces measure 40-76% single-pixel stems at this size, and
+             a caption is the worst place to spend that. -->
+        <div v-if="post.description" class="mt-2 px-0.5">
+          <p
+            ref="descriptionEl"
+            class="font-bold leading-snug whitespace-pre-line"
+            :class="[isTexturedEffect ? 'text-[17px]' : 'text-base', descriptionExpanded ? '' : 'line-clamp-2']"
+            :style="{ color: headerPalette.desc, textShadow: headerTextShadow }"
+          >
+            {{ post.description }}
+          </p>
+          <button
+            v-if="descriptionOverflows"
+            type="button"
+            class="mt-0.5 text-xs font-black uppercase tracking-wider opacity-70 hover:opacity-100 active:scale-95 transition-all cursor-pointer"
+            :style="{ color: headerPalette.desc, textShadow: headerTextShadow }"
+            @click.stop="toggleDescription"
+          >
+            {{ descriptionExpanded ? 'Show less' : 'See more' }}
+          </button>
+        </div>
         </div>
       </div>
 
@@ -117,23 +148,53 @@
         @dblclick="handleDoubleTap"
         @contextmenu.prevent
       >
-        <img
-          :src="post.thumbnail_url || post.image_url"
+        <!-- Same URL as the artwork below, deliberately. This layer is blurred
+             past recognition, so a second, distinct object bought nothing and
+             doubled the CDN requests for the feed; pointing both at one URL
+             makes the browser serve the second from the first's response. -->
+<img
+          width="1"
+          height="1"
+          :src="feedImageUrl"
           class="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl pointer-events-none transition-opacity duration-500"
           :class="imageLoaded ? blurredBackdropOpacity : 'opacity-0'"
-          loading="lazy"
+          :loading="priority ? 'eager' : 'lazy'"
           decoding="async"
-          fetchpriority="low"
           alt=""
+        />
+
+        <!-- Only possible now the strip reserves its own box from
+             `aspect_ratio`: before, the card had no height until the bytes
+             landed, so there was nothing to put a skeleton inside. -->
+        <div
+          v-if="!imageLoaded && artworkAspect"
+          class="absolute inset-0 z-[1] artwork-skeleton pointer-events-none"
+          aria-hidden="true"
         />
 
         <div class="absolute inset-0 z-[5] pointer-events-none dynamic-edge-vignette" />
 
-        <img
-          :src="post.image_url"
-          class="relative z-10 w-full object-contain transition-opacity duration-500 max-h-[50vh]"
-          :class="imageLoaded ? 'opacity-100' : 'opacity-0'"
-          loading="lazy"
+        <!-- Competition win. Denormalised onto the post at announce time, so
+             this costs no lookup. The badge follows the artwork wherever it
+             goes — that visibility is half the reward. -->
+        <div
+          v-if="post.competition_win"
+          class="absolute top-2 left-2 z-20 px-2.5 py-1 rounded-full bg-amber-300/95 text-amber-950 text-[11px] font-black shadow-sm pointer-events-none"
+        >
+          🏆 {{ post.competition_win.category_label }}
+        </div>
+
+        <!-- The THUMBNAIL, not the full-res export. This strip is at most one
+             phone width by 50vh; the full image is the raw canvas blob and only
+             the fullscreen swiper can actually show that detail. -->
+<img
+          width="1"
+          height="1"
+          :src="feedImageUrl"
+          class="relative z-10 w-full object-contain transition-opacity duration-500"
+          :class="[imageLoaded ? 'opacity-100' : 'opacity-0', artworkAspect ? 'h-full' : 'max-h-[50vh]']"
+          :loading="priority ? 'eager' : 'lazy'"
+          :fetchpriority="priority ? 'high' : 'auto'"
           decoding="async"
           @load="imageLoaded = true"
           alt="Main illustration content"
@@ -195,196 +256,46 @@
         <ReactionBurst ref="reactionBurst" />
       </div>
 
-      <!-- Footer: reaction proof · action bar · comment previews -->
-      <div class="relative z-10 px-4 pt-3 pb-4 shrink-0 flex flex-col gap-3">
-        <!-- Reaction social proof: tappable pill opening a full breakdown -->
-        <button
-          v-if="totalReactionCount > 0"
-          @click="$emit('open-reaction-breakdown', post)"
-          class="flex items-center gap-2 self-start cursor-pointer active:scale-95 hover:scale-[1.02] transition-all"
-          aria-label="See who reacted"
-        >
-          <div class="flex items-center">
-            <div
-              v-for="(key, i) in activeReactions.slice(0, 3)"
-              :key="key"
-              class="w-8 h-8 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center"
-              :class="i !== 0 ? '-ml-2.5' : ''"
-              :style="{ zIndex: 3 - i }"
-            >
-              <img :src="reactionImages[key]" class="w-5 h-5 object-contain" alt="" />
-            </div>
-          </div>
-          <span class="text-sm font-black text-black/80 tracking-tight" :style="{ color: strongText, textShadow: textureHalo }">
-            {{ totalReactionCount }}
-            <span class="text-black/50" :style="{ color: mutedText }">{{ totalReactionCount === 1 ? 'reaction' : 'reactions' }}</span>
-          </span>
-          <ion-icon :icon="svg(mdiChevronRight)" class="text-base text-black/30 -ml-0.5 opacity-60" :style="{ color: mutedText }" />
-        </button>
-
-        <!-- Action bar: one cohesive, clear button style -->
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <!-- React -->
-            <button
-              @click="(e) => $emit('open-reaction-popover', { event: e, post })"
-              class="flex items-center cursor-pointer hover:scale-105 justify-center h-9 px-3 rounded-full border active:scale-95 transition-all"
-              :class="post.user_reaction
-                ? 'bg-secondary/10 border-secondary/30 text-secondary'
-                : 'bg-white border-black/10 text-black/80'"
-              aria-label="React"
-            >
-              <img
-                v-if="post.user_reaction"
-                :src="reactionImages[post.user_reaction]"
-                class="w-5 h-5 object-contain"
-                alt=""
-              />
-              <ion-icon v-else :icon="svg(mdiHeartOutline)" class="text-lg" />
-            </button>
-
-            <!-- Comment (count lives here, Instagram-style) -->
-            <button
-              v-if="post.enable_comments"
-              @click="openComments"
-              class="flex items-center gap-1.5 h-9 cursor-pointer hover:scale-105 px-3.5 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
-            >
-              <ion-icon :icon="svg(mdiChatOutline)" class="text-lg" />
-              <span v-if="post.comment_count" class="text-sm font-black tracking-tight">
-                {{ post.comment_count }}
-              </span>
-            </button>
-
-            <!-- Share -->
-            <button
-              @click="openShare"
-              class="flex items-center justify-center cursor-pointer hover:scale-105 h-9 w-9 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
-              aria-label="Share"
-            >
-              <ion-icon :icon="svg(mdiSendOutline)" class="text-base -rotate-12" />
-            </button>
-          </div>
-
-          <!-- Remix: demoted to a neutral pill, matching the rest -->
-          <button
-            v-if="post.enable_remix"
-            @click="remixPost"
-            class="flex items-center gap-1.5 h-9 px-3 cursor-pointer hover:scale-105 rounded-full bg-white border border-black/10 text-black/70 hover:text-black active:scale-95 transition-all"
-          >
-            <ion-icon :icon="svg(mdiPencilOutline)" class="text-sm" />
-            <span class="text-[11px] font-black uppercase tracking-wider">Remix</span>
-          </button>
-        </div>
-
-        <!-- Comment previews.
-             On a textured card these are the smallest, most muted type on the
-             card, so the crease detail eats them first. No plate/backdrop — a
-             box here read as a card-on-a-card. Instead the textured variant is
-             a step larger, the message half drops its mute (it renders in the
-             full-strength name colour with a bolder weight), and the halo does
-             the separating from the paper grain. -->
-        <div
-          v-if="previewComments.length"
-          @click="openComments"
-          class="cursor-pointer active:opacity-70 transition-opacity flex flex-col gap-1"
-        >
-          <div
-            v-for="comment in previewComments"
-            :key="comment._id"
-            class="flex items-start gap-1.5 leading-snug"
-            :class="isTexturedEffect ? 'text-[13px]' : 'text-xs'"
-          >
-            <span class="text-black font-black shrink-0 tracking-tight" :style="{ color: strongText, textShadow: textureHalo }">{{ comment.author.name }}</span>
-            <span
-              class="truncate tracking-tight"
-              :class="isTexturedEffect ? 'font-bold' : 'text-black/80'"
-              :style="{ color: isTexturedEffect ? strongText : mutedText, textShadow: textureHalo }"
-            >{{ safeText(comment.message, comment.message_filtered) }}</span>
-          </div>
-
-          <!-- Only when there are genuinely more comments than we're previewing -->
-          <p
-            v-if="hasMoreComments"
-            class="text-xs font-black text-black/70 mt-0.5 tracking-wide"
-            :style="{ color: isTexturedEffect ? strongText : mutedText, textShadow: textureHalo }"
-          >
-            View all {{ post.comment_count }} comments
-          </p>
-        </div>
-
-        <!-- Empty-state nudge, only when there is nothing to preview -->
-        <p
-          v-else-if="post.enable_comments"
-          @click="openComments"
-          class="text-xs font-black text-black/70 uppercase tracking-widest cursor-pointer active:opacity-60"
-          :style="{ color: mutedText, textShadow: textureHalo }"
-        >
-          Start the conversation
-        </p>
-      </div>
+      <FeedPostFooter
+        :post="post"
+        :active-reactions="activeReactions"
+        :total-reaction-count="totalReactionCount"
+        :preview-comments="previewComments"
+        :has-more-comments="hasMoreComments"
+        :is-textured-effect="isTexturedEffect"
+        :strong-text="strongText"
+        :muted-text="mutedText"
+        :texture-halo="textureHalo"
+        :open-comments="openComments"
+        :open-share="openShare"
+        :remix-post="remixPost"
+        :toggle-save="toggleSave"
+		@open-reaction-breakdown="(value) => $emit('open-reaction-breakdown', value)"
+		@open-reaction-popover="(value) => $emit('open-reaction-popover', value)"
+      />
     </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
-import {
-	mdiArrowExpand,
-	mdiChatOutline,
-	mdiChevronRight,
-	mdiDeleteOutline,
-	mdiDotsHorizontal,
-	mdiFlagVariantOutline,
-	mdiHeartOutline,
-	mdiPencilOutline,
-	mdiSendOutline,
-} from "@mdi/js";
-import { onLongPress } from "@vueuse/core";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { type CSSProperties, computed, ref, watch } from "vue";
+import { IonIcon } from "@ionic/vue";
+import { mdiArrowExpand, mdiDotsHorizontal } from "@mdi/js";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { playSelectionTick, reactionImages } from "@/config/post.config";
-import {
-	calculateSignatureStroke,
-	DEFAULT_EFFECT_ID,
-	DEFAULT_WORLD_ID,
-	hydrateCustomization,
-	isLightTheme,
-	resolveEffect,
-	resolveFontEffectClass,
-	resolveFontFamily,
-	resolveReadableCustomizationPalette,
-	resolveTheme,
-	resolveTitle,
-	resolveWorld,
-} from "@/config/profile_options.config";
-import { useShareService } from "@/draw/sharing/shareService.store";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
-import { safeText } from "@/helper/profanity.helper";
-import router from "@/router";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import { useMenuStore } from "@/store/menu.store";
-import { useModerationStore } from "@/store/moderation.store";
-import { Menu } from "@/types/menu.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { FeedPost } from "@/types/server.types";
-
-dayjs.extend(relativeTime);
+import type { FeedPost } from "@/types/server.types";
+import FeedPostFooter from "./FeedPostFooter.vue";
+import PostCredits from "./PostCredits.vue";
+import { useFeedPostCard } from "./useFeedPostCard";
 
 const props = defineProps<{
 	post: FeedPost;
 	isMine: boolean;
-	/**
-	 * Rendered as a non-interactive mock of a post (customization preview).
-	 * Suppresses controls that only make sense against a real, persisted post.
-	 */
 	preview?: boolean;
+	priority?: boolean;
 }>();
 const emit = defineEmits([
 	"open-comments",
@@ -393,274 +304,47 @@ const emit = defineEmits([
 	"open-fullscreen",
 	"delete-post",
 ]);
-
-const { openUserActions } = useUserContextSheet();
-const menuStore = useMenuStore();
-
-const imageLoaded = ref(false);
-const reactionSurface = ref<HTMLElement | null>(null);
-const reactionBurst = ref<{ play: (r: string) => void } | null>(null);
-
-const authorCustomization = computed(() =>
-	hydrateCustomization(props.post.author?.customization),
-);
-const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
-const world = computed(() => resolveWorld(authorCustomization.value.worldId));
-// The world fills the author header, so its luminance—not only the card
-// theme—must participate in choosing readable header text.
-const headerPalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, world.value),
-);
-// Theme, effect and world are three INDEPENDENT purchases — gate them
-// separately. They used to share one `showArtistTheme` flag keyed off themeId,
-// which meant an artist who bought an effect or a world but kept the `classic`
-// theme rendered neither of them.
-// Classic is the SketchMate house palette (#FAE0C2 primary + #B9463A accent),
-// so it's the baseline card look, not an opt-out. The old
-// `!== DEFAULT_THEME_ID` clause excluded exactly that theme — which, since
-// `hydrateCustomization` defaults themeId to `classic`, made deliberately
-// choosing Classic indistinguishable from never choosing a theme at all: the
-// post card silently fell back to the hardcoded #FAF8F5.
-const showCardTheme = computed(() => !!authorCustomization.value.themeId);
-// Both components already self-guard on `def.kind !== 'none'`; this just keeps
-// the wrapper element (and its compositing layer) out of the DOM entirely for
-// the overwhelmingly common "no effect / no world" author.
-const showEffect = computed(
-	() => authorCustomization.value.effectId !== DEFAULT_EFFECT_ID,
-);
-
-/**
- * Text legibility over a TEXTURED effect layer.
- *
- * `crumpled` and `grain` paint per-pixel luminance noise across the whole card,
- * including straight through the header and footer copy. The colour contrast is
- * still nominally fine, but the crease/grain detail sits at roughly the stroke
- * width of the type, so glyph edges compete with it — worst on `classic`, whose
- * cream surface leaves the least headroom. A soft halo in the surface's own
- * colour re-separates the glyphs from the texture without touching the text
- * colour or dimming the effect, and it's keyed to surface lightness so a
- * light-on-dark theme gets a dark halo rather than a white one.
- */
-const effectDef = computed(() =>
-	resolveEffect(authorCustomization.value.effectId),
-);
-const isTexturedEffect = computed(
-	() => effectDef.value.kind === "crumpled" || effectDef.value.kind === "grain",
-);
-const onLightSurface = computed(() => isLightTheme(theme.value));
-const textureHalo = computed(() =>
-	isTexturedEffect.value
-		? onLightSurface.value
-			? "0 0 5px rgba(255,255,255,0.85), 0 1px 1px rgba(255,255,255,0.7)"
-			: "0 0 5px rgba(0,0,0,0.7), 0 1px 1px rgba(0,0,0,0.55)"
-		: undefined,
-);
-const headerTextShadow = computed(
-	() => textureHalo.value ?? headerPalette.value.textShadow,
-);
-const showWorld = computed(
-	() => authorCustomization.value.worldId !== DEFAULT_WORLD_ID,
-);
-// Subtle whole-card theming: paint the artist's surface + border on the whole
-// card (header + footer), leaving the artwork strip neutral. Not applied for the
-// base theme.
-const cardStyle = computed<CSSProperties>(() =>
-	showCardTheme.value
-		? {
-				background: theme.value.cardBg,
-				borderColor: theme.value.cardBorderColor,
-				transform: "translateZ(0)",
-				isolation: "isolate",
-			}
-		: {
-				transform: "translateZ(0)",
-				isolation: "isolate",
-			},
-);
-// The artwork strip is object-contain, so on any image that isn't the strip's
-// exact aspect there is letterbox padding around it. That padding was a
-// hardcoded cream (#FAF8F5) regardless of theme, which read as a foreign band
-// cutting the card in half. Carry the artist's surface through it instead, and
-// keep the translateZ/will-change promotion that was previously inline.
-const artworkStyle = computed(() => ({
-	transform: "translateZ(0)",
-	willChange: "transform",
-	...(showCardTheme.value
-		? {
-				background: theme.value.cardBg,
-				borderColor: theme.value.cardBorderColor,
-			}
-		: {}),
-}));
-
-// The blurred art backdrop fills the letterbox with the drawing's own colours.
-// At the untouched 40% it would smother the theme surface underneath, so on a
-// themed card it steps back and lets the artist's colour lead.
-const blurredBackdropOpacity = computed(() =>
-	showCardTheme.value ? "opacity-20" : "opacity-40",
-);
-
-// Footer text colours on a themed card — undefined falls back to the default
-// black/x classes for base-theme cards.
-const strongText = computed(() =>
-	showCardTheme.value ? theme.value.nameColor : undefined,
-);
-const mutedText = computed(() =>
-	showCardTheme.value ? theme.value.descColor : undefined,
-);
-const resolvedFontFamily = computed(() =>
-	resolveFontFamily(authorCustomization.value.fontId),
-);
-const fontEffectClass = computed(() =>
-	resolveFontEffectClass(authorCustomization.value.fontEffectId),
-);
-const displayTitle = computed(() =>
-	resolveTitle(authorCustomization.value.titleId),
-);
-const signatureStrokeWidth = computed(() =>
-	calculateSignatureStroke(authorCustomization.value.signatureViewBox),
-);
-
-const activeReactions = computed(() =>
-	Object.keys(props.post.reaction_counts || {}).filter(
-		(key) => props.post.reaction_counts[key] > 0,
-	),
-);
-
-const totalReactionCount = computed(() =>
-	Object.values(props.post.reaction_counts || {}).reduce(
-		(sum, count) => sum + count,
-		0,
-	),
-);
-
-// Up to two embedded comments to preview inline.
-const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? []);
-
-// "View all" should only appear when there are comments beyond what's previewed,
-// i.e. genuinely hidden comments — never "View all 1 comments".
-const hasMoreComments = computed(
-	() => (props.post.comment_count ?? 0) > previewComments.value.length,
-);
-
-watch(
-	() => props.post.user_reaction,
-	(newVal, oldVal) => {
-		if (newVal && newVal !== oldVal) {
-			reactionBurst.value?.play(newVal);
-		}
-	},
-);
-
-// Long-press anywhere on the artwork opens the reaction picker, mirroring
-// the existing double-tap gesture. A light haptic confirms it armed.
-onLongPress(
+const {
+	descriptionEl,
+	descriptionExpanded,
+	descriptionOverflows,
+	toggleDescription,
+	imageLoaded,
 	reactionSurface,
-	(e) => {
-		playSelectionTick();
-		emit("open-reaction-popover", { event: e, post: props.post });
-	},
-	{ delay: 400, modifiers: { prevent: true } },
-);
-
-// Fullscreen this one post. The swiper takes a collection + index, so a single
-// card opens as a one-item collection — same viewer the profile grid and
-// notifications already use, so reactions/comments/delete behave identically.
-const openFullscreen = () => {
-	trackEvent(mixpanelEvents.postFullscreenOpen, {
-		post_id: props.post._id,
-		author_id: props.post.author._id,
-	});
-	emit("open-fullscreen", props.post);
-};
-
-const openUser = (userId: string) => openUserActions({ _id: userId });
-const shareService = useShareService();
-
-const openShare = () => {
-	trackEvent(mixpanelEvents.postShareOpen, {
-		post_id: props.post._id,
-		author_id: props.post.author._id,
-		is_mine: props.isMine,
-	});
-	shareService.setActiveShareItem({ type: "post", data: props.post });
-	menuStore.openMenu(Menu.SharePostMenu);
-};
-
-const openComments = () => {
-	trackEvent(mixpanelEvents.postCommentsOpen, {
-		post_id: props.post._id,
-		author_id: props.post.author._id,
-		comment_count: props.post.comment_count ?? 0,
-	});
-	emit("open-comments", props.post);
-};
-
-const remixPost = async () => {
-	const alert = await alertController.create({
-		header: "Remix this drawing?",
-		message:
-			"This will open a copy of this drawing on your canvas so you can edit it.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Remix Drawing",
-				handler: () => {
-					trackEvent(mixpanelEvents.postRemix, {
-						post_id: props.post._id,
-						author_id: props.post.author._id,
-					});
-					setTimeout(() => {
-						router.push({
-							path: FRONTEND_ROUTES.draw,
-							query: { canvas_url: props.post.drawing_url, mode: "solo" },
-						});
-					}, 100);
-				},
-			},
-		],
-	});
-	await alert.present();
-};
-
-const handleDoubleTap = (e: MouseEvent | TouchEvent) => {
-	e.preventDefault();
-	emit("open-reaction-popover", { event: e, post: props.post });
-};
-
-const presentActionSheet = async () => {
-	const buttons: any[] = [
-		{
-			text: "Report Artwork",
-			role: "destructive",
-			icon: svg(mdiFlagVariantOutline),
-			handler: () => {
-				useModerationStore().openReport({
-					type: "post",
-					id: props.post._id,
-					label: `${props.post.author.name}'s post`,
-				});
-			},
-		},
-	];
-	if (props.isMine) {
-		buttons.unshift({
-			text: "Delete Post",
-			role: "destructive",
-			icon: svg(mdiDeleteOutline),
-			handler: () => emit("delete-post", props.post),
-		});
-	}
-	buttons.push({ text: "Cancel", role: "cancel" });
-
-	const actionSheet = await actionSheetController.create({
-		header: "Post Options",
-		cssClass: "liquid-action-sheet",
-		buttons,
-	});
-	await actionSheet.present();
-};
+	reactionBurst,
+	authorCustomization,
+	theme,
+	headerPalette,
+	showCardTheme,
+	showEffect,
+	showWorld,
+	isTexturedEffect,
+	textureHalo,
+	headerTextShadow,
+	cardStyle,
+	artworkAspect,
+	feedImageUrl,
+	artworkStyle,
+	blurredBackdropOpacity,
+	strongText,
+	mutedText,
+	resolvedFontFamily,
+	fontEffectClass,
+	displayTitle,
+	signatureStrokeWidth,
+	activeReactions,
+	totalReactionCount,
+	previewComments,
+	hasMoreComments,
+	openFullscreen,
+	openUser,
+	openShare,
+	openComments,
+	remixPost,
+	toggleSave,
+	handleDoubleTap,
+	presentActionSheet,
+} = useFeedPostCard(props, emit);
 </script>
 
 <style scoped>
@@ -689,6 +373,28 @@ const presentActionSheet = async () => {
 .post-container {
   content-visibility: auto;
   contain-intrinsic-size: auto 420px;
+}
+
+/* Sweep, not a pulse — a pulsing block reads as "broken", a sweep reads as
+   "loading". Same treatment as CompetitionCard's placeholder. Transform-only,
+   so it stays on the compositor while the feed scrolls. */
+.artwork-skeleton {
+  background: rgb(0 0 0 / 0.04);
+  overflow: hidden;
+}
+.artwork-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: artwork-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes artwork-shimmer {
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .artwork-skeleton::after { animation: none; }
 }
 
 /* The signature sits directly on the drawing, so it can't rely on the card

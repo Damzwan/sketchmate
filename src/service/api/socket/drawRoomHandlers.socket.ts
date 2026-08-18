@@ -1,14 +1,17 @@
 import { storeToRefs } from "pinia";
 import type { Socket } from "socket.io-client";
+import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { fitToDensestRegion } from "@/draw/canvas/viewport";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { exportBoundingBoxImage } from "@/draw/document/export";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
-import { createRoomCanvasSnapshot } from "@/draw/sync/roomSnapshot";
+import { createRoomCanvasSnapshotBytes } from "@/draw/sync/roomSnapshot";
 import { type LobbyChatItem, useDrawSyncer } from "@/draw/sync/session.store";
+import { DrawSyncingEvent } from "@/draw/sync/sync.types";
 import {
 	addRoomIdToUrl,
 	leaveRoom,
@@ -25,6 +28,32 @@ import { SOCKET_ENDPONTS } from "@/types/server.types";
 import { ToastDuration } from "@/types/toast.types";
 
 /**
+ * Buffered actions carry the author as a sibling `userId`; the live `draw-event`
+ * path copies it into `params.creator` and the handlers read it from there. A
+ * replayed action arrived without it, so anything that is ONLY meaningful with
+ * an author was a silent no-op on rejoin — a reference the owner deleted came
+ * back with the snapshot and the replayed `ReferenceRemoved` could not identify
+ * the owner to take it away again.
+ */
+function withCreator(item: {
+	type?: string;
+	userId?: string;
+	params?: { creator?: string };
+}) {
+	if (!item?.params || !item.userId) return;
+	// Reference events only, deliberately. `creator` also drives the peer avatar
+	// bubbles, and stamping it on a whole replayed backlog would pop an avatar
+	// per replayed stroke.
+	if (
+		item.type !== DrawSyncingEvent.ReferenceAdded &&
+		item.type !== DrawSyncingEvent.ReferenceRemoved
+	) {
+		return;
+	}
+	item.params.creator ??= item.userId;
+}
+
+/**
  * Heavy canvas-sync socket handlers. Loaded lazily by socket.service so that
  * the Fabric render engine stays out of the app-start bundle and is only
  * fetched once a real-time drawing session is established.
@@ -34,7 +63,15 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on(
 		"room-joined",
-		async ({ roomId, users, isCreator, sessionId, isPublic, claimedAreas }) => {
+		async ({
+			roomId,
+			users,
+			isCreator,
+			sessionId,
+			isPublic,
+			claimedAreas,
+			purgedReferences,
+		}) => {
 			const {
 				roomId: rm,
 				roomMembers,
@@ -51,6 +88,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
 			useClaimArea().setAreas(claimedAreas);
+			useDrawingReferenceStore().enterRoom(
+				roomId,
+				Array.isArray(purgedReferences) ? purgedReferences : [],
+			);
 			// PUBLIC: every peer — creator or joiner — installs the fixed set here.
 			// Deriving it from `init` alone is not enough: a URL/deep-link join opens
 			// the canvas before `isPublic` is known (it is only known now), and the
@@ -81,6 +122,26 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on("areas-state", (areas) => {
 		useClaimArea().setAreas(areas);
+	});
+
+	// Someone reported a shared reference. Not a request — the image comes down
+	// on every screen in the room, the owner's included, and stays down for the
+	// session (the server also strips it from the replay buffer).
+	socket.on("reference-purged", ({ referenceId }) => {
+		const references = useDrawingReferenceStore();
+		const purged = references.references.find(
+			(reference) => reference.id === referenceId,
+		);
+		references.applyPurge([referenceId]);
+		if (!purged) return;
+		// The owner is told it was THEIRS, and told plainly: the next thing they
+		// need to know is that a moderator is now looking at it.
+		void useToast().toast(
+			purged.isLocal
+				? "Your reference was reported and removed from the room. A moderator will review it."
+				: "A reference was removed after a report",
+			{ color: "warning", duration: ToastDuration.long },
+		);
 	});
 
 	socket.on("user-joined", ({ user, timestamp, id }) => {
@@ -176,11 +237,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const canvas = getCanvas();
 			if (!canvas) return;
 
-			const canvasString = JSON.stringify(createRoomCanvasSnapshot(canvas));
-			const stream = new Blob([canvasString])
-				.stream()
-				.pipeThrough(new CompressionStream("gzip"));
-			const compressedBuffer = await new Response(stream).arrayBuffer();
+			// Yielded serialize + worker gzip. Doing this inline used to be three
+			// un-yielded whole-board passes on the main thread, several times a
+			// minute — see docs/DRAW_ENGINE_HARDENING_PLAN.md → F1.
+			const compressedBuffer = await createRoomCanvasSnapshotBytes(canvas);
 			const sizeKB = Math.round(compressedBuffer.byteLength / 1024);
 
 			if (uploadUrl) {
@@ -265,55 +325,83 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 				useDrawSyncer(),
 			);
 			const mgr = useDrawObjectManager();
-			mgr.beginLoading();
+			const { roomId } = storeToRefs(useDrawSyncer());
+			// The room this payload belongs to. Every await below is a window in
+			// which the user can leave (or join somewhere else), and applying a dead
+			// room's snapshot over the canvas they are now looking at is worse than
+			// dropping it.
+			const joinedRoom = roomId.value;
+			const canvasController = useCanvasController();
+			const joinedCanvas = canvasController.getCanvasIfReady();
+			const stillInRoom = () =>
+				!!joinedRoom &&
+				!!joinedCanvas &&
+				roomId.value === joinedRoom &&
+				canvasController.getCanvasIfReady() === joinedCanvas;
+			if (!stillInRoom()) return;
 
-			if (sequenceId !== undefined) {
-				lastProcessedSequenceId.value = sequenceId;
-			}
-
-			let decompressedString: string;
+			const loadingGeneration = mgr.beginLoading();
+			// EVERYTHING after beginLoading lives in the try. `endLoading` is what
+			// lifts the render engine's loading gate and decrements a counter that
+			// outlives the session; missing it once left the canvas permanently
+			// unable to draw — the "left a lobby mid-join and now nothing works".
 			try {
-				let gzipBytes: ArrayBuffer | Uint8Array;
-				if (canvasStateUrl) {
-					const res = await fetch(canvasStateUrl);
-					gzipBytes = await res.arrayBuffer();
-				} else {
-					gzipBytes = canvasState;
+				if (sequenceId !== undefined) {
+					lastProcessedSequenceId.value = sequenceId;
 				}
-				const blobBytes =
-					gzipBytes instanceof Uint8Array
-						? new Uint8Array(gzipBytes).buffer
-						: gzipBytes;
-				const stream = new Blob([blobBytes])
-					.stream()
-					.pipeThrough(new DecompressionStream("gzip"));
-				decompressedString = await new Response(stream).text();
+
+				let decompressedString: string;
+				try {
+					let gzipBytes: ArrayBuffer | Uint8Array;
+					if (canvasStateUrl) {
+						const res = await fetch(canvasStateUrl);
+						gzipBytes = await res.arrayBuffer();
+					} else {
+						gzipBytes = canvasState;
+					}
+					const blobBytes =
+						gzipBytes instanceof Uint8Array
+							? new Uint8Array(gzipBytes).buffer
+							: gzipBytes;
+					const stream = new Blob([blobBytes])
+						.stream()
+						.pipeThrough(new DecompressionStream("gzip"));
+					decompressedString = await new Response(stream).text();
+				} catch (e) {
+					console.error("Failed to load canvas snapshot:", e);
+					return;
+				}
+
+				if (!stillInRoom()) return;
+
+				const json = JSON.parse(decompressedString);
+				useDrawingReferenceStore().replaceRemoteSnapshot(json.sharedReferences);
+				delete json.sharedReferences;
+				if (!(await engine.loadRoomCanvas(json, isInitialSync))) return;
+
+				if (missedActions && missedActions.length > 0) {
+					for (const item of missedActions) {
+						if (!stillInRoom()) return;
+						if (isBlocked(item.userId)) continue;
+						lastProcessedSequenceId.value = item.sequenceId;
+						withCreator(item);
+						await engine.executeDrawSyncingAction(item);
+					}
+				}
+
+				if (!stillInRoom()) return;
+
+				const { getCanvas } = useDrawStore();
+				await fitToDensestRegion(getCanvas());
 			} catch (e) {
-				console.error("Failed to load canvas snapshot:", e);
-				await mgr.endLoading();
-				isLoadingCanvas.value = false;
-				return;
-			}
-
-			const json = JSON.parse(decompressedString);
-			await engine.loadRoomCanvas(json, isInitialSync);
-
-			if (missedActions && missedActions.length > 0) {
-				for (const item of missedActions) {
-					if (isBlocked(item.userId)) continue;
-					lastProcessedSequenceId.value = item.sequenceId;
-					await engine.executeDrawSyncingAction(item);
+				console.error("Room canvas load failed:", e);
+			} finally {
+				await mgr.endLoading(loadingGeneration).catch(() => undefined);
+				if (stillInRoom()) {
+					mgr.renderViewport();
+					isLoadingCanvas.value = false;
 				}
 			}
-
-			const { getCanvas } = useDrawStore();
-			const canvas = getCanvas();
-
-			await fitToDensestRegion(canvas);
-			await mgr.endLoading();
-
-			mgr.renderViewport();
-			isLoadingCanvas.value = false;
 		},
 	);
 
@@ -323,39 +411,68 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			useDrawSyncer(),
 		);
 		const mgr = useDrawObjectManager();
-		mgr.beginLoading();
+		const { roomId } = storeToRefs(useDrawSyncer());
+		const joinedRoom = roomId.value;
+		const canvasController = useCanvasController();
+		const joinedCanvas = canvasController.getCanvasIfReady();
+		const stillInRoom = () =>
+			!!joinedRoom &&
+			!!joinedCanvas &&
+			roomId.value === joinedRoom &&
+			canvasController.getCanvasIfReady() === joinedCanvas;
+		if (!stillInRoom()) return;
 
-		if (isInitialSync) {
-			const { reset } = useDrawStore();
-			reset();
+		const loadingGeneration = mgr.beginLoading();
+		// Same contract as `initial-canvas-state`: whatever happens in here, the
+		// loading gate must come back down exactly once.
+		try {
+			if (isInitialSync) {
+				const { reset } = useDrawStore();
+				reset();
+				useDrawingReferenceStore().replaceRemoteSnapshot([]);
+			}
+
+			for (const item of actions) {
+				if (!stillInRoom()) return;
+				if (isBlocked(item.userId)) continue;
+				// Replayed work counts the same as live work — this is how someone
+				// who drew while you were disconnected still gets their credit.
+				// Self-limiting for the initial sync: `noteContributor` only records
+				// peers it can name from the current member list, so long-gone
+				// authors of the existing canvas are skipped rather than guessed at.
+				useDrawSyncer().noteContributor(item.userId);
+				lastProcessedSequenceId.value = item.sequenceId;
+				withCreator(item);
+				await engine.executeDrawSyncingAction(item);
+			}
+
+			if (isInitialSync && stillInRoom()) {
+				const { getCanvas } = useDrawStore();
+				await fitToDensestRegion(getCanvas());
+			}
+		} catch (e) {
+			console.error("Missed-action replay failed:", e);
+		} finally {
+			// endLoading owns the single index/reset/overview finalization pass.
+			await mgr.endLoading(loadingGeneration).catch(() => undefined);
+			if (stillInRoom()) {
+				mgr.renderViewport();
+				isLoadingCanvas.value = false;
+			}
 		}
-
-		for (const item of actions) {
-			if (isBlocked(item.userId)) continue;
-			lastProcessedSequenceId.value = item.sequenceId;
-			await engine.executeDrawSyncingAction(item);
-		}
-
-		const { getCanvas } = useDrawStore();
-		const canvas = getCanvas();
-
-		if (isInitialSync) {
-			await fitToDensestRegion(canvas);
-		}
-
-		// endLoading owns the single index/reset/overview finalization pass.
-		await mgr.endLoading();
-		mgr.renderViewport();
-		isLoadingCanvas.value = false;
 	});
 
 	socket.on("draw-event", async (data) => {
 		const engine = useDrawSyncEngine();
-		const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(
-			useDrawSyncer(),
-		);
+		const drawSyncer = useDrawSyncer();
+		const { isLoadingCanvas, lastProcessedSequenceId } =
+			storeToRefs(drawSyncer);
 
 		if (isBlocked(data.creator)) return;
+
+		// After the block check on purpose: someone you blocked doesn't get a
+		// credit line on your post.
+		drawSyncer.noteContributor(data.creator);
 
 		if (data.sequenceId !== undefined) {
 			lastProcessedSequenceId.value = data.sequenceId;

@@ -17,7 +17,7 @@ import { TracedPath } from "@/draw/utils/brushes/TracedPath";
 // ==========================================
 
 export class OptimizedPencilBrush extends PencilBrush {
-	decimate = 0.3;
+	override decimate = 0.3;
 
 	/**
 	 * Capture-time decimation is read by fabric in `_finalizeAndAddPath`, but the
@@ -26,7 +26,7 @@ export class OptimizedPencilBrush extends PencilBrush {
 	 * fixed for the duration of one stroke (a gesture cancels drawing), so one
 	 * read here is correct for the whole path.
 	 */
-	onMouseDown(pointer: any, ev: any) {
+	override onMouseDown(pointer: any, ev: any) {
 		this.decimate = strokeDecimateDistance(this.width, this.canvas.getZoom());
 		return super.onMouseDown(pointer, ev);
 	}
@@ -64,7 +64,7 @@ export class OptimizedPencilBrush extends PencilBrush {
 		return path;
 	}
 
-	_finalizeAndAddPath() {
+	override _finalizeAndAddPath() {
 		// 1. Get the TOP context (temporary drawing layer) just to close and clear it
 		const topCtx = this.canvas.contextTop;
 		topCtx.closePath();
@@ -110,7 +110,7 @@ export class OptimizedPencilBrush extends PencilBrush {
 // ==========================================
 
 export class OptimizedPencilStroke extends TracedPath {
-	static type = "OptimizedPencilStroke";
+	static override type = "OptimizedPencilStroke";
 
 	constructor(path: any, options: any) {
 		let inflatedPath = path;
@@ -207,7 +207,7 @@ export class OptimizedPencilStroke extends TracedPath {
 		return { ...baseObj, compressedTrace };
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		const enlivenedProps = await enlivenStrokeProps(object);
 		return new OptimizedPencilStroke(enlivenedProps.path, enlivenedProps);
 	}

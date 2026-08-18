@@ -20,14 +20,7 @@
 </template>
 
 <script lang="ts" setup>
-import {
-	IonContent,
-	IonIcon,
-	IonItem,
-	IonList,
-	IonPopover,
-	IonToggle,
-} from "@ionic/vue";
+import { IonContent, IonIcon, IonItem, IonList, IonPopover } from "@ionic/vue";
 import { mdiClose } from "@mdi/js";
 import * as fabric from "fabric";
 import { FabricImage } from "fabric";
@@ -45,15 +38,6 @@ const props = defineProps<{
 	img: FabricImage;
 }>();
 
-const isGrayScale = computed(
-	() => !!props.img.filters?.find((f: any) => f.type == "Grayscale"),
-);
-const isSepia = computed(
-	() => !!props.img.filters?.find((f: any) => f.type == "Sepia"),
-);
-const isInvert = computed(
-	() => !!props.img.filters?.find((f: any) => f.type == "Invert"),
-);
 // Narrowed to BlendColor so `.color` is typed; `filters` is an array of the
 // BaseFilter union, which carries no per-filter properties.
 const colorFilter = computed(
@@ -62,27 +46,6 @@ const colorFilter = computed(
 			| fabric.filters.BlendColor
 			| undefined,
 );
-
-function addGrayScaleFilter(e: any) {
-	emits("add-filter", {
-		filter: new fabric.filters.Grayscale(),
-		remove: !e.detail.checked,
-	});
-}
-
-function addSepiaFilter(e: any) {
-	emits("add-filter", {
-		filter: new fabric.filters.Sepia(),
-		remove: !e.detail.checked,
-	});
-}
-
-function addInvertFilter(e: any) {
-	emits("add-filter", {
-		filter: new fabric.filters.Invert(),
-		remove: !e.detail.checked,
-	});
-}
 
 function removeColorFilter() {
 	emits("add-filter", {

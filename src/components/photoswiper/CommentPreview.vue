@@ -41,7 +41,11 @@
             class="flex items-start gap-2 min-w-0 py-[3px]"
           >
             <ion-avatar class="w-[22px] h-[22px] shrink-0 border border-white/25 overflow-hidden mt-[1px]">
-              <img
+<img
+                width="1"
+                height="1"
+                loading="lazy"
+                decoding="async"
                 :src="comment.author?.img || senderImg(resolveUser(comment.sender || comment.author_id))"
                 class="block object-cover w-full h-full"
                 alt=""
@@ -67,7 +71,7 @@
             </div>
           </div>
 
-          <p class="text-[11px] font-bold text-white/60 italic cabin-sketch-regular mt-1 pl-[30px] truncate">
+          <p class="text-[11px] font-bold text-white/60 italic mt-1 pl-[30px] truncate">
             {{ hiddenCount > 0 ? `View all ${commentCount} comments` : 'View thread' }}
           </p>
         </button>

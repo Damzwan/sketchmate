@@ -1,5 +1,5 @@
 import type { Canvas, FabricObject } from "fabric";
-import { isLayerHidden } from "@/draw/layers/layerRegistry";
+import { isLayerHidden, layerOpacity } from "@/draw/layers/layerRegistry";
 
 export function createLiveObjectRenderer(getCanvas: () => Canvas | undefined) {
 	return (context: CanvasRenderingContext2D, object: FabricObject): void => {
@@ -11,10 +11,15 @@ export function createLiveObjectRenderer(getCanvas: () => Canvas | undefined) {
 		const previousCanvas = item.canvas;
 		const previousCaching = item.objectCaching;
 		const previousScaling = item.getTotalObjectScaling;
+		// Same layer fade the tiles bake in, so a stroke does not jump in opacity
+		// the moment it stops being live and starts being a tile.
+		const previousOpacity = item.opacity;
+		const fade = layerOpacity(item.layerId);
 		const viewport = canvas.viewportTransform!;
 		const scale = Math.abs(viewport[0]) || 1;
 
 		if (!needsCanvas) item.canvas = null;
+		if (fade < 1) item.opacity = (previousOpacity ?? 1) * fade;
 		item.objectCaching = false;
 		item.getTotalObjectScaling = function () {
 			return this.getObjectScaling().scalarMultiply(scale);
@@ -29,6 +34,7 @@ export function createLiveObjectRenderer(getCanvas: () => Canvas | undefined) {
 			// A malformed live object must not stop the frame.
 		} finally {
 			if (!needsCanvas) item.canvas = previousCanvas;
+			item.opacity = previousOpacity;
 			item.objectCaching = previousCaching;
 			item.getTotalObjectScaling = previousScaling;
 			if (item.shadow) item.shadow.blur = shadowBlur;

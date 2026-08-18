@@ -53,7 +53,7 @@
       </div>
     </div>
 
-    <template #footer>
+    <template v-if="showActions" #footer>
       <div v-if="sku" class="px-1 pt-2 pb-1 bg-background">
         <ion-button
           v-if="!owned"
@@ -63,7 +63,7 @@
           size="large"
           @click="$emit('purchase')"
         >
-          {{ isBundle ? 'Get the bundle' : 'Unlock' }} · {{ (sku as any).priceString || '' }}
+          {{ purchaseLabel }}
         </ion-button>
         <ion-button
           v-else-if="canEquip"
@@ -98,17 +98,26 @@ import { SHOWCASE_PREVIEW } from "@/config/preview.config";
 import type { Customization } from "@/config/profile_options.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
 
-const props = defineProps<{
-	isOpen: boolean;
-	sku: ShopSku | null;
-	owned: boolean;
-	user?: any;
-	userImg?: string;
-	equipTarget?: "profile" | "chat";
-}>();
+const props = withDefaults(
+	defineProps<{
+		isOpen: boolean;
+		sku: ShopSku | null;
+		owned: boolean;
+		user?: any;
+		userImg?: string;
+		equipTarget?: "profile" | "chat";
+		showActions?: boolean;
+	}>(),
+	{ showActions: true },
+);
 defineEmits(["close", "purchase", "equip"]);
 
 const isBundle = computed(() => props.sku?.kind === "bundle");
+const purchaseLabel = computed(() => {
+	const action = isBundle.value ? "Get the bundle" : "Unlock";
+	const price = (props.sku as any)?.priceString;
+	return price ? `${action} · ${price}` : action;
+});
 
 const contents = computed(() =>
 	(props.sku?.grants ?? []).map((g) => ({ id: g, ...describeGrant(g) })),

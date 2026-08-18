@@ -2,7 +2,20 @@
   <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
     <template #preview>
       <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center p-2 border-b border-black/5">
-        <img v-if="previewUrl" :src="previewUrl" class="max-w-full pointer-events-none" alt="" />
+        <!-- width/height are the SOURCE canvas size, so the box is reserved
+             before decode without pinning the rendered size — `max-w-full h-auto`
+             scales it down inside the card. A placeholder 1x1 here renders a
+             1px image: `max-w-full` is a max, not a width. No `loading="lazy"`
+             either — the src is a data URL that is already in memory. -->
+        <img
+          v-if="previewUrl"
+          :src="previewUrl"
+          :width="PREVIEW_WIDTH"
+          :height="PREVIEW_HEIGHT"
+          decoding="async"
+          class="max-w-full h-auto pointer-events-none"
+          alt=""
+        />
 
         <div class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white border border-black/10 shadow-sm flex items-center justify-center text-black">
           <ion-icon :icon="svg(brushIcon)" class="text-sm" />
@@ -38,6 +51,11 @@ const brushIcon = computed(() => penIconMapping[brushType.value]);
 
 const previewUrl = ref("");
 
+/** Logical size of the bake canvas, shared with the <img> so the reserved box
+ *  matches the image's real aspect ratio. */
+const PREVIEW_WIDTH = 150;
+const PREVIEW_HEIGHT = 75;
+
 // Bake the sample stroke ONCE into a static data-URL image, off a DETACHED
 // canvas. Fabric wraps and mutates whatever <canvas> DOM node it's handed; when
 // the shop's category chips re-render / reorder the card list, Vue's patch
@@ -53,7 +71,11 @@ onMounted(() => {
 
 	let canvas: Canvas | null = null;
 	try {
-		canvas = new Canvas(el, { width: 150, height: 75, selection: false });
+		canvas = new Canvas(el, {
+			width: PREVIEW_WIDTH,
+			height: PREVIEW_HEIGHT,
+			selection: false,
+		});
 		canvas.backgroundColor = "rgba(0,0,0,0)";
 
 		const brush = penBrushMapping[brushType.value](canvas) as any;

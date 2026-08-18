@@ -3,6 +3,7 @@ import { type TileKey, tileKey } from "./tileKey";
 import {
 	type Bounded,
 	type CompositeCell,
+	type CompositeResult,
 	type Draw,
 	isOpaqueColor,
 	MAX_PARTIAL_OVERLAYS,
@@ -22,7 +23,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		dpr: number,
 		bg?: string,
 		fallbackDepth = 0, // 0 → use FALLBACK_DEPTH; >0 → cap (1 while gesturing)
-	): { needsBake: boolean } {
+	): CompositeResult {
 		const __t0all = performance.now();
 		const zoom = vpt[0];
 		const tier = this.pickActiveTier(zoom);
@@ -70,7 +71,10 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				this.dirtyRects.size,
 				this.inFlight.size,
 			);
-			return { needsBake: this.overview.isDirty() };
+			return {
+				needsBake: this.overview.isDirty(),
+				nonFresh: this.overview.isDirty() ? 1 : 0,
+			};
 		}
 
 		const range = this.tileRange(vw, tier);
@@ -92,7 +96,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 			uncoveredN = 0,
 			partialN = 0,
 			needsOverviewN = 0;
-		let anyNonFresh = false;
+		let nonFreshN = 0;
 		// Overview coverage is now an arbitrary rect list, not one entry per cell:
 		// it must line up EXACTLY with what no tile source will paint.
 		const needsOverviewAt = (i: number): CompositeCell =>
@@ -112,7 +116,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				const t = this.tiles.get(key);
 				const fresh = t ? this.isFresh(key, t) : false;
 				if (t) this.touchTile(key, t);
-				if (!t || !fresh) anyNonFresh = true;
+				if (!t || !fresh) nonFreshN++;
 
 				// A retained bitmap may be stale after an edit. Cross-tier
 				// invalidation deliberately keeps those textures alive to avoid a GPU
@@ -463,7 +467,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 			if (needsOverviewN > 0) s.missFrames++;
 		}
 
-		return { needsBake: anyNonFresh };
+		return { needsBake: nonFreshN > 0, nonFresh: nonFreshN };
 	}
 
 	/**

@@ -2,7 +2,7 @@
   <div class="w-full flex flex-col gap-3">
 
     <div
-      v-if="firebaseUser?.isAnonymous"
+      v-if="isGuestAccount"
       class="w-full rounded-[1.5rem] border border-amber-500/30 bg-amber-500/5 p-4 relative overflow-hidden flex flex-col shadow-sm"
     >
       <div class="relative z-10">
@@ -90,7 +90,7 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const r = useIonRouter();
 
-const { user, firebaseUser, isUnderAge } = storeToRefs(useAuthStore());
+const { user, isGuestAccount, isUnderAge } = storeToRefs(useAuthStore());
 const dobModal = useDateOfBirthModalStore();
 const parental = useParentalStore();
 

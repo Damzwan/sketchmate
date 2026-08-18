@@ -83,9 +83,16 @@
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode_ui" />
 
+        <!--
+            smallestScreenSize|screenLayout are NOT redundant with screenSize:
+            without them a rotation still RELAUNCHES the activity on devices
+            whose layout bucket changes (tablets, foldables, large phones in
+            multi-window). That relaunch is the path in the keyboard-plugin
+            NPE crash, and it also tears down and reloads the whole WebView.
+        -->
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|uiMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|locale|uiMode"
             android:exported="true"
             android:hardwareAccelerated="true"
             android:label="@string/title_activity_main"

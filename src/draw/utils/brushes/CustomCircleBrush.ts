@@ -4,7 +4,7 @@ import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
 
 // @ts-expect-error
 export class CustomCircleBrush extends BaseBrush {
-	width = 10;
+	override width = 10;
 	private _activePoints: { x: number; y: number; r: number; a: number }[] = [];
 	/** Live-preview incremental state — see _renderTemp. */
 	private _renderedUpTo = 0;
@@ -108,10 +108,10 @@ export class CustomCircleBrush extends BaseBrush {
 }
 
 export class CircleStroke extends FabricObject {
-	static type = "circlestroke";
+	static override type = "circlestroke";
 
 	// Add minX and minY to cache so Fabric tracks changes
-	static cacheProperties = [
+	static override cacheProperties = [
 		...FabricObject.cacheProperties,
 		"pointsData",
 		"minX",
@@ -191,7 +191,7 @@ export class CircleStroke extends FabricObject {
 		this.top = minY - maxR + this.height / 2;
 	}
 
-	_render(ctx: CanvasRenderingContext2D) {
+	override _render(ctx: CanvasRenderingContext2D) {
 		if (!this.pointsData.length) return;
 
 		ctx.save();
@@ -221,7 +221,7 @@ export class CircleStroke extends FabricObject {
 		ctx.restore();
 	}
 
-	toObject(additionalProperties: string[] = []) {
+	override toObject(additionalProperties: string[] = []) {
 		const flatTrace: number[] = [];
 		let lastX = 0,
 			lastY = 0;
@@ -258,7 +258,7 @@ export class CircleStroke extends FabricObject {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		const enlivenedProps = await enlivenStrokeProps(object);
 		return new CircleStroke(enlivenedProps);
 	}

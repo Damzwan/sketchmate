@@ -1,10 +1,10 @@
 <template>
-  <ion-content :scroll-y="false" class="bg-primary my-safe-area cabin-sketch-regular">
+  <ion-content :scroll-y="false" class="bg-primary my-safe-area">
     <div class="w-full h-full flex flex-col">
 
       <!-- HEADER -->
       <div class="px-8 pt-8 pb-5 text-center shrink-0">
-        <h1 class="text-4xl text-black font-bold tracking-tight leading-none">
+        <h1 class="cabin-sketch-regular text-4xl text-black font-bold tracking-tight leading-none">
           Safety & Community
         </h1>
         <p class="text-xs font-bold text-black/80 uppercase tracking-widest mt-3">

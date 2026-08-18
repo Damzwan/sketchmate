@@ -63,12 +63,12 @@ function makeLayer(hotTileMax: number, objects: TestObject[] = []) {
 }
 
 /** A fresh, bitmap-backed tile at (tier, 0, 0). */
-function seedTile(layer: any, tier: number): number {
-	const key = tileKey(tier, 0, 0);
+function seedTile(layer: any, tier: number, tx = 0): number {
+	const key = tileKey(tier, tx, 0);
 	layer.tiles.set(key, {
 		bitmap: bitmap(),
 		tier,
-		tx: 0,
+		tx,
 		ty: 0,
 		bytes: 4,
 		builtGen: 0,
@@ -144,6 +144,26 @@ describe("hot tile surfaces (M2)", () => {
 
 		expect(isCanvasSurface(layer.tiles.get(key).bitmap)).toBe(false);
 		expect(layer.tiles.get(key).bitmap).toBeTruthy();
+	});
+
+	it("keeps the bounded hot working set across idle pool trims", () => {
+		const { layer } = makeLayer(2);
+		const a = seedTile(layer, 4, 0);
+		const b = seedTile(layer, 4, 1);
+		layer.additiveStamp(rect, obj, 4);
+		// Tier 4 is 2x, so a 256 px tile covers 128 world units.
+		layer.additiveStamp({ x: 128, y: 0, w: 4, h: 4 }, obj, 4);
+		expect(isCanvasSurface(layer.tiles.get(a).bitmap)).toBe(true);
+		expect(isCanvasSurface(layer.tiles.get(b).bitmap)).toBe(true);
+
+		const createdBeforeIdle = bitmapsCreated;
+		const closedBeforeIdle = bitmapsClosed;
+		layer.trimPool();
+
+		expect(isCanvasSurface(layer.tiles.get(a).bitmap)).toBe(true);
+		expect(isCanvasSurface(layer.tiles.get(b).bitmap)).toBe(true);
+		expect(bitmapsCreated).toBe(createdBeforeIdle);
+		expect(bitmapsClosed).toBe(closedBeforeIdle);
 	});
 
 	it("hotTileMax 0 restores the pure bitmap path", () => {

@@ -60,3 +60,25 @@ rendering / objects / input
 
 Render internals must not import Vue or Pinia stores. Canvas integration may
 connect the engine to application state through explicit adapters.
+
+## Target Fabric boundary
+
+The current module still exposes Fabric types across most feature domains. The
+approved migration is documented in
+[`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md).
+
+The target dependency direction is:
+
+```text
+draw feature domains
+  ↓ application-owned records and capability interfaces
+canonical scene records / spatial chunks / history + sync deltas
+  ├── native renderer registry → tiles / overview / preview / export
+  └── fabric-runtime adapter → bounded interactive + compatibility working set
+```
+
+New direct imports from `fabric` should not be added outside the future
+`draw/fabric-runtime/` boundary. During migration, existing imports should move
+behind an explicit allowlist rather than being mechanically relocated in one
+change. Fabric JSON remains a supported compatibility codec until persisted
+documents and mixed-version room payloads have a versioned replacement.

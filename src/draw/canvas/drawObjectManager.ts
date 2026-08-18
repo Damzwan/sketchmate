@@ -18,6 +18,10 @@ import {
 	installDrawMemoryPressure,
 	uninstallDrawMemoryPressure,
 } from "@/draw/diagnostics/drawMemoryPressure";
+import {
+	installRenderPressureGovernor,
+	uninstallRenderPressureGovernor,
+} from "@/draw/diagnostics/renderPressureGovernor";
 import { createGestureController } from "@/draw/input/gestureController";
 import {
 	isLayerHidden,
@@ -47,11 +51,24 @@ import {
 import type { WorldRect } from "@/draw/rendering/committedLayer";
 import { createEngineOptions } from "@/draw/rendering/engineOptions";
 import { rerenderActiveObjectControls } from "@/draw/rendering/fabricRenderState";
-import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
+import {
+	isolatedTileRenderer,
+	isSplittableForBake,
+	renderSplitForBake,
+} from "@/draw/rendering/fabricTileRenderer";
 import { createLiveObjectRenderer } from "@/draw/rendering/liveObjectRenderer";
 import { RenderEngine, type Surface } from "@/draw/rendering/renderEngine";
-import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
+import {
+	initDrawMetrics,
+	resetDrawMetrics,
+	stopDrawMetrics,
+} from "@/draw/rendering/renderMetrics";
 import { createYielder } from "@/draw/scheduling/yielder";
+import {
+	releaseFillBuffer,
+	shutdownBucketFillWorker,
+} from "@/draw/tools/bucketFill";
+import { shutdownErasureAnalysisWorker } from "@/draw/tools/erasureAnalysisClient";
 import * as localTransform from "@/draw/transform/transformController";
 import { getViewportRect } from "@/draw/utils/QuadTree";
 import { useFriendStore } from "@/store/friend.store";
@@ -100,6 +117,7 @@ export function createDrawObjectManager() {
 	);
 
 	let loadingDepth = 0;
+	let lifecycleGeneration = 0;
 	const isLoading = () => loadingDepth > 0;
 
 	// ── batch mode ─────────────────────────────────────────────────────────
@@ -304,8 +322,13 @@ export function createDrawObjectManager() {
 	 * object's own footprint.
 	 */
 	function isRenderTopmost(obj: FabricObject): boolean {
-		const arr = c!.getObjects();
-		if (arr.length === 0 || arr[arr.length - 1] !== obj) return false;
+		// The INTERNAL stack, for the same reason ExplicitZIndex gets it:
+		// `getObjects()` returns `[...this._objects]`, so asking "is this object
+		// last?" allocated and filled a copy of the ENTIRE scene. This runs on
+		// every committed stroke, so on a 7,000-object board every stroke threw
+		// away a 7,000-slot array to read one reference. Read-only here.
+		const arr = (c as any)?._objects as FabricObject[] | undefined;
+		if (!arr || arr.length === 0 || arr[arr.length - 1] !== obj) return false;
 		if (layerCount() < 2 || isOnTopLayer((obj as any).layerId)) return true;
 		const rank = layerOrderOf((obj as any).layerId);
 		for (const other of queryObjects(objectBounds(obj))) {
@@ -463,9 +486,12 @@ export function createDrawObjectManager() {
 
 	// ── init / lifecycle ─────────────────────────────────────────────────────
 	function init(canvas: Canvas) {
+		lifecycleGeneration++;
 		c = canvas;
 		const renderBackend = getDrawRenderBackend();
 		installDrawRenderBackendDebugApi();
+		// Counters describe THIS drawing session, not a previous board.
+		resetDrawMetrics();
 		initDrawMetrics(getRenderDpr, () => renderBackend);
 		// Persist engine state to the Sentry scope from here on. Must run AFTER
 		// initDrawMetrics (it owns the observers and the reporting sink).
@@ -514,6 +540,13 @@ export function createDrawObjectManager() {
 					if (c) rerenderActiveObjectControls(c);
 				},
 				canPunchRegion: isRegionSingleLayer,
+				// Merged art is a SINGLE Group, so the bake loop's per-object yield
+				// gives it nothing: the whole drawing renders in one block. This lets
+				// that one object be broken up on the same budget.
+				splitRenderer: {
+					canSplit: isSplittableForBake,
+					render: renderSplitForBake,
+				},
 				remoteBaker: renderBackend === "worker" ? bakeryBakeTile : undefined,
 				remoteOverview:
 					renderBackend === "worker" ? bakeryRenderOverview : undefined,
@@ -521,13 +554,54 @@ export function createDrawObjectManager() {
 			},
 		);
 
-		// Hand back every GPU-backed cache while the app is in the background, and
-		// on an Android memory-pressure signal. The scene is untouched — this only
-		// drops tiles, the overview and the canvas pool — so coming back is a
-		// repaint, not a reload. See drawMemoryPressure.ts.
+		// Hand back every RECONSTRUCTABLE cache while the app is in the background,
+		// or on an Android memory-pressure signal. The scene, the overview and the
+		// undo history are untouched, so coming back is a repaint, not a reload.
+		// See drawMemoryPressure.ts.
+		//
+		// The tile cache is the biggest item but not the only one, and this fires
+		// exactly when Android is deciding whether to kill the process — so it is
+		// worth giving up everything that can be rebuilt on demand:
+		//   • the transform layer's selection + vacated ImageBitmaps, which are
+		//     re-baked on the next drag anyway;
+		//   • the bucket fill's offscreen buffer (up to 16.8 MB) and its worker;
+		//   • the erasure-analysis worker, which retains an object snapshot per
+		//     in-flight check. Its pending checks settle as "not fully erased",
+		//     which is the safe answer — the drain never deletes on uncertainty.
+		// All three recreate lazily on next use.
+		//
+		// NOT the tile bakery session. Tearing it down also clears the worker's
+		// scene mirror, so every tile afterwards comes back `missing` and pays a
+		// re-upsert + retry. It self-heals, but it is the one item here whose
+		// release costs something on return — and it is inert today anyway, since
+		// the worker backend is opt-in.
 		installDrawMemoryPressure({
-			release: () => renderEngine?.releaseGraphicsMemory(),
+			release: () => {
+				renderEngine?.releaseGraphicsMemory();
+				localTransform.invalidateCache();
+				// The two hidden drag layers keep full-size accelerated canvases
+				// allocated between grabs; under pressure they are pure cache.
+				localTransform.releaseLayerGraphics();
+				releaseFillBuffer();
+				shutdownBucketFillWorker();
+				shutdownErasureAnalysisWorker();
+			},
 			restore: () => renderEngine?.restoreFromRelease(),
+		});
+
+		// Sustained main-thread blocking means this session is running above what
+		// the device can carry, whatever its detected class said. Give tile memory
+		// back now — tile bytes are GPU texture bytes — and record a demotion that
+		// the next launch starts from.
+		//
+		// `trimToHeadroom`, not `releaseGraphicsMemory`: the user is looking at the
+		// board. Dropping the whole cache mid-session would blur everything on
+		// screen, which is the memory-pressure trade, not this one.
+		installRenderPressureGovernor({
+			shed: () => {
+				renderEngine?.trimToHeadroom();
+				localTransform.releaseLayerGraphics();
+			},
 		});
 
 		rebuildIndexFromCanvas();
@@ -566,15 +640,16 @@ export function createDrawObjectManager() {
 	 * Stage 2's budget bounds the WAIT, not the work: on timeout the bake keeps
 	 * going and reveals happen against the overview, which is soft but complete.
 	 */
-	async function prepareFirstPaint(signal?: AbortSignal): Promise<void> {
-		if (!renderEngine) return;
+	async function prepareFirstPaint(
+		signal?: AbortSignal,
+		expectedGeneration = lifecycleGeneration,
+	): Promise<void> {
+		const engine = renderEngine;
+		if (!engine) return;
 		try {
-			await renderEngine.warmOverviewBlocking();
+			await engine.warmOverviewBlocking();
 			if (signal?.aborted) return;
-			await renderEngine.bakeVisibleBlocking(
-				FIRST_PAINT_BAKE_BUDGET_MS,
-				signal,
-			);
+			await engine.bakeVisibleBlocking(FIRST_PAINT_BAKE_BUDGET_MS, signal);
 		} finally {
 			// Reveal even if a stage threw. A soft or partial picture is recoverable;
 			// a canvas stuck behind a permanent loading gate is not.
@@ -584,10 +659,14 @@ export function createDrawObjectManager() {
 			// a document swap to call beginLoading(); revealing here would un-suppress
 			// frames over a scene that is mid-rebuild. Whoever owns the new load will
 			// reveal when it is done.
-			if (loadingDepth === 0) {
-				renderEngine?.setLoading(false);
-				renderEngine?.requestFrame();
-				renderEngine?.scheduleBake();
+			if (
+				expectedGeneration === lifecycleGeneration &&
+				renderEngine === engine &&
+				loadingDepth === 0
+			) {
+				engine.setLoading(false);
+				engine.requestFrame();
+				engine.scheduleBake();
 			}
 		}
 	}
@@ -598,6 +677,7 @@ export function createDrawObjectManager() {
 	 * fabric canvas. The next `init()` builds a fresh engine.
 	 */
 	function detach() {
+		lifecycleGeneration++;
 		renderEngine?.destroy();
 		renderEngine = null;
 		objectMap.clear();
@@ -608,9 +688,19 @@ export function createDrawObjectManager() {
 		batchRetainedRemovalRects = [];
 		batchAdds = [];
 		retainedRemovalDepth = 0;
+		// This manager is a module singleton and outlives the canvas. A load that
+		// never reached its `endLoading` — left a lobby mid-join, a socket handler
+		// that threw — used to leave the counter positive FOREVER, and `isLoading()`
+		// gates `onObjectAdded`: the next session indexed and rendered nothing the
+		// user drew. Session-scoped state dies with the session.
+		loadingDepth = 0;
 		shutdownTileBakerySession();
+		uninstallRenderPressureGovernor();
 		uninstallDrawMemoryPressure();
 		uninstallDrawDiagnostics();
+		// Do not observe Home/auth work between drawing sessions. The next init
+		// starts fresh observers after resetting the counters.
+		stopDrawMetrics();
 		c = undefined;
 	}
 
@@ -657,44 +747,61 @@ export function createDrawObjectManager() {
 		finishIndexRebuild();
 	}
 
-	async function rebuildIndexFromCanvasYielded() {
+	async function rebuildIndexFromCanvasYielded(
+		expectedCanvas: Canvas,
+		isCurrent: () => boolean,
+	): Promise<boolean> {
 		const { isBlocked } = useFriendStore();
 		const yielder = createYielder({
 			budgetMs: IS_LOW_END ? 4 : 6,
 			label: "spatial-index-rebuild",
 		});
 		beginIndexRebuild();
-		const objs = c!.getObjects();
+		const objs = expectedCanvas.getObjects();
 		yielder.reset();
 		for (let i = objs.length - 1; i >= 0; i--) {
+			if (!isCurrent()) return false;
 			indexCanvasObject(objs[i], isBlocked);
 			await yielder.maybeYield();
 		}
+		if (!isCurrent()) return false;
 		finishIndexRebuild();
+		return true;
 	}
 
 	// ── loading ──────────────────────────────────────────────────────────────
-	function beginLoading() {
+	function beginLoading(): number {
 		if (loadingDepth === 0) renderEngine?.setLoading(true);
 		loadingDepth++;
+		return lifecycleGeneration;
 	}
 
-	async function endLoading() {
+	async function endLoading(generation = lifecycleGeneration) {
+		// A socket load may finish after the old canvas was detached and a new one
+		// initialized. Its finally block must not decrement the new session's gate.
+		if (generation !== lifecycleGeneration) return;
 		loadingDepth = Math.max(0, loadingDepth - 1);
 		if (loadingDepth !== 0) return;
-		if (!renderEngine || !c) return;
+		const engine = renderEngine;
+		const canvas = c;
+		if (!engine || !canvas) return;
+		const isCurrent = () =>
+			generation === lifecycleGeneration &&
+			renderEngine === engine &&
+			c === canvas;
 
 		// One load finalization pass. Callers used to rebuild the index, reset all
 		// tiles, synchronously warm the overview, then come through here and do
 		// the same rebuild/dirty/warm sequence again. Besides the duplicate CPU
 		// and allocations, both overview jobs could overlap.
-		renderEngine.reset();
-		await rebuildIndexFromCanvasYielded();
-		renderEngine.setContentBounds(computeContentBounds());
+		engine.reset();
+		if (!(await rebuildIndexFromCanvasYielded(canvas, isCurrent))) return;
+		if (!isCurrent()) return;
+		engine.setContentBounds(computeContentBounds());
 		// Same reveal contract as the solo path: overview first so the canvas can
 		// never be blank, then the visible tiles so the first gesture after the
 		// reveal is not competing with the first bake pass.
-		await prepareFirstPaint();
+		await prepareFirstPaint(undefined, generation);
 	}
 
 	// ── blocked users ────────────────────────────────────────────────────────
@@ -847,6 +954,27 @@ export function createDrawObjectManager() {
 		renderEngine?.retainRegionsUntilRebaked(rects);
 	}
 
+	/** @see RenderInvalidationCoordinator.invalidateUnderTransformCover */
+	function invalidateUnderTransformCover(rects: readonly WorldRect[]): boolean {
+		return renderEngine?.invalidateUnderTransformCover(rects) ?? false;
+	}
+
+	/** @see RenderInvalidationCoordinator.stampTransformIntoOverview */
+	function stampTransformIntoOverview(
+		moved: {
+			rect: WorldRect;
+			bmp: ImageBitmap;
+			m: readonly [number, number, number, number, number, number];
+		},
+		vacated?: {
+			rect: WorldRect;
+			bmp: ImageBitmap;
+			m: readonly [number, number, number, number, number, number];
+		} | null,
+	): boolean {
+		return renderEngine?.stampTransformIntoOverview(moved, vacated) ?? false;
+	}
+
 	function clearAllObjects() {
 		if (!c || !renderEngine) return;
 		objectMap.clear();
@@ -913,6 +1041,8 @@ export function createDrawObjectManager() {
 		stampRegionBitmap: gestures.stampRegionBitmap,
 		patchRectSync,
 		retainRegionsUntilRebaked,
+		invalidateUnderTransformCover,
+		stampTransformIntoOverview,
 		withRetainedRemovalTiles,
 		beginBatch,
 		endBatch,

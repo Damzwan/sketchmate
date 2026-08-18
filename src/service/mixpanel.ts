@@ -17,12 +17,24 @@ export enum mixpanelEvents {
 	customizationOpen = "customization_open",
 	inboxItemOpen = "inbox_item_open", // opened a received drawing (story)
 
+	// --- v2 Weekly competition ---
+	competitionCardOpen = "competition_card_open",
+	competitionPageOpen = "competition_page_open",
+	competitionResultsView = "competition_results_view",
+	competitionRewardShopOpen = "competition_reward_shop_open",
+	competitionEntrySubmit = "competition_entry_submit_client",
+	competitionVoteCast = "competition_vote_cast_client",
+	competitionThemeSuggest = "competition_theme_suggest",
+	competitionThemeUpvote = "competition_theme_upvote",
+
 	// --- v2 Posts ---
 	postReact = "post_react",
 	postCommentsOpen = "post_comments_open",
 	postFullscreenOpen = "post_fullscreen_open",
 	postShareOpen = "post_share_open",
 	postRemix = "post_remix",
+	postSaveToggle = "post_save_toggle",
+	savedPostsOpen = "saved_posts_open",
 	feedTabSwitched = "feed_tab_switched",
 
 	// --- v2 Relationships (client intent; server is authoritative) ---

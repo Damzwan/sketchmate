@@ -1,8 +1,8 @@
 // store/notification.store.ts
 
-import dayjs from "dayjs";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import dayjs from "@/helper/dayjsRelative.helper";
 import {
 	deleteNotification as apiDeleteNotification,
 	markAllRead as apiMarkAllRead,

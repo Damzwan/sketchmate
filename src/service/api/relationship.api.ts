@@ -1,4 +1,8 @@
-import type { ChatStatus, NetworkUser } from "@/types/server.types";
+import type {
+	ChatStatus,
+	NetworkUser,
+	PopulatedConversation,
+} from "@/types/server.types";
 import { request } from "./http";
 
 // --- FOLLOW & NETWORK ---
@@ -23,12 +27,23 @@ export async function toggleFollow(targetId: string) {
 export async function fetchNetworkType(
 	userId: string,
 	type: "mates" | "following" | "followers" | "blocked",
-	params: { page?: number; limit?: number; search?: string },
+	params: {
+		page?: number;
+		limit?: number;
+		search?: string;
+		/**
+		 * `mates` only. Narrows to PERMANENT mates, dropping live 24h trials and
+		 * pending requests. Opt-in — omit it for the broad list every existing
+		 * caller expects.
+		 */
+		status?: "mate";
+	},
 ) {
 	const query = new URLSearchParams({
 		page: (params.page || 1).toString(),
 		limit: (params.limit || 20).toString(),
 		...(params.search && { search: params.search }),
+		...(params.status && { status: params.status }),
 	});
 
 	return await request<{ total: number; data: NetworkUser[] }>(
@@ -123,14 +138,23 @@ export async function fetchUserStats(userId: string) {
 	}>(`/relationship/${userId}/stats`);
 }
 
+export interface RespondToRelationshipRes {
+	success: boolean;
+	/** Present on `accept` — the freshly populated conversation. */
+	conversation?: PopulatedConversation;
+}
+
 export async function respondToRelationship(
 	relationshipId: string,
 	action: "accept" | "decline",
-) {
-	return await request(`/relationship/${relationshipId}/respond`, {
-		method: "POST",
-		body: JSON.stringify({ action: action }),
-	});
+): Promise<RespondToRelationshipRes> {
+	return await request<RespondToRelationshipRes>(
+		`/relationship/${relationshipId}/respond`,
+		{
+			method: "POST",
+			body: JSON.stringify({ action: action }),
+		},
+	);
 }
 
 export async function cancelMateRequest(conversationId: string) {

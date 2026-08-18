@@ -111,14 +111,8 @@ import {
 	mdiClose,
 	mdiForumOutline,
 } from "@mdi/js";
-import {
-	computed,
-	nextTick,
-	onBeforeUnmount,
-	onMounted,
-	ref,
-	watch,
-} from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { useSnapPager } from "@/composables/general/useSnapPager";
 import type { ChatCustomization } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 import ChatWidgetStylePreview from "./ChatWidgetStylePreview.vue";
@@ -201,91 +195,19 @@ watch(zoomOpen, (open) => {
 });
 
 // ── Pager ─────────────────────────────────────────────────────────────────
-const pagerRef = ref<HTMLElement | null>(null);
-let pagerRaf = 0;
-
-const scrollToPane = (idx: number, smooth = true) => {
-	const el = pagerRef.value;
-	const child = el?.children[idx] as HTMLElement | undefined;
-	if (!el || !child) return false;
-	// A `display: none` pager measures 0 and silently ignores scrollTo — which is
-	// exactly the state we are in while a picker sheet is open. Report the miss so
-	// the caller can re-run it once the pager is back on screen.
-	if (el.clientWidth === 0) return false;
-	el.scrollTo({
-		left: child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2,
-		behavior: smooth ? "smooth" : "auto",
-	});
-	return true;
-};
-
-/**
- * Re-apply the pending page once the pager is measurable again.
- *
- * Picking a chat sketch happens inside the background picker, while the host
- * hides this pager with `v-show`. The page state changed, the chips and dots
- * updated — but the scroll never moved, so closing the picker revealed the
- * OVERVIEW pane under a "conversation" selection. The observer fires on the
- * 0 → width transition and finishes the navigation.
- */
-let resizeObserver: ResizeObserver | null = null;
-const watchVisibility = () => {
-	const el = pagerRef.value;
-	if (!el || typeof ResizeObserver === "undefined") return;
-	let wasVisible = el.clientWidth > 0;
-	resizeObserver = new ResizeObserver(() => {
-		const visible = el.clientWidth > 0;
-		if (visible && !wasVisible) {
-			scrollToPane(
-				pages.findIndex((p) => p.id === activePage.value),
-				false,
-			);
-		}
-		wasVisible = visible;
-	});
-	resizeObserver.observe(el);
-};
-onMounted(watchVisibility);
-
-const setPage = (id: Page, scroll = true) => {
-	if (activePage.value !== id) {
-		activePage.value = id;
-		emit("update:modelValue", id);
-	}
-	if (scroll) scrollToPane(pages.findIndex((p) => p.id === id));
-};
-
-// Tapping a PEEKED pane navigates to it rather than interacting with its
-// contents — capture phase, so nothing inside fires.
-const onPaneClick = (id: Page, e: Event) => {
-	if (activePage.value === id) return;
-	e.stopPropagation();
-	e.preventDefault();
-	setPage(id);
-};
-
-// rAF-throttled: scroll fires far faster than we paint.
-const onPagerScroll = () => {
-	if (pagerRaf) return;
-	pagerRaf = requestAnimationFrame(() => {
-		pagerRaf = 0;
-		const el = pagerRef.value;
-		if (!el) return;
-		const center = el.scrollLeft + el.clientWidth / 2;
-		let best = 0;
-		let bestDist = Infinity;
-		for (let i = 0; i < el.children.length; i++) {
-			const child = el.children[i] as HTMLElement;
-			const d = Math.abs(child.offsetLeft + child.offsetWidth / 2 - center);
-			if (d < bestDist) {
-				bestDist = d;
-				best = i;
-			}
-		}
-		const id = pages[best]?.id;
-		if (id && id !== activePage.value) setPage(id, false);
-	});
-};
+const {
+	pagerRef,
+	setActive: setPage,
+	onPaneClick,
+	onPagerScroll,
+} = useSnapPager(
+	pages.map((page) => page.id),
+	activePage,
+	{
+		onChange: (page) => emit("update:modelValue", page),
+		restoreWhenVisible: true,
+	},
+);
 
 watch(
 	() => props.modelValue,
@@ -295,10 +217,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
-	if (pagerRaf) cancelAnimationFrame(pagerRaf);
 	window.removeEventListener("resize", measureZoom);
-	resizeObserver?.disconnect();
-	resizeObserver = null;
 });
 </script>
 

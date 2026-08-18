@@ -11,6 +11,7 @@
         @click="selectTool(lastSelectedPenMenuTool, { e: $event })"
       >
         <div
+          v-if="showColorDot"
           class="absolute bottom-2 right-1 w-2.5 h-2.5 rounded-full border border-white/50 transition-transform"
           :style="{ backgroundColor: brushColor }"
         />
@@ -88,7 +89,11 @@ import {
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { penIconMapping, selectIconMapping } from "@/draw/config/tools.config";
+import {
+	penIconMapping,
+	SMUDGE_ICON,
+	selectIconMapping,
+} from "@/draw/config/tools.config";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { usePen } from "@/draw/tools/pen.store";
@@ -110,9 +115,18 @@ const { openMenu } = useMenuStore();
 const undo = () => selectAction(DrawAction.Undo, undefined);
 const redo = () => selectAction(DrawAction.Redo, undefined);
 
-const penMenuIcon = computed(() =>
-	lastSelectedPenMenuTool.value === DrawTool.Pen
-		? penIconMapping[brushType.value]
-		: mdiFormatColorFill,
+// The slot is shared: it shows the current brush, or the smudge glyph while
+// smudge is the pen-menu tool in use. That is what lets smudge be a real tool
+// without a dock button of its own.
+const penMenuIcon = computed(() => {
+	if (lastSelectedPenMenuTool.value === DrawTool.Smudge) return SMUDGE_ICON;
+	if (lastSelectedPenMenuTool.value === DrawTool.Bucket)
+		return mdiFormatColorFill;
+	return penIconMapping[brushType.value];
+});
+
+/** Smudge paints no colour, so the slot's colour dot would be a lie. */
+const showColorDot = computed(
+	() => lastSelectedPenMenuTool.value !== DrawTool.Smudge,
 );
 </script>

@@ -9,6 +9,7 @@
     @pointermove="messageActions.onPointerMove"
     @pointerup="messageActions.onPointerUp"
     @pointercancel="messageActions.onPointerCancel"
+    @click="messageActions.onClick"
     class="space-y-3 pb-1 flex flex-col justify-end min-h-full animate-tab-in"
   >
 
@@ -17,7 +18,7 @@
       <div class="bg-white border border-primary/50 p-6 rounded-[2.5rem] shadow-sm text-center w-full max-w-xs relative overflow-hidden">
         <div class="absolute -right-4 -bottom-4 w-16 h-16 rounded-full bg-primary/10 blur-xl pointer-events-none"></div>
         <div class="relative inline-block mb-3.5">
-          <img :src="partner?.img" class="w-16 h-16 rounded-[1.35rem] border border-black/5 shadow-sm object-cover grayscale opacity-50" alt="" />
+<img width="64" height="64" loading="lazy" decoding="async" :src="partner?.img" class="w-16 h-16 rounded-[1.35rem] border border-black/5 shadow-sm object-cover grayscale opacity-50" alt="" />
           <div class="absolute -bottom-1 -right-1 bg-zinc-500 rounded-full p-1 border border-white shadow-sm flex items-center justify-center">
             <ion-icon :icon="svg(mdiAccountOff)" class="text-[9px] text-white" />
           </div>
@@ -95,9 +96,8 @@
 
 <script setup lang="ts">
 import { IonButton, IonIcon, IonSpinner } from "@ionic/vue";
-import { mdiAccountOff, mdiChatOutline, mdiDraw } from "@mdi/js";
+import { mdiAccountOff, mdiChatOutline } from "@mdi/js";
 import { useIntersectionObserver } from "@vueuse/core";
-import { closeCircle } from "ionicons/icons";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import ChatDrawInviteCard from "@/components/chat/ChatDrawInviteCard.vue";
@@ -135,6 +135,7 @@ const messageActions = useMessageActions({
 	messages: () => props.messages,
 	currentUserId: () => user.value?._id,
 	isLobby: () => activeTab.value === "lobby",
+	roomId: () => drawSyncer.roomId,
 });
 
 useIntersectionObserver(
@@ -206,6 +207,7 @@ const onInspectProfile = (ev: Event, info: any) =>
 
 const isMe = (msg: any) =>
 	msg.sender_id === user.value?._id || msg.member?._id === user.value?._id;
+
 const isCompact = (msg: any, index: number) => {
 	if (index === 0) return false;
 	const prev = props.messages[index - 1];

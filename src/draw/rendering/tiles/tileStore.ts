@@ -1,3 +1,8 @@
+import {
+	createRasterSurface,
+	type RasterSurface,
+	releaseRasterSurface,
+} from "../rasterSurface";
 import type { WorldRect } from "./tileGeometry";
 import type { TileKey } from "./tileKey";
 
@@ -20,15 +25,20 @@ import type { TileKey } from "./tileKey";
  * full-tile copy. The cost is that compositing from a canvas can be slower than
  * from a bitmap on some drivers, so only a small hot set is kept this way and
  * `demoteHotTiles` converts them back once the region settles.
+ *
+ * On Gecko the canvas form is not an optimisation but the ONLY sane form: a
+ * main-thread `OffscreenCanvas` 2D context is unaccelerated there, so tiles are
+ * rasterized into DOM canvases and kept as such rather than snapshotted. See
+ * `rendering/rasterSurface.ts`.
  */
-export type TileSurface = ImageBitmap | OffscreenCanvas;
+export type TileSurface = ImageBitmap | RasterSurface;
 
 /** Is this surface drawable-into (a canvas) rather than immutable (a bitmap)? */
 export function isCanvasSurface(
 	surface: TileSurface | null,
-): surface is OffscreenCanvas {
+): surface is RasterSurface {
 	return (
-		!!surface && typeof (surface as OffscreenCanvas).getContext === "function"
+		!!surface && typeof (surface as RasterSurface).getContext === "function"
 	);
 }
 
@@ -43,8 +53,7 @@ export function isCanvasSurface(
 export function releaseTileSurface(surface: TileSurface | null): void {
 	if (!surface) return;
 	if (isCanvasSurface(surface)) {
-		surface.width = 0;
-		surface.height = 0;
+		releaseRasterSurface(surface);
 		return;
 	}
 	surface.close();
@@ -108,7 +117,7 @@ export class TileStore {
 	/** -1 until the first composite reports one. */
 	private activeTier = -1;
 
-	private readonly pool: OffscreenCanvas[] = [];
+	private readonly pool: RasterSurface[] = [];
 
 	constructor(
 		private readonly bitmapSize: number,
@@ -224,32 +233,100 @@ export class TileStore {
 		sweep((key, tile) => !this.isFresh(key, tile) && !hot(tile));
 		// 4. Anything cold. Now we are giving up tiles that are on screen.
 		sweep((_key, tile) => !hot(tile));
-		// 5. Last resort: even the hot set, rather than fail the allocation.
+
+		// 5-6. TIER PROTECTION WITHOUT THE HOT EXEMPTION.
+		//
+		// Every class above is gated on `!hot`, so if the cache is ENTIRELY hot
+		// they all evict nothing and the only class left used to be the blanket
+		// sweep — plain LRU, no tier ordering at all. That is precisely the
+		// "pinch in and back out → destroy/rebake/destroy storm" this ladder
+		// exists to prevent, and it presents as the picture oscillating between
+		// sharp and blurred while the budget is tight.
+		//
+		// Reachable on any platform whose tiles are canvas-backed by default
+		// (Gecko — see rasterSurface.ts), and on any device where the hot set
+		// grows to the whole cache. Giving up a FAR tile is still much cheaper
+		// than giving up one under the viewport, hot or not.
+		sweep((key, tile) => !this.isFresh(key, tile) && far(tile));
+		sweep((_key, tile) => far(tile));
+		// 7. Last resort: near, fresh and hot — rather than fail the allocation.
 		sweep(() => true);
 
 		return this.memoryBytes + bytes <= this.memoryLimit;
 	}
 
-	acquireCanvas(): OffscreenCanvas {
-		return (
-			this.pool.pop() ?? new OffscreenCanvas(this.bitmapSize, this.bitmapSize)
-		);
+	/**
+	 * Give the cache room to breathe, at IDLE, before anything needs it.
+	 *
+	 * `reserve()` only runs when a tile is already being stored, so a cache
+	 * sitting at its limit — which is the steady state of any LRU cache under
+	 * load — evicts once per bake, forever. Each of those cycles costs the GPU
+	 * driver one texture destroyed and one allocated, on the critical path. Field
+	 * data had `tileMB` pinned within 0.3 MB of `tileLimitMB` for a whole session,
+	 * and the crash it ended in was Scudo reporting an invalid chunk inside the
+	 * Adreno driver's deallocate (docs/DRAW_ENGINE_HARDENING_PLAN.md → F2).
+	 *
+	 * This drops ONLY what `reserve()`'s first two classes would have dropped
+	 * anyway — tiles far from the tier being drawn — so nothing on screen is
+	 * touched and the fallback ladder already covers a revisit. The difference is
+	 * purely WHEN: here it is free, there it is in front of the user.
+	 *
+	 * @returns how many tiles were released.
+	 */
+	trimToHeadroom(targetFraction = 0.8): number {
+		const target = this.memoryLimit * targetFraction;
+		if (this.memoryBytes <= target) return 0;
+		if (this.activeTier < 0) return 0; // no composite yet — nothing is "far"
+
+		const far = (tile: Tile) =>
+			Math.abs(tile.tier - this.activeTier) > NEAR_TIER_DISTANCE;
+
+		let released = 0;
+		const sweep = (accept: (key: TileKey, tile: Tile) => boolean): void => {
+			for (const [key, tile] of this.tiles) {
+				if (this.memoryBytes <= target) return;
+				if (!accept(key, tile)) continue;
+				this.evict(key, tile);
+				released++;
+			}
+		};
+		// Stale AND far — dead weight either way.
+		sweep((key, tile) => !this.isFresh(key, tile) && far(tile));
+		// Far but fresh. Deliberately NOT going further: anything near the active
+		// tier is what a small zoom lands on next, and giving that up at idle
+		// would trade this churn for a visible one.
+		sweep((_key, tile) => far(tile));
+		return released;
 	}
 
-	releaseCanvas(canvas: OffscreenCanvas): void {
-		if (this.pool.length < this.poolLimit) {
+	acquireCanvas(): RasterSurface {
+		const pooled = this.pool.pop();
+		if (!pooled) return createRasterSurface(this.bitmapSize, this.bitmapSize);
+		// Reassign the dimensions UNCONDITIONALLY, even when they already match.
+		// That is the idiom that resets a canvas: it clears the bitmap to
+		// transparent black and resets the 2D context (transform, clip, styles).
+		//
+		// Load-bearing since tiles can be canvas-backed. A pooled surface used to
+		// arrive blank by construction — it had just been through
+		// `transferToImageBitmap`. Now it may be an EVICTED TILE handed back by
+		// `discardSurface`, still holding that tile's pixels, so a caller that
+		// forgot to clear would draw the wrong region's content.
+		pooled.width = this.bitmapSize;
+		pooled.height = this.bitmapSize;
+		return pooled;
+	}
+
+	releaseCanvas(canvas: RasterSurface): void {
+		if (this.pool.length < this.poolLimit && canvas.width === this.bitmapSize) {
 			this.pool.push(canvas);
 			return;
 		}
-		canvas.width = 0;
-		canvas.height = 0;
+		releaseRasterSurface(canvas);
 	}
 
 	trimPool(keep = 2): void {
 		while (this.pool.length > keep) {
-			const canvas = this.pool.pop()!;
-			canvas.width = 0;
-			canvas.height = 0;
+			releaseRasterSurface(this.pool.pop()!);
 		}
 	}
 
@@ -297,6 +374,16 @@ export class TileStore {
 	 * precisely the churn the hot path exists to remove. `releaseCanvas` blanks
 	 * it if the pool is already full.
 	 */
+	/**
+	 * Throw away a tile surface that never made it into the cache — a bake that
+	 * lost its generation race, an aborted repair. The bitmap form is closed; the
+	 * canvas form goes back to the pool, because on Gecko that surface is the
+	 * scratch the next bake would otherwise have to allocate.
+	 */
+	discard(surface: TileSurface | null): void {
+		this.discardSurface(surface);
+	}
+
 	private discardSurface(surface: TileSurface | null): void {
 		if (!surface) return;
 		if (isCanvasSurface(surface)) {

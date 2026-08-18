@@ -198,10 +198,10 @@ import {
 	mdiShieldAlert,
 	mdiShieldCheck,
 } from "@mdi/js";
-import dayjs from "dayjs";
 import { storeToRefs } from "pinia";
 import { computed, onMounted } from "vue";
 import SubPageBar from "@/components/general/SubPageBar.vue";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
 import { useModerationStore } from "@/store/moderation.store";
 

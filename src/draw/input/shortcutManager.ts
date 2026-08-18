@@ -26,7 +26,7 @@ export enum ToolbarIds {
 }
 
 export function useShortcutManager() {
-	const { getSelectedObjects } = useSelect();
+	const { getSelectedObjects, selectAll } = useSelect();
 	const { selectedObjectsRef } = storeToRefs(useSelect());
 	const historyManager = useDrawHistoryManager();
 
@@ -156,6 +156,23 @@ export function useShortcutManager() {
 			event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
 		switch (keyToMatch) {
+			// Follows the "Select across layers" switch, like every other selection
+			// path. Switches to the Select tool first: selecting everything while a
+			// brush is active would produce a selection the active tool cannot act
+			// on, and the transform handles would be the only hint anything happened.
+			case Shortcut.selectAll: {
+				event.preventDefault();
+				if (
+					selectedTool !== DrawTool.Select &&
+					selectedTool !== DrawTool.Lasso
+				) {
+					selectTool(DrawTool.Select, { skipOpenMenu: true });
+				}
+				selectAll();
+				dismissPopover();
+				break;
+			}
+
 			case Shortcut.pen:
 				event.preventDefault();
 				if (isSelectMode.value) return;

@@ -2,8 +2,9 @@
   <ion-modal
     :is-open="viewProfileMenuOpen"
     @did-dismiss="onDismiss"
-    :initial-breakpoint="0.95"
-    :breakpoints="[0, 0.95]"
+    :initial-breakpoint="isDesktop ? undefined : 0.95"
+    :breakpoints="isDesktop ? undefined : [0, 0.95]"
+    :handle="!isDesktop"
     handle-behavior="cycle"
     class="liquid-user-sheet"
     :keepContentsMounted="true"
@@ -133,19 +134,17 @@
 </template>
 
 <script setup lang="ts">
-import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiAccountCancelOutline,
 	mdiAccountMinusOutline,
 	mdiAccountPlusOutline,
 	mdiAccountReactivateOutline,
-	mdiAlertCircleOutline,
-	mdiChatOutline,
 	mdiClose,
 	mdiFlagVariantOutline,
 	mdiHeartBroken,
-	mdiTimerSandComplete,
 } from "@mdi/js";
+import { useMediaQuery } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import AmbientScope from "@/components/general/AmbientScope.vue";
@@ -157,33 +156,22 @@ import {
 	hydrateCustomization,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
-import { useDrawSyncer } from "@/draw/sync/session.store";
 import { compareVersions, svg } from "@/helper/general.helper";
-import {
-	blockUser,
-	unblockUser,
-	unfriendUser,
-} from "@/service/api/relationship.api";
-import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
-import { useChatStore } from "@/store/chat.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useModerationStore } from "@/store/moderation.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useProfileRelationshipActions } from "./useProfileRelationshipActions";
 
 const MIN_CHAT_VERSION = "0.4.3";
 
 const menuStore = useMenuStore();
 const authStore = useAuthStore();
-const chatWidget = useChatWidgetStore();
+const isDesktop = useMediaQuery("(min-width: 768px)");
 const friendStore = useFriendStore();
 const { closeSheet } = useUserContextSheet();
 const { openPostSwiper } = usePostSwiper();
-const { toast } = useToast();
 
 const swiper = usePhotoSwiper();
 const { viewProfileMenuOpen } = storeToRefs(menuStore);
@@ -238,11 +226,8 @@ const effectiveCustomization = computed(() =>
 const theme = computed(() =>
 	resolveTheme(effectiveCustomization.value.themeId),
 );
-const activeWorld = computed(() =>
-	resolveWorld(effectiveCustomization.value.worldId),
-);
 const surfacePalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const statusChipStyle = computed(() => ({
 	background: surfacePalette.value.controlBg,
@@ -268,7 +253,7 @@ const isOnline = computed(() =>
 const status = computed(() => {
 	if (!targetProfile.value?._id) return undefined;
 	return (
-		(targetProfile.value as any).chat_status ||
+		targetProfile.value.chat_status ||
 		friendStore.resolvePartnerInfo(targetProfile.value._id)?.chat_status
 	);
 });
@@ -291,55 +276,17 @@ const hasRequiredVersion = computed(() => {
 	return v ? compareVersions(v, MIN_CHAT_VERSION) !== -1 : false;
 });
 
-const primaryCta = computed(() => {
-	if (isBlocked.value) {
-		return {
-			label: "User Blocked",
-			icon: mdiAccountCancelOutline,
-			disabled: true,
-			handler: () => {},
-		};
-	}
-	if (!hasRequiredVersion.value) {
-		return {
-			label: "User needs to update to chat",
-			icon: mdiAlertCircleOutline,
-			disabled: true,
-			handler: () => {},
-		};
-	}
-	if (status.value === "mate") {
-		return {
-			label: "Message",
-			icon: mdiChatOutline,
-			disabled: false,
-			handler: onStartChat,
-		};
-	}
-	if (["temporary", "pending_mate"].includes(status.value as string)) {
-		return {
-			label: "Continue Chat",
-			icon: mdiTimerSandComplete,
-			disabled: false,
-			handler: onStartChat,
-		};
-	}
-	return {
-		label: "Message",
-		icon: mdiChatOutline,
-		disabled: false,
-		handler: onStartChat,
-	};
-});
+const { primaryCta, onToggleFollow, onUnfriend, confirmToggleBlock, report } =
+	useProfileRelationshipActions({
+		target: resolvedUser,
+		status,
+		isBlocked,
+		isMe,
+		hasRequiredVersion,
+	});
 
 function onDismiss() {
 	viewProfileMenuOpen.value = false;
-}
-
-function onStartChat() {
-	if (!targetProfile.value?._id || !hasRequiredVersion.value) return;
-	chatWidget.openChatWithUser(targetProfile.value._id);
-	closeSheet();
 }
 
 function onOpenPost(index: number) {
@@ -348,116 +295,6 @@ function onOpenPost(index: number) {
 
 function goToNetwork(_tab: "mates" | "followers" | "following") {
 	/* Stub */
-}
-
-async function onToggleFollow() {
-	if (!targetProfile.value || isMe.value) return;
-	const artistName = targetProfile.value.name;
-	try {
-		const nowFollowing = await friendStore.toggleFollowUser(
-			targetProfile.value as any,
-		);
-		if (targetProfile.value.relationship)
-			targetProfile.value.relationship.isFollowing = !!nowFollowing;
-		toast(
-			nowFollowing ? `Following ${artistName}` : `Unfollowed ${artistName}`,
-		);
-	} catch {
-		toast("Action failed", { color: "danger" });
-	}
-}
-
-async function onUnfriend() {
-	if (!targetProfile.value) return;
-	const isPermanent = status.value === "mate";
-	const partner = targetProfile.value;
-
-	const alert = await alertController.create({
-		header: isPermanent ? "Unfriend?" : "End Trial?",
-		cssClass: "liquid-alert",
-		message: isPermanent
-			? `Remove ${partner.name}? Chat invites locked for 48h.`
-			: `Stop chatting with ${partner.name}?`,
-		buttons: [
-			{ text: "Keep", role: "cancel" },
-			{
-				text: isPermanent ? "Remove" : "End",
-				role: "destructive",
-				handler: async () => {
-					try {
-						await unfriendUser(partner._id);
-						friendStore.removeFriendLocally(partner._id);
-						void friendStore.refreshMyStats();
-						useChatStore().expireChat(partner._id);
-						toast(isPermanent ? `Removed ${partner.name}` : "Trial ended");
-						closeSheet();
-					} catch {
-						toast("Action failed", { color: "danger" });
-					}
-				},
-			},
-		],
-	});
-	await alert.present();
-}
-
-async function confirmToggleBlock() {
-	if (!targetProfile.value) return;
-	const target = targetProfile.value;
-
-	if (isBlocked.value) {
-		try {
-			void unblockUser(target._id);
-			friendStore.unblockUserLocally(target._id);
-			useChatStore().resetChatWithUser(target._id);
-			toast(`${target.name} unblocked`);
-		} catch {
-			toast("Action failed", { color: "danger" });
-		}
-		return;
-	}
-
-	const alert = await alertController.create({
-		header: "Block User?",
-		message: `Are you sure you want to block ${target.name}? They will no longer be able to message you or see your sketches.`,
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Block",
-				role: "destructive",
-				handler: async () => {
-					try {
-						await blockUser(target._id);
-						friendStore.blockUserLocally(target._id);
-						void friendStore.refreshMyStats();
-						if (useDrawSyncer().isLobby) {
-							// Only a live lobby needs canvas cleanup. Keep the Fabric-backed
-							// object manager out of ordinary profile-sheet chunks.
-							const { useDrawObjectManager } = await import(
-								"@/draw/canvas/drawObjectManager"
-							);
-							useDrawObjectManager().purgeBlockedObjects();
-						}
-
-						toast(`${target.name} blocked`);
-						closeSheet();
-					} catch {
-						toast("Action failed", { color: "danger" });
-					}
-				},
-			},
-		],
-	});
-	await alert.present();
-}
-
-function report() {
-	useModerationStore().openReport({
-		type: "user",
-		id: targetProfile.value._id,
-		label: targetProfile.value.name,
-	});
 }
 
 onBeforeUnmount(() => {
@@ -491,5 +328,19 @@ ion-modal.liquid-user-sheet::part(handle) {
   background: var(--ion-color-secondary);
   opacity: 0.3;
   width: 40px;
+}
+
+@media (min-width: 768px) {
+  ion-modal.liquid-user-sheet {
+    --width: min(92vw, 60rem);
+    --height: min(90vh, 54rem);
+    --border-radius: 2rem;
+    --box-shadow: 0 28px 90px rgba(19, 12, 35, 0.3);
+  }
+
+  ion-modal.liquid-user-sheet::part(content) {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
 }
 </style>

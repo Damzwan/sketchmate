@@ -72,4 +72,4 @@ include ':revenuecat-purchases-capacitor-ui'
 project(':revenuecat-purchases-capacitor-ui').projectDir = new File('../node_modules/.pnpm/@revenuecat+purchases-capacitor-ui@12.3.2_@capacitor+core@8.2.0/node_modules/@revenuecat/purchases-capacitor-ui/android')
 
 include ':sentry-capacitor'
-project(':sentry-capacitor').projectDir = new File('../node_modules/.pnpm/@sentry+capacitor@4.2.0_@capacitor+core@8.2.0_@sentry+vue@10.60.0_pinia@3.0.4_typescrip_4765fb6396e8eaa9104552b675f413d2/node_modules/@sentry/capacitor/android')
+project(':sentry-capacitor').projectDir = new File('../node_modules/.pnpm/@sentry+capacitor@4.2.0_@capacitor+core@8.2.0_@sentry+vue@10.60.0_pinia@4.0.2_@vue+devt_ff6bd494aec4ea16f4f34f322c3b2257/node_modules/@sentry/capacitor/android')

@@ -1,10 +1,12 @@
 import { alertController } from "@ionic/vue";
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref } from "vue";
+import { useConfirm } from "@/composables/useConfirm";
 import { presentAdultGate } from "@/helper/adultGate.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import type { ParentalControls } from "@/types/server.types";
 
 /**
@@ -60,10 +62,13 @@ const SAFETY_LOCAL_KEY = "sm_child_safety_ack";
 export const useParentalStore = defineStore("parental", () => {
 	const authStore = useAuthStore();
 	const { user, isUnderAge } = storeToRefs(authStore);
+	const { parentalControlsOpen: controlsOpen } = storeToRefs(
+		useOverlayRuntimeStore(),
+	);
 	const { toast } = useToast();
+	const { confirm } = useConfirm();
 
 	/** Controls sheet visibility. Only ever opened behind the adult gate. */
-	const controlsOpen = ref(false);
 	const savingFeature = ref<ChildFeature | null>(null);
 
 	const controls = computed<ParentalControls>(() => user.value?.parental ?? {});
@@ -189,16 +194,13 @@ export const useParentalStore = defineStore("parental", () => {
 	/** Explains the lock and offers the adult a way in. */
 	async function presentLockedNotice(feature: ChildFeature) {
 		const copy = FEATURE_COPY[feature];
-		const alert = await alertController.create({
+		const isParent = await confirm({
 			header: "Ask a grown-up",
-			cssClass: "liquid-alert",
 			message: copy.locked,
-			buttons: [
-				{ text: "Not now", role: "cancel" },
-				{ text: "I'm a parent", handler: () => void openControls() },
-			],
+			cancelText: "Not now",
+			confirmText: "I'm a parent",
 		});
-		await alert.present();
+		if (isParent) await openControls();
 	}
 
 	/**

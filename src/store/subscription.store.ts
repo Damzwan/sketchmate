@@ -1,9 +1,10 @@
 import {
+	type CustomerInfo,
 	Purchases,
 	type PurchasesPackage,
 } from "@revenuecat/purchases-capacitor";
 import { RevenueCatUI } from "@revenuecat/purchases-capacitor-ui";
-import { defineStore } from "pinia";
+import { defineStore, storeToRefs } from "pinia";
 import { ref, watch } from "vue";
 import {
 	CATALOG_BY_ID,
@@ -20,6 +21,7 @@ import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { useQuotaStore } from "@/store/quota.store";
 
 /**
@@ -31,13 +33,59 @@ import { useQuotaStore } from "@/store/quota.store";
  * Inventory items live in the inventory store — this store only grants them
  * optimistically and lets the webhook reconcile.
  */
+// Lazy: this store is eager (App.vue reads `showConfetti`), the billing helper
+// isn't needed until something asks about entitlements, and the cold-start
+// budget is tight. Resolves from cache after the first call.
+const billing = () => import("@/helper/billing.helper");
+
+type Tier = "free" | "pro" | "lifetime";
+
+/**
+ * Last CONFIRMED tier, cached so the first frame paints the entitlement the
+ * user actually has.
+ *
+ * RC's answer needs configure + logIn + a network read, and the web path waits
+ * on auth init. Until then `isPro` was plainly `false`, so every Pro user saw
+ * the free UI (VIP badges on public lobbies, locked draft slots) flash before
+ * it corrected itself. Written only from a read taken under a confirmed
+ * identity, cleared on logout — never a way to grant Pro, only a way to avoid
+ * unpainting it.
+ */
+const TIER_CACHE_KEY = "sm_tier_cache";
+
+function readTierCache(): Tier | null {
+	try {
+		const raw = localStorage.getItem(TIER_CACHE_KEY);
+		return raw === "pro" || raw === "lifetime" || raw === "free" ? raw : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeTierCache(tier: Tier): void {
+	try {
+		localStorage.setItem(TIER_CACHE_KEY, tier);
+	} catch {
+		// Private mode or a full quota. Next launch just flashes as before.
+	}
+}
+
 export const useSubscriptionStore = defineStore("subscription", () => {
 	// ─── Paid state ──────────────────────────────────────────────────────────
-	const isPro = ref(false);
-	const isLifetime = ref(false);
+	const cachedTier = readTierCache();
+	const isPro = ref(cachedTier === "pro" || cachedTier === "lifetime");
+	const isLifetime = ref(cachedTier === "lifetime");
 	const isLoading = ref(true);
+	/**
+	 * True once the paid state is safe to render gating off — either the cache
+	 * answered synchronously or a live read has landed. UI that would otherwise
+	 * flash the wrong tier renders a neutral state while this is false.
+	 */
+	const isTierResolved = ref(cachedTier !== null);
 	// Toggled true after any successful purchase; drives the Confetti overlay.
-	const showConfetti = ref(false);
+	const { confettiVisible: showConfetti } = storeToRefs(
+		useOverlayRuntimeStore(),
+	);
 	const pendingSupporterToast = ref(false);
 
 	watch(showConfetti, (visible, wasVisible) => {
@@ -46,8 +94,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			useShareToastStore().pushTitleToast("title.supporter");
 		}
 	});
-
-	type Tier = "free" | "pro" | "lifetime";
 
 	async function syncWithBackend(tier: Tier) {
 		try {
@@ -65,6 +111,51 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		return isLifetime.value ? "lifetime" : isPro.value ? "pro" : "free";
 	}
 
+	function applyCustomerInfo(customerInfo: CustomerInfo) {
+		const ent = customerInfo.entitlements.active;
+		const lifetime =
+			typeof ent[LIFETIME_ENTITLEMENT] !== "undefined" ||
+			customerInfo.nonSubscriptionTransactions.some(
+				(t) => t.productIdentifier === LIFETIME_RC_PRODUCT,
+			);
+
+		isLifetime.value = lifetime;
+		isPro.value = lifetime || typeof ent[PRO_ENTITLEMENT] !== "undefined";
+		markTierResolved();
+	}
+
+	/** Mark the live read authoritative and cache it for the next cold start. */
+	function markTierResolved() {
+		isTierResolved.value = true;
+		writeTierCache(currentTier());
+	}
+
+	/**
+	 * Push the tier we just read from RC back to our own backend.
+	 *
+	 * Compares against what the BACKEND holds, not against the previous local
+	 * refs. Those init to false, so a refunded subscriber came back from RC as
+	 * "not pro", matched the local default, and the sync never fired — leaving
+	 * `subscription_tier: 'pro'` in the DB and Pro quotas with it.
+	 *
+	 * Only ever called with entitlements read under a confirmed identity: writing
+	 * a tier derived from an unidentified or failed read is how a real subscriber
+	 * got PUT back down to `free` on every login.
+	 */
+	async function reconcileTier(force = false) {
+		const { waitUntilInitialized } = useAuthStore();
+		await waitUntilInitialized();
+		const { user } = useAuthStore();
+		if (!user) return;
+
+		const tier = currentTier();
+		if (tier === (user.subscription_tier ?? "free") && !force) return;
+
+		await syncWithBackend(tier);
+		const quotaStore = useQuotaStore();
+		void quotaStore.refresh(true);
+	}
+
 	async function checkProStatus(force = false) {
 		if (!isNative()) {
 			isLoading.value = false;
@@ -73,42 +164,44 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			const { user } = useAuthStore();
 			isLifetime.value = user?.subscription_tier === "lifetime";
 			isPro.value = isLifetime.value || user?.subscription_tier === "pro";
+			if (user) markTierResolved();
 			return;
 		}
 
 		isLoading.value = true;
 		try {
+			// RC must be configured AND pointed at this account before its answer
+			// means anything — an early read returns the anonymous customer, whose
+			// entitlement set is empty.
+			const identified = await (await billing()).waitForBilling();
+
 			const { customerInfo } = await Purchases.getCustomerInfo();
-			const ent = customerInfo.entitlements.active;
-			const lifetime =
-				typeof ent[LIFETIME_ENTITLEMENT] !== "undefined" ||
-				customerInfo.nonSubscriptionTransactions.some(
-					(t) => t.productIdentifier === LIFETIME_RC_PRODUCT,
-				);
-			const active = lifetime || typeof ent[PRO_ENTITLEMENT] !== "undefined";
+			applyCustomerInfo(customerInfo);
 
-			isLifetime.value = lifetime;
-			isPro.value = active;
-
-			// Compare against what the BACKEND holds, not against the previous local
-			// refs. Those init to false, so a refunded subscriber came back from RC
-			// as "not pro", matched the local default, and the sync never fired —
-			// leaving `subscription_tier: 'pro'` in the DB and Pro quotas with it.
-			const { waitUntilInitialized } = useAuthStore();
-			await waitUntilInitialized();
-			const { user } = useAuthStore();
-			const tier = currentTier();
-			if (tier !== (user?.subscription_tier ?? "free") || force) {
-				await syncWithBackend(tier);
-				const quotaStore = useQuotaStore();
-				void quotaStore.refresh(true);
-			}
+			if (identified) await reconcileTier(force);
 		} catch (e) {
+			// Leave the paid state as-is. A failed read is not evidence of "free",
+			// and clearing it here downgraded subscribers mid-session.
 			console.error("Error fetching customer info from RevenueCat", e);
-			isPro.value = false;
 		} finally {
 			isLoading.value = false;
 		}
+	}
+
+	// RC pushes entitlement changes it learns about on its own — renewals,
+	// expiries, Play-side refunds, purchases made on another device. Without this
+	// the app only ever saw them on the next cold start.
+	if (isNative()) {
+		void billing().then(({ isBillingIdentified, onCustomerInfoUpdate }) => {
+			onCustomerInfoUpdate((info) => {
+				// Updates that arrive before the account's logIn lands describe the
+				// anonymous customer. Ignore them; `checkProStatus` reads once identity
+				// has settled.
+				if (!isBillingIdentified()) return;
+				applyCustomerInfo(info);
+				void reconcileTier();
+			});
+		});
 	}
 
 	// ─── Individual SKU purchase ─────────────────────────────────────────────
@@ -212,6 +305,11 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 	function resetRuntimeState() {
 		isPro.value = false;
 		isLifetime.value = false;
+		isTierResolved.value = false;
+		// Logout: the next account on this device must not inherit this one's tier.
+		try {
+			localStorage.removeItem(TIER_CACHE_KEY);
+		} catch {}
 		showConfetti.value = false;
 		pendingSupporterToast.value = false;
 	}
@@ -304,6 +402,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		isPro,
 		isLifetime,
 		isLoading,
+		isTierResolved,
 		checkProStatus,
 		resetRuntimeState,
 		openPaywall,

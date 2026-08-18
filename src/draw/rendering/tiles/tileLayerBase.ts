@@ -58,6 +58,28 @@ export type TileRenderer<T extends Bounded> = (
 	clipRect?: WorldRect,
 ) => void;
 
+/**
+ * Optional interruptible companion to `TileRenderer`, for objects whose render
+ * is one indivisible block big enough to blow a frame — in practice a merged
+ * Group holding a whole drawing. `canSplit` decides; `render` yields internally
+ * through the pass's own yielder. Omit both and every object renders in one go,
+ * which is the previous behaviour.
+ */
+export interface SplitTileRenderer<T extends Bounded> {
+	canSplit(obj: T): boolean;
+	render(
+		ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+		obj: T,
+		tierScale: number,
+		clipRect: WorldRect | undefined,
+		yielder: Yieldable,
+		isAborted: () => boolean,
+		/** Per-child synchronous render timing. Split jobs yield internally, so
+		 * timing the whole Promise would mistake wall-clock latency for a block. */
+		onObjectRendered?: (ms: number, obj: T) => void,
+	): Promise<void>;
+}
+
 export interface Yieldable {
 	reset(): void;
 
@@ -155,6 +177,8 @@ export interface CommittedOptions {
 	 */
 	hotTileMax?: number;
 	debug?: boolean;
+	/** Optional interruptible renderer for oversized objects (merged groups). */
+	splitRenderer?: SplitTileRenderer<any>;
 	/** Optional worker-side tile renderer; async bakes try it first. */
 	remoteBaker?: RemoteBaker<any>;
 	/** Optional worker-side overview renderer; full rebuilds try it first. */
@@ -189,6 +213,22 @@ export interface Draw {
 	ky?: number;
 	kw?: number;
 	kh?: number;
+}
+
+export interface CompositeResult {
+	/** Is anything under the viewport missing or stale? */
+	needsBake: boolean;
+	/**
+	 * HOW MANY active-tier cells are missing or stale.
+	 *
+	 * A count rather than the old boolean because the caller needs to know
+	 * whether a bake pass made PROGRESS. When the cache cannot hold the viewport,
+	 * a pass evicts its own earlier tiles, the next composite reports exactly as
+	 * many holes as the last one, and rescheduling on the boolean alone loops
+	 * forever — visibly, as the picture flipping between sharp and blurred.
+	 * See `RenderBakeCoordinator`'s stall latch.
+	 */
+	nonFresh: number;
 }
 
 export interface CompositeCell {
@@ -267,6 +307,7 @@ export class TileLayerBase<T extends Bounded> {
 
 	protected readonly index: SpatialIndex<T>;
 	protected readonly renderer: TileRenderer<T>;
+	protected readonly splitRenderer?: SplitTileRenderer<T>;
 	protected readonly remoteBaker?: RemoteBaker<T>;
 	public readonly overview: WorldOverview<T>;
 
@@ -302,6 +343,19 @@ export class TileLayerBase<T extends Bounded> {
 
 	private POOL_MAX = 16;
 
+	/**
+	 * Bumped by anything that changes what a bake would produce — an
+	 * invalidation, a dropped tile, a reset.
+	 *
+	 * Exists so callers can tell "nothing has changed since I last tried" from
+	 * "the scene moved under me" WITHOUT every mutating entry point having to
+	 * remember to notify them. `RenderBakeCoordinator` folds it into its stall
+	 * latch: an engine that has given up re-baking a viewport it cannot fit must
+	 * still wake up the instant the drawing itself changes, and there are far too
+	 * many invalidation paths to hook one by one.
+	 */
+	mutationEpoch = 0;
+
 	constructor(
 		index: SpatialIndex<T>,
 		renderer: TileRenderer<T>,
@@ -323,6 +377,7 @@ export class TileLayerBase<T extends Bounded> {
 		this.ZOOM_TIERS = opts.zoomTiers ?? [...DEFAULT_ZOOM_TIERS];
 
 		this.POOL_MAX = opts.poolMax ?? 16;
+		this.splitRenderer = opts.splitRenderer;
 		this.remoteBaker = opts.remoteBaker;
 		// Index into ZOOM_TIERS, so it moved with the ladder (was 2 against
 		// [0.0625 … 16]). 1 keeps the same zoom threshold, 0.25.
@@ -364,6 +419,7 @@ export class TileLayerBase<T extends Bounded> {
 				this.ZOOM_TIERS[this.OVERVIEW_TIER + 1] ??
 				this.ZOOM_TIERS[this.ZOOM_TIERS.length - 1],
 			remoteOverview: opts.remoteOverview,
+			splitRenderer: opts.splitRenderer,
 			syncCostBudget: this.SYNC_COST_BUDGET,
 		});
 	}
@@ -450,6 +506,7 @@ export class TileLayerBase<T extends Bounded> {
 		keepUsable = false,
 		transition = false,
 	): void {
+		this.mutationEpoch++;
 		const t = this.tiles.get(key);
 		// A transition is safe only from a tile that represented the complete
 		// previous scene. Never promote an older dirty/additive tile to trusted just
@@ -635,6 +692,20 @@ export class TileLayerBase<T extends Bounded> {
 					if (t.tx >= r.tx0 && t.tx <= r.tx1 && t.ty >= r.ty0 && t.ty <= r.ty1)
 						this.invalidateKey(k, rect, true);
 				}
+				// A newly exposed cell can be baking without having a stored tile yet.
+				// The map-walk fast path used to miss those keys, so a bake whose object
+				// query happened before this additive stroke could land afterward with an
+				// unchanged generation and be labelled FRESH. A fast zoom then suppressed
+				// the live stroke against a tile that did not actually contain it.
+				for (const k of this.inFlight) {
+					if (this.tiles.has(k)) continue; // already invalidated above
+					if (keyTier(k) !== tier) continue;
+					const tx = keyTx(k);
+					const ty = keyTy(k);
+					if (tx >= r.tx0 && tx <= r.tx1 && ty >= r.ty0 && ty <= r.ty1) {
+						this.invalidateKey(k, rect, true);
+					}
+				}
 				continue;
 			}
 			for (let ty = r.ty0; ty <= r.ty1; ty++)
@@ -652,6 +723,7 @@ export class TileLayerBase<T extends Bounded> {
 	}
 
 	dropTiles(rect: WorldRect, tier: number): void {
+		this.mutationEpoch++;
 		const r = this.tileRange(rect, tier);
 		// Same area-bound as markDirty: never iterate more cells than tiles exist.
 		const cells = (r.tx1 - r.tx0 + 1) * (r.ty1 - r.ty0 + 1);

@@ -13,6 +13,27 @@ export type BakeryRequest =
 			idleMax?: number;
 			/** At-rest cap for the worker's compact serialized scene mirror. */
 			jsonMaxBytes?: number;
+			/**
+			 * Rasterize tiles on the CPU rather than the GPU
+			 * (`willReadFrequently`, see config/rasterMode.config.ts).
+			 *
+			 * Sent from the client because the decision folds in the GPU family and
+			 * Android's `isLowRamDevice()`, neither of which the worker can see: it
+			 * has no `window`, so the device-class config resolves to the desktop
+			 * profile inside it.
+			 */
+			softwareRaster?: boolean;
+			/**
+			 * Per-layer opacity, as `{ layerId: 0..1 }`, carrying only layers that
+			 * are NOT fully opaque.
+			 *
+			 * The worker rasterizes from a JSON mirror and has no layer registry, so
+			 * without this a faded layer would bake at full strength and every tile
+			 * would flip opacity the moment the worker produced it. Re-sent whenever
+			 * the map changes, which is a user-initiated slider release, not a
+			 * per-frame cost.
+			 */
+			layerOpacity?: Record<string, number>;
 	  }
 	| { t: "upsert"; items: { id: string; json: any }[] }
 	| { t: "translate"; ids: string[]; dx: number; dy: number }

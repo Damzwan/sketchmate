@@ -115,17 +115,29 @@ export class Quadtree<T> {
 		if (!entry.__nodes) return false;
 
 		const nodeIdx = entry.__nodes.indexOf(this);
-		if (nodeIdx !== -1) {
-			entry.__nodes.splice(nodeIdx, 1);
+		if (nodeIdx === -1) return false;
+		entry.__nodes.splice(nodeIdx, 1);
 
-			const objIdx = this.objects.findIndex((o) => o.id === entry.id);
-			if (objIdx !== -1) {
-				this.objects.splice(objIdx, 1);
-				return true;
+		// Identity, not `o.id === entry.id`: the entry IS the object stored here,
+		// so this is a pointer compare instead of a string compare per slot. At
+		// `maxDepth` a node's list is unbounded — the dense-cluster case puts
+		// hundreds of entries in one leaf — so the constant matters.
+		let objIdx = -1;
+		for (let i = 0; i < this.objects.length; i++) {
+			if (this.objects[i] === entry) {
+				objIdx = i;
+				break;
 			}
 		}
+		if (objIdx === -1) return false;
 
-		return false;
+		// Swap-pop. Node order carries no meaning (the renderer z-sorts what it
+		// gets), and `splice` shifts every element after the hole — which is the
+		// whole tail of a dense leaf, on every erase and every object moved.
+		const last = this.objects.length - 1;
+		if (objIdx !== last) this.objects[objIdx] = this.objects[last];
+		this.objects.length = last;
+		return true;
 	}
 
 	update(entry: QuadtreeEntry<T>): void {

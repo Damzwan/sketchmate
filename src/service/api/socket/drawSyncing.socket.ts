@@ -1,4 +1,5 @@
 import { storeToRefs } from "pinia";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { type PublicLobby, useDrawSyncer } from "@/draw/sync/session.store";
 import { EventBus } from "@/main";
 import router from "@/router";
@@ -72,6 +73,7 @@ export function leaveRoom(skipEmit = false) {
 		invitedFriends,
 		isPublicLobby,
 		isLoadingCanvas,
+		isTryingToJoin,
 		lobbyChatMessages,
 		lastProcessedSequenceId,
 		publicLobbies,
@@ -85,9 +87,17 @@ export function leaveRoom(skipEmit = false) {
 
 	roomMembers.value = [];
 	invitedFriends.value = [];
+	// Credit is scoped to one session on one canvas. Carrying it out of the room
+	// would let the next drawing inherit collaborators it never had.
+	useDrawSyncer().resetContributors();
+	useDrawingReferenceStore().leaveRoom();
 	removeRoomIdFromUrl();
 	isPublicLobby.value = false;
 	isLoadingCanvas.value = false;
+	// Leaving DURING a join is the case this exists for: `room-joined` /
+	// `join-error` are the only other places that clear it, and neither arrives
+	// once we have walked away.
+	isTryingToJoin.value = false;
 	lobbyChatMessages.value = [];
 	useChatStore().clearLobbyNotifications(); // <-- Kill lingering lobby toasts immediately
 	lastProcessedSequenceId.value = undefined; // <-- Reset time on leave

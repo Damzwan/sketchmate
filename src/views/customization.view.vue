@@ -29,7 +29,7 @@
             @click="identityModalOpen = true"
           >
             <template #preview>
-              <img :src="previewImg || user.img" class="w-6 h-6 rounded-md object-cover border border-white" />
+<img width="24" height="24" loading="lazy" decoding="async" :src="previewImg || user.img" class="w-6 h-6 rounded-md object-cover border border-white" />
             </template>
           </CustomizeOptionRow>
 
@@ -90,7 +90,7 @@
             <template #preview>
               <div class="relative w-6 h-6">
                 <div class="absolute inset-0 rounded-md border border-white bg-zinc-200 overflow-hidden">
-                  <img v-if="user.img" :src="user.img" class="w-full h-full object-cover" alt="" />
+<img width="1" height="1" loading="lazy" decoding="async" v-if="user.img" :src="user.img" class="w-full h-full object-cover" alt="" />
                 </div>
                 <AvatarDecoration :decoration-id="draft.decorationId" />
               </div>
@@ -205,22 +205,22 @@
     </LazyMount>
 
     <LazyMount :when="themeModalOpen">
-      <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="(id: any) => updateField('themeId', id)" />
+      <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="updateField('themeId', $event)" />
     </LazyMount>
     <LazyMount :when="fontModalOpen">
-      <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="(id: any) => updateField('fontId', id)" />
+      <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="updateField('fontId', $event)" />
     </LazyMount>
     <LazyMount :when="fontEffectModalOpen">
-      <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="(id: any) => updateField('fontEffectId', id)" />
+      <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="updateField('fontEffectId', $event)" />
     </LazyMount>
     <LazyMount :when="decorationModalOpen">
-      <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="(id: any) => updateField('decorationId', id)" />
+      <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="updateField('decorationId', $event)" />
     </LazyMount>
     <LazyMount :when="effectModalOpen">
-      <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="(id: any) => updateField('effectId', id)" />
+      <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="updateField('effectId', $event)" />
     </LazyMount>
     <LazyMount :when="worldModalOpen">
-      <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="(id: any) => updateField('worldId', id)" />
+      <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="updateField('worldId', $event)" />
     </LazyMount>
     <LazyMount :when="titlesModalOpen">
       <TitleModal :is-open="titlesModalOpen" :current-title-id="draft.titleId" @close="titlesModalOpen = false" @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)" />
@@ -238,13 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-	IonButton,
-	IonContent,
-	IonIcon,
-	IonPage,
-	onIonViewDidEnter,
-} from "@ionic/vue";
+import { IonButton, IonContent, IonIcon, IonPage } from "@ionic/vue";
 import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
@@ -259,14 +253,7 @@ import {
 	mdiStarFourPointsOutline,
 	mdiWeatherHurricane,
 } from "@mdi/js";
-import { storeToRefs } from "pinia";
-import {
-	computed,
-	defineAsyncComponent,
-	onBeforeUnmount,
-	ref,
-	watch,
-} from "vue";
+import { defineAsyncComponent } from "vue";
 import LazyMount from "@/components/general/LazyMount.vue";
 import SubPageBar from "@/components/general/SubPageBar.vue";
 import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
@@ -274,13 +261,8 @@ import CustomizeOptionRow from "@/components/profile/customization/CustomizeOpti
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import { useCustomizationPage } from "@/composables/profile/useCustomizationPage";
 import { svg } from "@/helper/general.helper";
-import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import { useToast } from "@/service/toast.service";
-import { useAmbientPause } from "@/store/ambientPause.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 
 // Each picker is a separate chunk and is not instantiated until first use.
 const IdentityModal = defineAsyncComponent(
@@ -318,254 +300,44 @@ const ChatWidgetCustomizationModal = defineAsyncComponent(
 	() => import("@/components/chat/ChatWidgetCustomizationModal.vue"),
 );
 
-import {
-	type Customization,
-	FONT_EFFECTS,
-	FONTS,
-	hydrateCustomization,
-	resolveDecoration,
-	resolveEffect,
-	resolveFontEffectClass,
-	resolveFontFamily,
-	resolveTheme,
-	resolveTitle,
-	resolveWorld,
-} from "@/config/profile_options.config";
-
-const authStore = useAuthStore();
-const { user } = storeToRefs(authStore);
-const subStore = useSubscriptionStore();
-const { toast } = useToast();
-
-onIonViewDidEnter(() => {
-	trackEvent(mixpanelEvents.customizationOpen);
-});
-
-const isSaving = ref(false);
-
-const identityModalOpen = ref(false);
-const themeModalOpen = ref(false);
-const fontModalOpen = ref(false);
-const fontEffectModalOpen = ref(false);
-const decorationModalOpen = ref(false);
-const effectModalOpen = ref(false);
-const worldModalOpen = ref(false);
-const titlesModalOpen = ref(false);
-const signatureModalOpen = ref(false);
-const sketchModalOpen = ref(false);
-const chatStyleModalOpen = ref(false);
-
-// While ANY picker sheet is up, freeze the hero ProfileCard (and every other
-// ambient layer) behind it — all GPU/CPU goes to the sheet's own live preview,
-// which keeps animating because BaseSheetModal provides AMBIENT_FOREGROUND.
-const ambient = useAmbientPause();
-const anyModalOpen = computed(
-	() =>
-		identityModalOpen.value ||
-		themeModalOpen.value ||
-		fontModalOpen.value ||
-		fontEffectModalOpen.value ||
-		decorationModalOpen.value ||
-		effectModalOpen.value ||
-		worldModalOpen.value ||
-		titlesModalOpen.value ||
-		signatureModalOpen.value ||
-		sketchModalOpen.value ||
-		chatStyleModalOpen.value,
-);
-watch(anyModalOpen, (open) => (open ? ambient.hold() : ambient.release()));
-onBeforeUnmount(() => {
-	if (anyModalOpen.value) ambient.release();
-});
-
-const saved = ref<Customization>(
-	hydrateCustomization(user.value?.customization),
-);
-const draft = ref<Customization>(
-	hydrateCustomization(user.value?.customization),
-);
-
-// Identity Drafts
-const profileDraft = ref({
-	name: user.value?.name || "",
-	description: user.value?.description || "",
-});
-const savedProfileDraft = ref({
-	name: user.value?.name || "",
-	description: user.value?.description || "",
-});
-
-const pendingImg = ref<string | null>(null);
-const previewImg = computed(() => pendingImg.value ?? user.value?.img ?? "");
-
-watch(
+const {
 	user,
-	(val) => {
-		if (val) {
-			saved.value = hydrateCustomization(val.customization);
-			draft.value = hydrateCustomization(val.customization);
-			savedProfileDraft.value = {
-				name: val.name,
-				description: val.description || "",
-			};
-			profileDraft.value = {
-				name: val.name,
-				description: val.description || "",
-			};
-		}
-	},
-	{ immediate: true },
-);
-
-const isDirty = computed(
-	() =>
-		JSON.stringify(saved.value) !== JSON.stringify(draft.value) ||
-		JSON.stringify(savedProfileDraft.value) !==
-			JSON.stringify(profileDraft.value) ||
-		pendingImg.value !== null,
-);
-
-const currentTheme = computed(() => resolveTheme(draft.value.themeId));
-const currentThemeName = computed(() => currentTheme.value.name);
-const currentDecorationName = computed(
-	() => resolveDecoration(draft.value.decorationId).name,
-);
-const currentEffectName = computed(
-	() => resolveEffect(draft.value.effectId).name,
-);
-const currentWorldName = computed(() => resolveWorld(draft.value.worldId).name);
-const currentTitleName = computed(() => resolveTitle(draft.value.titleId));
-const currentFontLabel = computed(
-	() => FONTS.find((f) => f.value === draft.value.fontId)?.label || "Sketch",
-);
-const currentFontEffectLabel = computed(
-	() =>
-		FONT_EFFECTS.find((e) => e.value === draft.value.fontEffectId)?.label ||
-		"None",
-);
-const resolvedFontFamily = computed(() =>
-	resolveFontFamily(draft.value.fontId),
-);
-const currentFontEffectClass = computed(() =>
-	resolveFontEffectClass(draft.value.fontEffectId),
-);
-
-const updateField = <K extends keyof Customization>(
-	field: K,
-	value: Customization[K],
-) => {
-	draft.value = { ...draft.value, [field]: value };
-};
-
-const handleIdentitySave = (data: {
-	name: string;
-	description: string;
-	img: string | null;
-}) => {
-	profileDraft.value.name = data.name;
-	profileDraft.value.description = data.description;
-	if (data.img) pendingImg.value = data.img;
-
-	// Directly sync preview to User state for instant ProfileCard reflection
-	if (user.value) {
-		user.value.name = data.name;
-		user.value.description = data.description;
-	}
-
-	identityModalOpen.value = false;
-};
-
-const handleSaveSignature = (sigData: { path: string; viewBox: string }) => {
-	draft.value = {
-		...draft.value,
-		signaturePath: sigData.path,
-		signatureViewBox: sigData.viewBox,
-	};
-	signatureModalOpen.value = false;
-};
-
-const handleSaveSketch = (data: { path: string; viewBox: string }) => {
-	draft.value = {
-		...draft.value,
-		backgroundSketchPath: data.path,
-		backgroundSketchViewBox: data.viewBox,
-	};
-	sketchModalOpen.value = false;
-};
-
-const clearSketch = () => {
-	draft.value = {
-		...draft.value,
-		backgroundSketchPath: "",
-		backgroundSketchViewBox: "",
-	};
-};
-
-const revert = () => {
-	draft.value = JSON.parse(JSON.stringify(saved.value));
-	profileDraft.value = JSON.parse(JSON.stringify(savedProfileDraft.value));
-	pendingImg.value = null;
-	if (user.value) {
-		user.value.name = savedProfileDraft.value.name;
-		user.value.description = savedProfileDraft.value.description;
-	}
-};
-
-const save = async () => {
-	if (profileDraft.value.name.trim().length < 4) {
-		return toast("Name should be at least 4 characters", { color: "danger" });
-	}
-
-	isSaving.value = true;
-	try {
-		const tasks: Promise<unknown>[] = [];
-
-		tasks.push(
-			updateProfile({
-				name: profileDraft.value.name.trim(),
-				description: profileDraft.value.description.trim(),
-				customization: draft.value,
-			}),
-		);
-
-		if (pendingImg.value) {
-			const uploadPromise = fetch(pendingImg.value)
-				.then((r) => r.blob())
-				.then((blob) => uploadProfileImg(blob, user.value?.img || ""));
-			tasks.push(uploadPromise);
-		}
-
-		const results = await Promise.all(tasks);
-
-		if (user.value) {
-			user.value.customization = JSON.parse(JSON.stringify(draft.value));
-			// Mirror the server's one-time-rename stamp: the signup name (from
-			// 'Anonymous') is free, Pro is exempt; any other rename locks the name.
-			const prevName = savedProfileDraft.value.name;
-			const nameChanged = profileDraft.value.name.trim() !== prevName;
-			if (nameChanged && !subStore.isPro && prevName !== "Anonymous")
-				user.value.last_name_change = new Date().toISOString();
-			user.value.name = profileDraft.value.name.trim();
-			user.value.description = profileDraft.value.description.trim();
-
-			if (pendingImg.value && results[1] && (results[1] as any).url) {
-				user.value.img = (results[1] as any).url;
-			}
-		}
-
-		saved.value = JSON.parse(JSON.stringify(draft.value));
-		savedProfileDraft.value = JSON.parse(JSON.stringify(profileDraft.value));
-		pendingImg.value = null;
-
-		toast("Look and details saved! ✨", { color: "success" });
-	} catch (e: any) {
-		console.error(e);
-		const errorMsg = e?.response?.data?.error || "Failed to save profile";
-		toast(errorMsg, { color: "danger" });
-	} finally {
-		isSaving.value = false;
-	}
-};
+	subStore,
+	isSaving,
+	identityModalOpen,
+	themeModalOpen,
+	fontModalOpen,
+	fontEffectModalOpen,
+	decorationModalOpen,
+	effectModalOpen,
+	worldModalOpen,
+	titlesModalOpen,
+	signatureModalOpen,
+	sketchModalOpen,
+	chatStyleModalOpen,
+	saved,
+	draft,
+	profileDraft,
+	pendingImg,
+	previewImg,
+	isDirty,
+	currentTheme,
+	currentThemeName,
+	currentDecorationName,
+	currentEffectName,
+	currentWorldName,
+	currentTitleName,
+	currentFontLabel,
+	currentFontEffectLabel,
+	resolvedFontFamily,
+	currentFontEffectClass,
+	updateField,
+	handleIdentitySave,
+	handleSaveSignature,
+	handleSaveSketch,
+	revert,
+	save,
+} = useCustomizationPage();
 </script>
 
 <style scoped>

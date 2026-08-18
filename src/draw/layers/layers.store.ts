@@ -4,11 +4,13 @@ import { computed, ref } from "vue";
 import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { stackPositions } from "@/draw/canvas/objectStack";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
 import {
 	BASE_LAYER_ID,
 	byLayerOrder,
+	clampLayerOpacity,
 	createLayer,
 	type DrawLayer,
 	defaultSoloLayers,
@@ -27,6 +29,7 @@ import {
 	syncLayerFlags,
 } from "@/draw/layers/layerRegistry";
 import { toJSON } from "@/draw/objects/objectSerialization";
+import { bakerySyncLayerOpacity } from "@/draw/rendering/bakery/tileBakeryClient";
 import { drawBakePressure } from "@/draw/rendering/renderMetrics";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
@@ -94,6 +97,14 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	const canDeleteLayer = computed(
 		() => canEditStructure.value && layers.value.length > 1,
 	);
+	/**
+	 * Opacity is artwork, not view state: it replicates and it is undoable. In a
+	 * public lobby the layer set is not our document (`fixed` policy), so fading
+	 * one would silently restyle everyone else's drawing. Same distinction as
+	 * `canEditStructure`, named separately because opacity is a property of a
+	 * layer rather than the shape of the layer list.
+	 */
+	const canSetOpacity = computed(() => canEditStructure.value);
 	const activeLayer = computed(
 		() => layers.value.find((l) => l.id === activeId.value) ?? layers.value[0],
 	);
@@ -125,6 +136,12 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		isLobby: boolean;
 		isPublicLobby?: boolean;
 		persisted?: DrawLayer[] | null;
+		/**
+		 * Distinct `layerId`s carried by the document's OBJECTS, in document
+		 * order. Used to recover layers a writer dropped — see
+		 * `recoverOrphanLayers`.
+		 */
+		objectLayerIds?: readonly string[];
 	}) {
 		revisions.clear();
 		tombstones.clear();
@@ -143,7 +160,11 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			shared.value = !!options.isLobby;
 			// A private room's document arrives with the canvas snapshot like any
 			// other document state; an empty one starts from the default.
-			layers.value = sanitizePersisted(options.persisted);
+			layers.value = recoverOrphanLayers(
+				sanitizePersisted(options.persisted),
+				options.objectLayerIds,
+				Array.isArray(options.persisted) && options.persisted.length > 0,
+			);
 		}
 		activeId.value = layers.value[0].id;
 		commitLayout();
@@ -219,9 +240,72 @@ export const useLayersStore = defineStore("drawLayers", () => {
 				// drawing must never open with content silently missing.
 				visible: true,
 				locked: false,
+				// Opacity IS restored — it is part of the artwork, not of how you
+				// were looking at it. Documents written before it existed have no
+				// field and clamp to a fully opaque layer.
+				opacity: clampLayerOpacity(raw.opacity),
 			});
 		}
 		out.sort(byLayerOrder);
+		return out.length ? out : defaultSoloLayers();
+	}
+
+	/**
+	 * Rebuild layers the DOCUMENT lost but the OBJECTS still remember.
+	 *
+	 * `layerId` rides on the object and therefore survives any serializer;
+	 * the layer document is separate state that a writer has to add explicitly,
+	 * and one did not (the cropped send, `exportCroppedJson`). The result was a
+	 * canvas whose every `layerId` was an orphan: `layerOrderOf` folds an unknown
+	 * id to rank 0, so the sheet showed a single layer, the stack flattened, and
+	 * the next save wrote that collapse back out as the truth.
+	 *
+	 * Recovering EXISTENCE is exact — an id on an object is a layer that existed.
+	 * Recovering ORDER is not, so first appearance in document order is used:
+	 * every current writer serializes in paint order (`compareDocumentOrder`), so
+	 * for anything written from now on it is the original bottom-to-top order,
+	 * and for the documents already out there it is a best effort that beats
+	 * collapsing them all onto one layer.
+	 *
+	 * A document that never had layers is untouched: its objects carry no
+	 * `layerId` at all, so there is nothing to recover.
+	 *
+	 * @param hasDocument the document CAME with a layer list, so `list` is a
+	 *   record rather than the default. Without one, the base layer `list` starts
+	 *   from is a placeholder: keeping it next to the recovered layers left an
+	 *   empty "Layer 1" in the sheet and made a four-layer drawing open as five,
+	 *   one past what a free account is even allowed to create.
+	 */
+	function recoverOrphanLayers(
+		list: DrawLayer[],
+		objectLayerIds?: readonly string[],
+		hasDocument = false,
+	): DrawLayer[] {
+		if (!objectLayerIds?.length) return list;
+		const known = new Set(list.map((layer) => layer.id));
+		// BASE_LAYER_ID is the documented home of everything unplaced, and an
+		// unknown id already ranks there — synthesizing it would only add an empty
+		// duplicate to the sheet.
+		const orphans = objectLayerIds.filter(
+			(id) => id && id !== BASE_LAYER_ID && !known.has(id),
+		);
+		if (!orphans.length) return list;
+
+		// Nothing in the drawing lives on the placeholder base layer, and no
+		// document asked for it — drop it rather than open with an empty layer.
+		const out =
+			hasDocument || objectLayerIds.includes(BASE_LAYER_ID)
+				? list
+				: list.filter((layer) => layer.id !== BASE_LAYER_ID);
+
+		let order: number | undefined = out.length
+			? out[out.length - 1].order
+			: undefined;
+		for (const id of orphans) {
+			if (out.length >= MAX_SOLO_LAYERS) break;
+			order = orderBetween(order, undefined);
+			out.push(createLayer(id, `Layer ${out.length + 1}`, order));
+		}
 		return out.length ? out : defaultSoloLayers();
 	}
 
@@ -236,6 +320,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			order: l.order,
 			visible: true,
 			locked: false,
+			opacity: clampLayerOpacity(l.opacity),
 		}));
 	}
 
@@ -261,6 +346,53 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		layer.visible = visible;
 		commitFlags();
 		useDrawObjectManager().invalidateLayer(id);
+	}
+
+	/**
+	 * Layer opacity. Undoable and replicated, unlike visibility and lock, because
+	 * it changes the artwork rather than the view of it (see `DrawLayer.opacity`).
+	 *
+	 * `record` exists for the slider: a drag emits a value per frame, and one
+	 * undo entry per frame would bury the stack. The UI passes `false` while
+	 * dragging and `true` once on release, so one gesture is one undo step.
+	 */
+	function setOpacity(id: string, opacity: number) {
+		if (!canSetOpacity.value) return;
+		const layer = layers.value.find((l) => l.id === id);
+		if (!layer) return;
+		const next = clampLayerOpacity(opacity);
+		if (layer.opacity === next) return;
+		applyOp({ kind: "opacity", id, opacity: next, ...stamp() }, "local");
+	}
+
+	/**
+	 * End of an opacity gesture: apply the final value and record ONE undo step
+	 * covering the whole drag.
+	 *
+	 * `previousOpacity` is passed in rather than read from the layer because by
+	 * the time this runs the layer already holds an intermediate value from the
+	 * live drag — recording against that would make undo step back one slider
+	 * frame instead of to where the gesture started.
+	 */
+	function commitOpacity(id: string, previousOpacity: number, opacity: number) {
+		if (!canSetOpacity.value) return;
+		const from = clampLayerOpacity(previousOpacity);
+		const to = clampLayerOpacity(opacity);
+		setOpacity(id, to);
+		if (from === to) return;
+		useDrawHistoryManager().addToUndoStackWithResetRedo({
+			type: HistoryEvent.LayerOpacityChanged,
+			params: { layerId: id, previousOpacity: from, opacity: to },
+		});
+	}
+
+	/**
+	 * History-facing applier. `"local"` rather than `"history"` deliberately, and
+	 * for the same reason `applyRename` does it: an undo has to reach the other
+	 * peers in a private room, or their copy silently diverges from yours.
+	 */
+	function applyOpacity(id: string, opacity: number) {
+		applyOp({ kind: "opacity", id, opacity, ...stamp() }, "local");
 	}
 
 	function setLocked(id: string, locked: boolean) {
@@ -348,6 +480,21 @@ export const useLayersStore = defineStore("drawLayers", () => {
 				layer.order = op.order;
 				restacked = true;
 				break;
+			}
+			case "opacity": {
+				const layer = layers.value.find((l) => l.id === op.id);
+				const next = clampLayerOpacity(op.opacity);
+				if (!layer || layer.opacity === next) return false;
+				layer.opacity = next;
+				commitFlags();
+				// The worker keeps its own copy of the fade map (it has no registry).
+				// No-op while the bakery is off, which is the production default.
+				bakerySyncLayerOpacity();
+				// Only this layer's own footprint changed — the stack is untouched,
+				// so this is the cheap targeted invalidation, not the full-cache one.
+				useDrawObjectManager().invalidateLayer(op.id);
+				if (origin === "local") replicate(op);
+				return true; // no restack, no relayout
 			}
 		}
 
@@ -439,9 +586,9 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		// `insertedIndex` is a customProperty, so the deferred serialization below
 		// picks it up.
 		if (canvas) {
-			const stack = canvas.getObjects();
+			const positions = stackPositions(canvas);
 			for (const obj of objects)
-				(obj as any).insertedIndex = stack.indexOf(obj);
+				(obj as any).insertedIndex = positions.get(obj) ?? -1;
 		}
 
 		const history = useDrawHistoryManager();
@@ -677,10 +824,10 @@ export const useLayersStore = defineStore("drawLayers", () => {
 
 		// Same contract as delete: record each object's stack position so undo puts
 		// it back where it was rather than on top of everything.
-		const stack = canvas.getObjects();
-		let lowestIndex = stack.length;
+		const positions = stackPositions(canvas);
+		let lowestIndex = positions.size;
 		for (const obj of objects) {
-			const index = stack.indexOf(obj);
+			const index = positions.get(obj) ?? -1;
 			(obj as any).insertedIndex = index;
 			if (index >= 0) lowestIndex = Math.min(lowestIndex, index);
 		}
@@ -764,6 +911,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		canEditStructure,
 		canAddLayer,
 		canDeleteLayer,
+		canSetOpacity,
 		maxLayers,
 		atTierLimit,
 		init,
@@ -773,6 +921,8 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		setActive,
 		setVisible,
 		setLocked,
+		setOpacity,
+		commitOpacity,
 		addLayer,
 		deleteLayer,
 		renameLayer,
@@ -793,5 +943,6 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		applyRemoveLayer,
 		applyRename,
 		applyReorder,
+		applyOpacity,
 	};
 });

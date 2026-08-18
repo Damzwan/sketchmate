@@ -44,6 +44,8 @@ export abstract class RenderBakeCoordinator<
 		// canvas it was building is simply dropped).
 		this.overviewCtrl?.abort();
 		this.overviewCtrl = null;
+		this.overviewPatchCtrl?.abort();
+		this.overviewPatchCtrl = null;
 		this.cancelRemoteWork?.();
 		this.bakeAgain = false;
 		if (this.bakeTimer !== null) {
@@ -89,7 +91,8 @@ export abstract class RenderBakeCoordinator<
 		this.baking = true;
 		this.bakeAgain = false;
 		// Teardown (leaving the route mid-load) must still be able to stop it.
-		signal?.addEventListener("abort", () => ctrl.abort(), { once: true });
+		const abort = () => ctrl.abort();
+		signal?.addEventListener("abort", abort, { once: true });
 
 		const pass = this.committed
 			.bake(
@@ -104,6 +107,7 @@ export abstract class RenderBakeCoordinator<
 				/* aborted / transient — the normal bake will pick up what is left */
 			})
 			.finally(() => {
+				signal?.removeEventListener("abort", abort);
 				this.baking = false;
 				if (this.bakeCtrl === ctrl) this.bakeCtrl = null;
 			});
@@ -130,6 +134,9 @@ export abstract class RenderBakeCoordinator<
 		this.baking = true;
 		this.bakeAgain = false;
 		this.flushPendingOverview(); // off-screen patches now matter (we're about to bake)
+		// What this pass is up against, captured BEFORE it runs.
+		const passView = this.viewKey(this.surface.getVpt());
+		const holesBefore = this.lastNonFresh;
 		const ctrl = new AbortController();
 		this.bakeCtrl = ctrl;
 		try {
@@ -154,6 +161,12 @@ export abstract class RenderBakeCoordinator<
 			}
 			return;
 		}
+		// Hand the pass's starting position to the composite this is about to
+		// request. It — not this method — is what can see whether the pass
+		// actually closed any holes, and therefore whether another one is worth
+		// running. See `RenderFrames.renderNow`.
+		this.completedPassView = passView;
+		this.completedPassHoles = holesBefore;
 		this.pendingDemote = true;
 		this.requestFrame();
 		if (this.committed.overview.isDirty()) {
@@ -168,6 +181,11 @@ export abstract class RenderBakeCoordinator<
 		} else {
 			this.committed.trimPool();
 			this.committed.pruneEmpties();
+			// Now, while nothing is waiting on us. Doing it here means the NEXT
+			// bake can store its tiles without evicting anything first — which is
+			// what turns a steady-state cache into a per-tile texture
+			// destroy/allocate cycle in front of the user.
+			this.committed.trimToHeadroom();
 		}
 	}
 
@@ -181,34 +199,38 @@ export abstract class RenderBakeCoordinator<
 		// drawn twice (live + tile ≈ 0.70 not 0.45) and, since demote only retries
 		// after a bake, it stayed doubled until the next zoom/pan/stroke.
 		const zoom = this.surface.getVpt()[0];
-		const ids = this.live.settledIds((rect) =>
-			this.committed.isRegionReady(rect, zoom),
-		);
-		// The overview patch was DEFERRED at add time (a live-covered stroke must
-		// not also sit in the overview, or a semi-transparent stroke draws twice:
-		// overview + live ≈ 0.70 not 0.45). Now that the tile is baked and we're
-		// dropping the overlay, fold the strokes into the overview so far-zoom /
-		// tile-eviction fallbacks stay correct.
-		//
-		// MERGED, not one patch per id. Every demoted stroke used to get its own
-		// patchOverview → patchRect, and patchRect is a synchronous clear + redraw
-		// of every object in the rect. Demotion is all-at-once (it fires on the
-		// frame a bake pass completes), so a full live layer meant up to `liveMax`
-		// of those in ONE frame — landing exactly on the frame where the tiles
-		// replace the blur. Strokes drawn together also overlap, so each patch was
-		// re-rendering its neighbours' objects again.
-		//
-		// mergeRects collapses the clustered common case to one or two patches and
-		// keeps genuinely far-apart edits separate. A merged rect that turns out
-		// too dense fails the overviewPatchMax gate and defers to the async yielded
-		// rebuild — which is the correct outcome, not a regression.
+		const tier = this.committed.pickActiveTier(zoom);
+		const items = this.live.settledItems(() => true);
+		// Ordinary live items (remote transforms) still repair the overview as they
+		// retire. An additive item reaches this point only once every tile in its
+		// current fine-tier footprint is fresh (or the overview tier is active).
+		// Start its tracked overview handoff here, after that readiness boundary,
+		// and leave the live object in place until the atomic commit removes it.
 		const rects: WorldRect[] = [];
-		for (const id of ids) {
-			const rect = this.live.rectOf(id);
+		let removed = 0;
+		for (const [id, item] of items) {
+			if (item.mode === "additive") {
+				// At a fine tier, do not let the overview acquire this stroke until the
+				// whole visible representation is tile-backed. At overview zoom there is
+				// no finer current tier to wait for: the tracked atomic patch/rebuild is
+				// itself the operation that makes that tier current.
+				if (
+					tier > this.committed.overviewTier &&
+					!this.committed.isRegionTileBacked(item.rect, zoom)
+				) {
+					continue;
+				}
+				if (!this.overviewHandoffPending.has(id)) {
+					this.queueOverviewHandoff(item.obj, item.rect);
+				}
+				continue;
+			}
+			if (!this.committed.isRegionReady(item.rect, zoom)) continue;
 			this.live.remove(id);
-			if (rect) rects.push(rect);
+			removed++;
+			rects.push(item.rect);
 		}
 		for (const r of this.mergeRects(rects)) this.patchOverview(r);
-		return ids.length;
+		return removed;
 	}
 }

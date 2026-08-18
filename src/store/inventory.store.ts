@@ -11,7 +11,7 @@ import {
 import { useAuthStore } from "./auth.store";
 import { useSubscriptionStore } from "./subscription.store";
 
-const DEV_UNLOCK_ALL = true;
+const DEV_UNLOCK_ALL = false;
 
 export const useInventoryStore = defineStore("inventory", () => {
 	const owned = ref<Set<string>>(new Set());

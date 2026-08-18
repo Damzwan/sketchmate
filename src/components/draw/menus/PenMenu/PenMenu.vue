@@ -17,18 +17,45 @@
         </div>
 
         <!-- Unlock CTA sits BELOW the preview so the brush stroke stays fully
-             visible — the user can see what they're buying. -->
+             visible — the user can see what they're buying.
+
+             While a trial still has strokes left the brush is SELECTED, not
+             previewed, so this banner reports what is left and offers the
+             upgrade instead of blocking. -->
         <button
-          v-if="previewedLockedBrush"
+          v-if="trialBrush"
           type="button"
           class="unlock-banner cabin-sketch-regular"
           :disabled="purchasing"
-          @click="buyPreviewedBrush"
+          @click="buyBrush(trialBrush)"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <ion-icon :icon="svg(mdiCreation)" class="text-base shrink-0" />
+            <span class="text-xs font-black tracking-tight truncate">
+              {{ purchasing
+                ? 'Unlocking…'
+                : `Trying ${brushDisplayName(trialBrush)} · ${trialStrokesLeft} left today` }}
+            </span>
+          </div>
+          <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
+        </button>
+
+        <!-- Locked: either never tried, or the day's trial is spent. The second
+             case says so, because "Unlock Calligraphy" on a brush that worked a
+             minute ago reads as a bug rather than as a limit. -->
+        <button
+          v-else-if="previewedLockedBrush"
+          type="button"
+          class="unlock-banner cabin-sketch-regular"
+          :disabled="purchasing"
+          @click="buyBrush(previewedLockedBrush)"
         >
           <div class="flex items-center gap-2 min-w-0">
             <ion-icon :icon="svg(mdiLock)" class="text-base shrink-0" />
             <span class="text-xs font-black tracking-tight truncate">
-              {{ purchasing ? 'Unlocking…' : `Unlock ${brushDisplayName(previewedLockedBrush)}` }}
+              {{ purchasing
+                ? 'Unlocking…'
+                : `${trialSpent(previewedLockedBrush) ? 'Trial used up · ' : ''}Unlock ${brushDisplayName(previewedLockedBrush)}` }}
             </span>
           </div>
           <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
@@ -42,15 +69,42 @@
         <div class="control_card shadow-sm">
           <div class="control_row">
             <label class="control_label">Width</label>
-            <!-- Max raised 50 → 120. Filling areas with the pencil is a normal
-                 workflow now that layers make block-fills worth doing, and 50
-                 forced dozens of overlapping passes where one should do. The
-                 eraser already went to 150, so this is not a new extreme for
-                 the engine. Stroke geometry cost no longer scales badly with
-                 width either — see strokeSimplification.ts. -->
-            <ion-range aria-label="Stroke width" v-model="brushSize"
-                       :min="0.1" :step="0.1" :max="120" color="secondary" />
-            <span class="value_pill">{{ brushSize }}</span>
+            <PrecisionRange
+              v-model="brushSize"
+              label="Stroke width"
+              :min="0.1"
+              :max="120"
+              :step="0.1"
+              :curve="STROKE_WIDTH_CURVE"
+              :snap-value="snapStrokeWidth"
+              :ticks="[1, 5, 20, 50]"
+              :format-value="formatStrokeWidth"
+            />
+            <button
+              v-if="!editingWidth"
+              type="button"
+              class="value_pill width-value-button"
+              aria-label="Enter exact stroke width"
+              @click="startWidthEdit"
+            >
+              <span>{{ formatStrokeWidth(brushSize) }}</span>
+              <ion-icon :icon="svg(mdiPencilOutline)" aria-hidden="true" />
+            </button>
+            <input
+              v-else
+              ref="widthInput"
+              v-model="widthDraft"
+              class="value_pill width-value-input"
+              aria-label="Exact stroke width"
+              type="number"
+              inputmode="decimal"
+              min="0.1"
+              max="120"
+              step="0.1"
+              @blur="commitWidthEdit"
+              @keydown.enter.prevent="commitWidthEdit"
+              @keydown.esc.prevent="cancelWidthEdit"
+            />
           </div>
 
           <div class="control_row">
@@ -97,6 +151,7 @@
               :accent="b.accent"
               :selected="isBrushTypeSelected(b.type)"
               :owned="isBrushOwned(b.type)"
+              :tryable="isBrushTryable(b.type)"
               :previewed="previewedLockedBrush === b.type"
               :label="brushTileName(b.type)"
               :icon-path="penIconMapping[b.type]"
@@ -104,6 +159,22 @@
             />
           </div>
         </div>
+
+        <!-- Smudge is a TOOL, not a brush: it has no colour, no opacity and no
+             swatch, so it cannot sit in the grid above without breaking every
+             control in this menu. It is reached from here because this is where
+             people look for "things you drag across the canvas", and it takes
+             over the dock's pen slot once selected. -->
+        <button v-if="SMUDGE_ENABLED" type="button" class="smudge_launcher" @click="openSmudge">
+          <div class="smudge_launcher_icon">
+            <ion-icon :icon="svg(SMUDGE_ICON)" aria-hidden="true" />
+          </div>
+          <div class="min-w-0 text-left">
+            <p class="smudge_launcher_title">Smudge</p>
+            <p class="smudge_launcher_sub">Blend colours already on the canvas</p>
+          </div>
+          <ion-icon class="smudge_launcher_chevron" :icon="svg(mdiChevronRight)" aria-hidden="true" />
+        </button>
 
         <ColorPicker v-model:color="brushColor" :reset="penMenuOpen" />
       </div>
@@ -113,32 +184,36 @@
 
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
-import { mdiArrowRight, mdiLock } from "@mdi/js";
-import { Canvas, Point } from "fabric";
+import {
+	mdiArrowRight,
+	mdiChevronRight,
+	mdiCreation,
+	mdiLock,
+	mdiPencilOutline,
+} from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import { buildItemId } from "@/config/catalog.config";
-import { BLACK, WHITE } from "@/draw/config/canvas.config";
+import { brushDisplayName, brushItemId } from "@/draw/config/paidBrushes";
 import {
 	PENMENUTOOLS,
-	penBrushMapping,
 	penIconMapping,
+	SMUDGE_ENABLED,
+	SMUDGE_ICON,
 } from "@/draw/config/tools.config";
+import { useBrushTrial } from "@/draw/tools/brushTrial.store";
 import { usePen } from "@/draw/tools/pen.store";
 import { BrushType, DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import {
-	hexWithOpacity,
-	isColorTooLight,
-	percentToAlphaHex,
-} from "@/draw/utils/color.utils";
 import { svg } from "@/helper/general.helper";
-import { isNative } from "@/helper/platform.helper";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
 import BrushTile from "./BrushTile.vue";
+import PrecisionRange from "./PrecisionRange.vue";
+import { STROKE_WIDTH_CURVE, snapStrokeWidth } from "./precisionRange";
+import { usePenBrushPreview } from "./usePenBrushPreview";
 
 const { selectTool } = useToolSelection();
 const { selectedTool } = storeToRefs(useToolSelection());
@@ -152,21 +227,43 @@ const {
 	pixelSize,
 } = storeToRefs(usePen());
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
+const { openMenu, closeMenu } = useMenuStore();
 const inventoryStore = useInventoryStore();
+const brushTrial = useBrushTrial();
 const { purchasing, unlockItem } = useUnlockItem();
+const editingWidth = ref(false);
+const widthDraft = ref("");
+const widthInput = ref<HTMLInputElement | null>(null);
 
-const preview_canvas = ref<HTMLCanvasElement>();
-const preview_stage = ref<HTMLElement>();
-let canvas: Canvas | undefined;
+function formatStrokeWidth(width: number): string {
+	return Math.max(0.1, Math.min(120, width)).toFixed(1).replace(/\.0$/, "");
+}
 
-const PREVIEW_HEIGHT = 56;
-const PREVIEW_FALLBACK_WIDTH = 256;
+async function startWidthEdit() {
+	widthDraft.value = formatStrokeWidth(brushSize.value);
+	editingWidth.value = true;
+	await nextTick();
+	widthInput.value?.select();
+}
 
-// The stage is fluid now (it used to be a fixed 256px island inside a 296px
-// popover). While the popover is closed `keepContentsMounted` leaves it in the
-// DOM at zero width, so fall back until it has actually been laid out.
-const previewWidth = (): number =>
-	Math.round(preview_stage.value?.clientWidth || 0) || PREVIEW_FALLBACK_WIDTH;
+function commitWidthEdit() {
+	if (!editingWidth.value) return;
+	const value = Number(widthDraft.value);
+	if (Number.isFinite(value)) {
+		brushSize.value = Math.round(Math.max(0.1, Math.min(120, value)) * 10) / 10;
+	}
+	editingWidth.value = false;
+}
+
+function cancelWidthEdit() {
+	editingWidth.value = false;
+}
+
+const {
+	previewCanvas: preview_canvas,
+	previewStage: preview_stage,
+	renderPreview,
+} = usePenBrushPreview();
 
 const BRUSHES: { type: BrushType; accent: string }[] = [
 	{ type: BrushType.Pencil, accent: "text-green-600" },
@@ -194,39 +291,52 @@ const BRUSH_NAMES: Partial<Record<BrushType, string>> = {
 
 const brushTileName = (type: BrushType): string => BRUSH_NAMES[type] ?? "Brush";
 
-const PAID_BRUSH_ITEM_IDS: Partial<Record<BrushType, string>> = {
-	[BrushType.Neon]: buildItemId("brush", "neon"),
-	[BrushType.CalliGraphy]: buildItemId("brush", "calligraphy"),
-};
-
-const brushItemId = (type: BrushType): string | null =>
-	PAID_BRUSH_ITEM_IDS[type] ?? null;
-
 const isBrushOwned = (type: BrushType): boolean => {
 	const id = brushItemId(type);
 	if (!id) return true;
 	return inventoryStore.isOwned(id);
 };
 
-const brushDisplayName = (type: BrushType): string => {
-	switch (type) {
-		case BrushType.Neon:
-			return "Neon Pen";
-		case BrushType.CalliGraphy:
-			return "Calligraphy";
-		default:
-			return "Brush";
-	}
+const isBrushTryable = (type: BrushType): boolean => {
+	const id = brushItemId(type);
+	return !!id && !inventoryStore.isOwned(id) && brushTrial.canTry(id);
+};
+
+/** Locked AND already tried today — worth saying out loud on the CTA. */
+const trialSpent = (type: BrushType): boolean => {
+	const id = brushItemId(type);
+	return !!id && !inventoryStore.isOwned(id) && !brushTrial.canTry(id);
 };
 
 const previewedLockedBrush = ref<BrushType | null>(null);
 
-// Buy the previewed locked brush in place (same flow as FontModal / EffectModal
-// via useUnlockItem) instead of bouncing the user out to the shop. On success
-// the brush is owned, so select it immediately.
-const buyPreviewedBrush = async () => {
-	const type = previewedLockedBrush.value;
-	if (type == null) return;
+/**
+ * The locked brush currently being TRIED — selected and drawable, on the day's
+ * free stroke allowance.
+ *
+ * A locked brush that is merely previewed teaches nothing: Neon and Calligraphy
+ * look like any other line in a canned swatch, and nobody buys a tool they have
+ * never held. `brushTrial` hands out a handful of real strokes a day instead;
+ * `pen.store` counts them and returns the pencil when they run out.
+ */
+const trialBrush = computed(() =>
+	!isBrushOwned(brushType.value) &&
+	selectedTool.value === DrawTool.Pen &&
+	brushTrial.remaining(brushItemId(brushType.value) ?? "") > 0
+		? brushType.value
+		: null,
+);
+
+const trialStrokesLeft = computed(() =>
+	trialBrush.value
+		? brushTrial.remaining(brushItemId(trialBrush.value) ?? "")
+		: 0,
+);
+
+// Buy the locked brush in place (same flow as FontModal / EffectModal via
+// useUnlockItem) instead of bouncing the user out to the shop. On success the
+// brush is owned, so select it immediately.
+const buyBrush = async (type: BrushType) => {
 	const id = brushItemId(type);
 	if (!id) return;
 	const ok = await unlockItem(id);
@@ -236,86 +346,23 @@ const buyPreviewedBrush = async () => {
 	}
 };
 
-let stageObserver: ResizeObserver | null = null;
-
-onMounted(() => {
-	renderPreview();
-
-	// The popover animates in, so the stage's final width isn't known at mount
-	// OR at the first nextTick — measuring too early left the stroke ending
-	// mid-card at the fallback width. Re-render whenever the box actually
-	// settles, which also covers rotation and split-screen resizes.
-	if (typeof ResizeObserver === "undefined" || !preview_stage.value) return;
-	stageObserver = new ResizeObserver(() => {
-		if (!preview_stage.value?.clientWidth) return;
-		if (canvas && canvas.width === previewWidth()) return;
-		renderPreview();
-	});
-	stageObserver.observe(preview_stage.value);
-});
-
-onBeforeUnmount(() => {
-	stageObserver?.disconnect();
-	canvas?.dispose();
-	canvas = undefined;
-});
-
-const renderPreview = () => {
-	const width = previewWidth();
-	if (!canvas) {
-		canvas = new Canvas(preview_canvas.value!, {
-			width,
-			height: PREVIEW_HEIGHT,
-			selection: false,
-		});
-	} else {
-		canvas.clear();
-		if (canvas.width !== width) {
-			canvas.setDimensions({ width, height: PREVIEW_HEIGHT });
-		}
-	}
-
-	const brushColorValue = hexWithOpacity(
-		brushColor.value,
-		percentToAlphaHex(opacity.value),
-	);
-	canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE;
-	canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
-	const brush = canvas.freeDrawingBrush as any;
-	brush.color = brushColorValue;
-	if (brushType.value === BrushType.Spray) {
-		brush.density = density.value;
-		brush.dotWidth = dotWidth.value;
-	}
-	if (brushType.value === BrushType.Pixel) {
-		brush.pixelSize = pixelSize.value;
-	}
-	brush.width = brushSize.value;
-
-	const amplitude = 20;
-	const frequency = 0.05;
-	const yOffset = canvas.height! / 2;
-
-	const wave = (x: number) => yOffset + amplitude * Math.sin(frequency * x);
-	const points = [[0, yOffset]];
-	for (let x = 1; x <= width; x += 10) points.push([x, wave(x)]);
-	// The step can stop up to 9px short of the edge, which reads as the stroke
-	// being cut off rather than running off the card. Land exactly on the edge.
-	if (points[points.length - 1][0] < width) points.push([width, wave(width)]);
-	const convertedPoints = points.map((p) => new Point(p[0], p[1]));
-
-	brush.onMouseDown(convertedPoints[0], { e: new MouseEvent("mousedown") });
-	for (let i = 1; i < points.length; i++) {
-		brush.onMouseMove(convertedPoints[i], { e: new MouseEvent("mousemove") });
-	}
-	brush.onMouseUp({ e: new MouseEvent("mouseup") });
-	canvas.getObjects().forEach((obj) => obj.set("selectable", false));
-	canvas.renderAll();
-};
-
 function onDismiss() {
 	penMenuOpen.value = false;
 	previewedLockedBrush.value = null;
+	editingWidth.value = false;
+}
+
+/**
+ * Hand over to the smudge tool: this menu closes, the smudge one opens.
+ *
+ * `skipOpenMenu` because `selectTool` would otherwise re-open the smudge menu
+ * itself on the pen menu's anchor event, and the two would race over
+ * `menuEvent`.
+ */
+function openSmudge() {
+	closeMenu(Menu.Pen);
+	selectTool(DrawTool.Smudge, { skipOpenMenu: true });
+	openMenu(Menu.Smudge);
 }
 
 function selectBrushType(newBrushType: BrushType) {
@@ -329,35 +376,48 @@ function isBrushTypeSelected(type: BrushType) {
 }
 
 async function onBrushTap(type: BrushType) {
-	const owned = isBrushOwned(type);
-
-	if (owned) {
+	// Owned, or the day's trial strokes are not spent: hand the brush over.
+	if (isBrushOwned(type) || isBrushTryable(type)) {
 		previewedLockedBrush.value = null;
+		brushTrial.clearLockedOut();
 		selectBrushType(type);
 		return;
 	}
 
-	if (!isNative()) {
-		selectBrushType(type);
-		return;
-	}
+	// Trial spent — look, don't touch.
+	//
+	// There used to be a `!isNative()` escape here that selected any locked brush
+	// on the web build, on the reasoning that web cannot run a purchase. What it
+	// actually did was delete the gate: select the brush, draw one stroke, eat the
+	// "trial used up" toast, select it again, forever. The gate is the product
+	// rule, so it holds everywhere — and `purchaseSku` already answers web
+	// honestly ("Purchases are only available on the mobile app"), which is a
+	// better answer than a paywall that silently does not apply.
+	showUnlockFor(type);
+}
 
+/**
+ * Put the menu into its locked state for one brush: the swatch renders so the
+ * stroke is visible, the unlock CTA appears, and the brush is NOT selected.
+ */
+function showUnlockFor(type: BrushType) {
 	const prevType = brushType.value;
 	previewedLockedBrush.value = type;
-
+	// The preview reads the store's brush type, so it is borrowed and handed
+	// straight back — the active brush must never end up being the locked one.
 	brushType.value = type;
 	renderPreview();
 	brushType.value = prevType;
 }
 
-watch(brushSize, renderPreview);
-watch(opacity, renderPreview);
-watch(brushColor, renderPreview);
-watch(density, renderPreview);
-watch(dotWidth, renderPreview);
-watch(pixelSize, renderPreview);
+// Drop the banner once the brush IT is about has been bought — not whenever the
+// active brush happens to be an owned one. `showUnlockFor` borrows `brushType`
+// and hands it straight back, and watchers flush after both assignments, so the
+// old condition saw the restored (owned) brush and wiped the banner it had just
+// been asked to show. The CTA never appeared.
 watch(brushType, () => {
-	if (isBrushOwned(brushType.value)) {
+	const previewed = previewedLockedBrush.value;
+	if (previewed !== null && isBrushOwned(previewed)) {
 		previewedLockedBrush.value = null;
 	}
 });
@@ -371,10 +431,24 @@ watch(penMenuOpen, async (open) => {
 		previewedLockedBrush.value = null;
 		return;
 	}
+
+	// A trial that ran out mid-drawing left the user holding a pencil they did
+	// not pick. Opening the menu after that lands directly on the unlock CTA for
+	// the brush they lost, which is the only screen where buying it is possible.
+	const lockedOut = brushTrial.lockedOut;
+	const lostBrush = lockedOut
+		? BRUSHES.find((b) => brushItemId(b.type) === lockedOut)?.type
+		: undefined;
+	if (lostBrush !== undefined && !isBrushOwned(lostBrush)) {
+		previewedLockedBrush.value = lostBrush;
+	}
+	brushTrial.clearLockedOut();
+
 	// Re-render once the popover is actually laid out — only then does the fluid
 	// stage report a real width, so the first paint isn't stuck at the fallback.
 	await nextTick();
-	renderPreview();
+	if (previewedLockedBrush.value) showUnlockFor(previewedLockedBrush.value);
+	else renderPreview();
 });
 </script>
 
@@ -400,9 +474,72 @@ watch(penMenuOpen, async (open) => {
   grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
 }
 
+.smudge_launcher {
+  @apply w-full flex items-center gap-2.5 p-2 rounded-2xl cursor-pointer border-0
+  bg-secondary/10 ring-1 ring-secondary/20 active:scale-[0.99] transition-transform;
+}
+
+.smudge_launcher_icon {
+  @apply w-9 h-9 shrink-0 rounded-xl bg-secondary/20 text-secondary
+  flex items-center justify-center;
+}
+
+.smudge_launcher_icon ion-icon {
+  @apply w-5 h-5;
+}
+
+.smudge_launcher_title {
+  @apply text-xs font-black tracking-tight text-black/75;
+}
+
+.smudge_launcher_sub {
+  @apply text-[10px] leading-snug text-black/45 truncate;
+}
+
+.smudge_launcher_chevron {
+  @apply ml-auto text-black/25 text-base shrink-0;
+}
+
 .unlock-banner {
   @apply mt-1.5 w-full px-2.5 py-1.5 rounded-xl bg-secondary text-white border-0
   flex items-center justify-between cursor-pointer
   active:scale-[0.99] transition-transform disabled:opacity-70;
+}
+
+.width-value-button,
+.width-value-input {
+  width: 3.5rem;
+  min-width: 3.5rem;
+  height: 30px;
+  border: 1px solid rgba(var(--ion-color-secondary-rgb), 0.3);
+  border-radius: 0.625rem;
+}
+
+.width-value-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.width-value-button ion-icon {
+  width: 11px;
+  height: 11px;
+  opacity: 0.7;
+}
+
+.width-value-input {
+  padding: 0.125rem 0.3rem;
+  outline: 2px solid rgba(var(--ion-color-secondary-rgb), 0.35);
+  background: #fff;
+  appearance: textfield;
+}
+
+.width-value-input::-webkit-inner-spin-button,
+.width-value-input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
 }
 </style>

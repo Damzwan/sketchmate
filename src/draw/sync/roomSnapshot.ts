@@ -1,5 +1,6 @@
 import type { Canvas } from "fabric";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 
 /**
  * Snapshot the live room canvas together with the mutable layer document.
@@ -15,5 +16,48 @@ export function createRoomCanvasSnapshot(canvas: Canvas): any {
 	const json = canvas.toJSON() as any;
 	const layers = useLayersStore().serialize();
 	if (layers) json.layers = layers;
+	const sharedReferences =
+		useDrawingReferenceStore().serializeSharedReferences();
+	if (sharedReferences.length) json.sharedReferences = sharedReferences;
 	return json;
+}
+
+/**
+ * The same snapshot, as gzipped bytes, WITHOUT ever blocking the main thread.
+ *
+ * The synchronous version above costs three un-yielded passes over the whole
+ * board — `toJSON()`, one `JSON.stringify` of the result, and a
+ * `CompressionStream` pumped from the main thread (its deflate runs
+ * synchronously per chunk on whichever thread pumps it, which is why
+ * `service/draftGzip.worker.ts` exists). The server requests a snapshot on a
+ * timer, so on a busy lobby that is a multi-hundred-millisecond block landing
+ * several times a minute, with nothing in the draw-phase metrics to explain it
+ * — see docs/DRAW_ENGINE_HARDENING_PLAN.md → F1.
+ *
+ * Each stage here already exists for the draft path and is already yielded:
+ * `generateChunkedJSON` serializes per object, `documentJsonToBlob` builds the
+ * bytes without materializing one giant string, and `gzipBlob` deflates in a
+ * worker (falling back inline if workers are unavailable).
+ */
+export async function createRoomCanvasSnapshotBytes(
+	canvas: Canvas,
+	signal?: AbortSignal,
+): Promise<ArrayBuffer> {
+	// Imported lazily, and not only for bundle size: both modules reach the app
+	// shell (the router, among others) through their own dependencies, and this
+	// module is imported by headless code that has no DOM. A snapshot request
+	// arrives a handful of times per session, so the dynamic import costs
+	// nothing that matters.
+	const [{ documentJsonToBlob, generateChunkedJSON }, { gzipBlob }] =
+		await Promise.all([
+			import("@/draw/document/serialization"),
+			import("@/service/draftSync.service"),
+		]);
+	const json = await generateChunkedJSON(canvas, signal);
+	const sharedReferences =
+		useDrawingReferenceStore().serializeSharedReferences();
+	if (sharedReferences.length) json.sharedReferences = sharedReferences;
+	const blob = await documentJsonToBlob(json, signal);
+	const { body } = await gzipBlob(blob);
+	return await body.arrayBuffer();
 }

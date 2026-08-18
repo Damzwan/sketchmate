@@ -16,7 +16,11 @@
         class="reaction-item group"
         :style="{ '--i': i }"
       >
-        <img
+<img
+          width="1"
+          height="1"
+          loading="lazy"
+          decoding="async"
           :src="imgSrc"
           class="reaction-img"
           :class="{ 'reaction-img--active': userReaction === type }"

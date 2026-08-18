@@ -1,7 +1,8 @@
-import { defineStore } from "pinia";
-import { ref } from "vue";
+import { defineStore, storeToRefs } from "pinia";
+import { ref, watch } from "vue";
 import { resolveTitleDef } from "@/config/profile_options.config";
 import { useInboxStore } from "@/store/inbox.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { usePostStore } from "@/store/post.store";
 import type { FeedPost, InboxItem } from "@/types/server.types";
 
@@ -11,6 +12,7 @@ export type ShareToastKind =
 	| "balloon"
 	| "saved"
 	| "title"
+	| "competition"
 	| "shared";
 
 export interface ShareToast {
@@ -35,12 +37,21 @@ export interface ShareToast {
 export const useShareToastStore = defineStore("shareToast", () => {
 	const inboxStore = useInboxStore();
 	const postStore = usePostStore();
+	const { shareToastsVisible } = storeToRefs(useOverlayRuntimeStore());
 
 	const toasts = ref<ShareToast[]>([]);
 	// Presentation-only progress state. Keeping it here lets the global toast
 	// renderer stay independent from the drawing export pipeline.
 	const isSending = ref(false);
 	const timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+	watch(
+		[() => toasts.value.length, isSending],
+		([toastCount, sending]) => {
+			shareToastsVisible.value = sending || toastCount > 0;
+		},
+		{ flush: "sync" },
+	);
 
 	// Helper to get the actual item from stores reactively
 	const getInboxItem = (id: string) =>
@@ -63,6 +74,14 @@ export const useShareToastStore = defineStore("shareToast", () => {
 			timers.delete(id);
 		}
 		toasts.value = toasts.value.filter((t) => t.id !== id);
+	}
+
+	function resetRuntimeState() {
+		for (const timer of timers.values()) clearTimeout(timer);
+		timers.clear();
+		toasts.value = [];
+		isSending.value = false;
+		shareToastsVisible.value = false;
 	}
 
 	// --- Public Push Methods ---
@@ -120,6 +139,25 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		});
 	}
 
+	function pushCompetitionToast(params: {
+		thumbnail?: string;
+		replaced?: boolean;
+		/** "quota" when the entry landed but the cross-post could not. */
+		postSkipped?: string;
+	}) {
+		push({
+			id: `toast-${Date.now()}`,
+			kind: "competition",
+			title: params.replaced ? "Entry replaced" : "You're in!",
+			subtitle:
+				params.postSkipped === "quota"
+					? "Entered — no posts left today, so it wasn't shared to the feed"
+					: "Entered in this week's competition",
+			thumbnail: params.thumbnail,
+			emoji: "🏆",
+		});
+	}
+
 	function pushBalloonToast(params: { message: string }) {
 		push({
 			id: `toast-${Date.now()}`,
@@ -169,7 +207,9 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		getInboxItem, // Expose these to component
 		getPost,
 		pushBalloonToast,
+		pushCompetitionToast,
 		pushSavedToast,
 		pushTitleToast,
+		resetRuntimeState,
 	};
 });

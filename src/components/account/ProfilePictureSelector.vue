@@ -6,7 +6,11 @@
       class="cursor-pointer w-full h-full rounded-full bg-primary/40 border-4 shadow-md overflow-hidden transition-transform duration-300 relative flex items-center justify-center active:scale-95 md:group-hover/avatar:scale-105"
       :style="{ borderColor: customization?.borderColor || 'var(--ion-color-tertiary)' }"
     >
-      <img
+<img
+        width="1"
+        height="1"
+        loading="lazy"
+        decoding="async"
         alt="Profile picture"
         :src="img"
         class="object-cover w-full h-full transition-transform duration-500 md:group-hover/avatar:scale-110"
@@ -56,10 +60,11 @@
 </template>
 
 <script lang="ts" setup>
-import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import Cropper from "cropperjs";
 import { ref } from "vue";
 import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import { useConfirm } from "@/composables/useConfirm";
 import {
 	photoSwiperColorConfig,
 	settingsModalColorConfig,
@@ -89,34 +94,34 @@ defineProps<{
 
 const emits = defineEmits(["update:img", "upload", "openPaywall"]);
 
-let cropper: Cropper;
+let cropper: Cropper | undefined;
 const cropperMenuOpen = ref(false);
 const cropperLoading = ref(true);
+const handleCropperReady = () => {
+	cropperLoading.value = false;
+};
+
+function destroyCropper() {
+	imgRef.value?.removeEventListener("ready", handleCropperReady);
+	cropper?.destroy();
+	cropper = undefined;
+}
 const imgInput = ref<HTMLInputElement>();
 const localImgUrl = ref();
 const imgRef = ref<HTMLImageElement>();
 
 const subscriptionStore = useSubscriptionStore();
+const { confirm } = useConfirm();
 
 const showProAlert = async () => {
-	const alert = await alertController.create({
+	const shouldUpgrade = await confirm({
 		header: "Premium Feature",
 		message:
 			"Animated GIF avatars are exclusive to Pro members. Upgrade to customize your profile!",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Maybe Later", role: "cancel", cssClass: "alert-button-cancel" },
-			{
-				text: "Get pro",
-				cssClass: "alert-button-confirm",
-				handler: () => {
-					const { openMenu } = useMenuStore();
-					openMenu(Menu.Shop);
-				},
-			},
-		],
+		cancelText: "Maybe Later",
+		confirmText: "Get pro",
 	});
-	await alert.present();
+	if (shouldUpgrade) useMenuStore().openMenu(Menu.Shop);
 };
 
 const onImageChange = async (e: Event) => {
@@ -165,8 +170,8 @@ const onImageChange = async (e: Event) => {
 
 function initCropper() {
 	setAppColors(photoSwiperColorConfig);
-	imgRef.value?.addEventListener("ready", () => (cropperLoading.value = false));
-	if (cropper) cropper.destroy();
+	destroyCropper();
+	imgRef.value?.addEventListener("ready", handleCropperReady, { once: true });
 	cropper = new Cropper(imgRef.value!, {
 		aspectRatio: 1,
 		background: false,
@@ -178,10 +183,11 @@ function closeCropper() {
 	cropperMenuOpen.value = false;
 	cropperLoading.value = true;
 	setAppColors(settingsModalColorConfig);
-	if (cropper) cropper.destroy();
+	destroyCropper();
 }
 
 function apply() {
+	if (!cropper) return;
 	const imgUrl = cropper.getCroppedCanvas().toDataURL("image/webp");
 	closeCropper();
 	emits("update:img", imgUrl);
@@ -189,21 +195,14 @@ function apply() {
 }
 
 const confirmDelete = async () => {
-	const alert = await alertController.create({
+	const shouldDelete = await confirm({
 		header: "Remove Image?",
 		message: "Are you sure you want to revert to a stock avatar?",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Keep it", role: "cancel", cssClass: "alert-button-cancel" },
-			{
-				text: "Remove",
-				role: "destructive",
-				cssClass: "alert-button-confirm",
-				handler: () => deleteProfileImage(),
-			},
-		],
+		cancelText: "Keep it",
+		confirmText: "Remove",
+		destructive: true,
 	});
-	await alert.present();
+	if (shouldDelete) deleteProfileImage();
 };
 
 function deleteProfileImage() {

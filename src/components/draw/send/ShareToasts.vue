@@ -20,7 +20,7 @@
         </div>
 
         <div class="flex-1 min-w-0 ml-2.5 flex flex-col justify-center">
-          <p class="text-[15px] text-white leading-tight cabin-sketch-regular font-bold tracking-wide animate-pulse">
+          <p class="text-[15px] text-white leading-tight font-bold tracking-wide animate-pulse">
             Sending...
           </p>
         </div>
@@ -54,7 +54,11 @@
           </template>
 
           <template v-else>
-            <img
+<img
+              width="32"
+              height="32"
+              loading="lazy"
+              decoding="async"
               :src="toast.thumbnail"
               class="w-8 h-8 rounded-lg object-cover border border-white/10 shadow-md bg-white/5"
             />
@@ -78,10 +82,10 @@
               Tap to view
             </span>
           </div>
-          <p class="text-[13px] text-white leading-tight cabin-sketch-regular font-bold tracking-wide">
+          <p class="text-[13px] text-white leading-tight font-bold tracking-wide">
             {{ toast.title }}
           </p>
-          <p class="text-[11px] text-white/70 leading-tight cabin-sketch-regular font-bold tracking-wide truncate">
+          <p class="text-[11px] text-white/70 leading-tight font-bold tracking-wide truncate">
             {{ toast.subtitle }}
           </p>
         </div>

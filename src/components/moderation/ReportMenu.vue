@@ -125,6 +125,8 @@ const targetLabel = computed(() => {
 			return "this drawing";
 		case "inbox_comment":
 			return "this comment";
+		case "lobby_reference":
+			return "this reference image";
 		default:
 			return "this content";
 	}

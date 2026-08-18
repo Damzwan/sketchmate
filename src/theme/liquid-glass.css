@@ -19,7 +19,7 @@ ion-popover.liquid-popover::part(content) {
    2. LIQUID ACTION SHEETS (BLURRED MODE)
    ========================================================================== */
 .liquid-action-sheet {
-	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 0.92);
+	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 1);
 	--backdrop-opacity: 0.35;
 }
 
@@ -73,26 +73,88 @@ ion-popover.liquid-popover::part(content) {
 /* ==========================================================================
    4. LIQUID DIALOG ALERTS
    ========================================================================== */
+/* One skin for both Ionic modes.
+   Ionic ships two completely different alert looks — `md` (left-aligned title,
+   compact text buttons) and `ios` (centred, translucent, full-width stacked
+   buttons) — and picks by platform, so the same dialog rendered as the styled
+   card on desktop/Android and as stock iOS chrome on iPhone. The rules below
+   restate every property that differs between the two mode stylesheets, at
+   `ion-alert.liquid-alert` specificity (element + 2 classes) so they win over
+   Ionic's `.alert-*.sc-ion-alert-{md,ios}` regardless of injection order.
+   Everything here is paint-only — no blur, no filter — so it costs the same on
+   a weak WebView as on desktop. */
 .liquid-alert {
 	--background: var(--ion-color-tertiary);
+	--max-width: 320px;
 }
 
-.liquid-alert .alert-wrapper {
+ion-alert.liquid-alert .alert-wrapper {
+	background: var(--ion-color-tertiary);
 	border-radius: 2.25rem;
 	border: 2px solid var(--ion-color-dark, #2f2f2f);
+	/* Flat offset shadow, not a blurred elevation: no shadow-blur rasterisation
+	   on the WebView compositor, and it matches the app's sketch surfaces. */
 	box-shadow: 4px 4px 0px var(--ion-color-dark, #2f2f2f);
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	max-width: 320px;
+	width: 100%;
 }
 
-.liquid-alert .alert-message {
-	color: rgba(0, 0, 0, 0.8) !important;
+ion-alert.liquid-alert .alert-head {
+	text-align: center;
+	padding: 1.25rem 1.25rem 0.5rem;
 }
 
-.liquid-alert .alert-title {
+ion-alert.liquid-alert .alert-title {
 	color: var(--ion-color-dark);
+	font-family: var(--font-display, "Cabin Sketch", sans-serif);
+	font-size: 1.35rem;
+	font-weight: 700;
+	letter-spacing: 0.01em;
 }
 
-.liquid-alert .alert-button {
+ion-alert.liquid-alert .alert-sub-title {
+	color: rgba(0, 0, 0, 0.6);
+	font-family: var(--font-ui, sans-serif);
+	font-size: 0.85rem;
+	font-weight: 700;
+}
+
+ion-alert.liquid-alert .alert-message {
+	color: rgba(0, 0, 0, 0.8) !important;
+	font-family: var(--font-ui, sans-serif);
+	font-size: 0.9rem;
+	font-weight: 600;
+	text-align: center;
+	padding: 0 1.25rem 1.1rem;
+}
+
+/* Buttons keep the plain-text look they always had — the only thing restated
+   is layout, because ios stacks them full-width with hairline dividers while
+   md lays them out as a right-aligned row. */
+ion-alert.liquid-alert .alert-button-group {
+	display: flex;
+	flex-direction: row;
+	/* md sets `wrap-reverse`, which drops the second button onto its own line as
+	   soon as the labels are wide — the row has to be explicit. */
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+	border-top: 0;
+	padding: 0 0.5rem 0.5rem;
+}
+
+ion-alert.liquid-alert .alert-button {
+	flex: 0 0 auto;
+	width: auto;
+	border: 0;
+	background: transparent;
 	color: var(--ion-color-secondary) !important;
+	text-transform: none;
+}
+
+ion-alert.liquid-alert .alert-button.alert-button-destructive {
+	color: var(--ion-color-danger, #eb445a) !important;
 }
 
 /* ==========================================================================

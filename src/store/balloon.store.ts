@@ -1,5 +1,5 @@
-import { defineStore } from "pinia";
-import { ref } from "vue";
+import { defineStore, storeToRefs } from "pinia";
+import { ref, watch } from "vue";
 import { isOldEnough } from "@/helper/general.helper";
 import {
 	acceptBalloon as apiAcceptBalloon,
@@ -14,6 +14,7 @@ import {
 import { getPartialUsers } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import {
 	type Balloon,
 	type Mate,
@@ -25,13 +26,25 @@ import { ToastDuration } from "@/types/toast.types";
 export const useBalloonStore = defineStore("balloon", () => {
 	const sentBalloon = ref<Balloon | null>(null);
 	const receivedBalloon = ref<Balloon | null>(null);
+	const { balloonVisible } = storeToRefs(useOverlayRuntimeStore());
+
+	watch(
+		receivedBalloon,
+		(value) => {
+			balloonVisible.value = value !== null;
+		},
+		{ flush: "sync" },
+	);
 
 	const auth = useAuthStore();
 	const senderInfo = ref<Mate>();
+	let triageTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const { toast } = useToast();
 
 	function resetRuntimeState() {
+		clearTimeout(triageTimer);
+		triageTimer = undefined;
 		sentBalloon.value = null;
 		receivedBalloon.value = null;
 		senderInfo.value = undefined;
@@ -57,7 +70,9 @@ export const useBalloonStore = defineStore("balloon", () => {
 		socketLoggedInPromise.then(() => {
 			if (auth.isNewAccount) return;
 			const randomDelay = Math.floor(Math.random() * (30000 - 5000 + 1) + 5000);
-			setTimeout(async () => {
+			clearTimeout(triageTimer);
+			triageTimer = setTimeout(async () => {
+				triageTimer = undefined;
 				if (
 					!auth.user?._id ||
 					auth.user.balloon?.disabled ||

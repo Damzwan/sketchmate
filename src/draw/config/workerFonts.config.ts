@@ -44,14 +44,18 @@ export const WORKER_FONTS: WorkerFontSpec[] = [
 	{
 		family: "Cabin Sketch",
 		weight: "400",
-		url: new URL("../../assets/fonts/CabinSketch-Regular.ttf", import.meta.url)
-			.href,
+		url: new URL(
+			"../../assets/fonts/cabin-sketch-v23-latin-regular.woff2",
+			import.meta.url,
+		).href,
 	},
 	{
 		family: "Cabin Sketch",
 		weight: "700",
-		url: new URL("../../assets/fonts/CabinSketch-Bold.ttf", import.meta.url)
-			.href,
+		url: new URL(
+			"../../assets/fonts/cabin-sketch-v23-latin-700.woff2",
+			import.meta.url,
+		).href,
 	},
 	{
 		family: "Chokokutai",

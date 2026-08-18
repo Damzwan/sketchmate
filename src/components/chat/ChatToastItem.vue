@@ -1,7 +1,7 @@
 <!-- components/chat/ChatToastItem.vue -->
 <template>
   <div
-    class="relative flex items-start p-2.5 rounded-xl border shadow-2xl overflow-hidden transition-all active:scale-[0.98]"
+    class="relative flex items-start p-2.5 rounded-xl border shadow-2xl overflow-hidden transition-all cursor-pointer active:scale-[0.98]"
     :class="wrapperClass"
     :style="wrapperStyle"
   >
@@ -12,6 +12,7 @@
       <ProfileWorld
         :world-id="customProps.customization.worldId"
         :accent="customProps.theme.accentColor"
+        :dark="customProps.theme.isDark"
         static-mode
         mini
         contained
@@ -49,12 +50,20 @@
     </div>
 
     <!-- Text Content -->
+    <!-- `font-synthesis: none` is the fix for thick, smeared toast text. The
+         sender's font is applied here while the lines below ask for `font-bold`
+         / `font-black`, and every display face except Nunito and Cabin Sketch
+         ships weight 400 only (see fonts.css) — so the browser FAKED the bold by
+         smearing the 400 outlines, which Firefox does more heavily than the
+         Chromium WebViews. Refusing synthesis renders the real 400 face; Anton
+         and friends are display weights already. -->
     <div
       class="relative z-10 flex-1 min-w-0 ml-2.5 flex flex-col rounded-lg px-2 py-1"
       :style="isCustomized
         ? {
             fontFamily: customProps.font,
-            background: customProps.palette.scrim,
+            background: toastScrim,
+            fontSynthesis: 'none',
           }
         : {}"
     >
@@ -65,9 +74,7 @@
               :style="isCustomized
                 ? {
                     color: customProps.palette.name,
-                    textShadow: customProps.fontClass
-                      ? undefined
-                      : customProps.palette.textShadow,
+                    textShadow: customProps.fontClass ? undefined : toastTextShadow,
                   }
                 : {}">
           {{ toast.subtitle }}
@@ -87,12 +94,12 @@
       <div class="flex flex-col">
         <TransitionGroup name="line-slide">
           <p v-for="line in normalizedLines" :key="line.id"
-             class="text-[13px] leading-tight cabin-sketch-regular font-bold tracking-wide break-words"
+             class="text-[13px] leading-tight font-bold tracking-wide break-words"
              :class="isCustomized ? '' : 'text-white/90'"
              :style="isCustomized
                ? {
-                   color: customProps.palette.desc,
-                   textShadow: customProps.palette.textShadow,
+                   color: customProps.palette.utility,
+                   textShadow: toastTextShadow,
                  }
                : {}">
             {{ line.text }}
@@ -111,10 +118,7 @@ import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue"
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue"; // <-- Imported UserAvatar
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import { resolveSenderStyle } from "@/composables/chat/useSenderStyle";
-import {
-	resolveReadableCustomizationPalette,
-	resolveWorld,
-} from "@/config/profile_options.config";
+import { resolveReadableCustomizationPalette } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 import { useUserCacheStore } from "@/store/userCache.store";
 
@@ -158,33 +162,67 @@ const normalizedLines = computed(() => {
 
 const customProps = computed(() => {
 	const style = resolveSenderStyle(sender.value);
-	const world = resolveWorld(style.customization.worldId);
 	return {
 		customization: style.customization,
 		theme: style.theme,
-		palette: resolveReadableCustomizationPalette(style.theme, world),
+		palette: resolveReadableCustomizationPalette(style.theme),
 		font: style.fontFamily,
 		fontClass: style.fontEffectClass,
 		title: style.title,
 	};
 });
 
+/**
+ * A heavier scrim than the shared palette's.
+ *
+ * A toast is three seconds of small text over an animated world in a corner of
+ * a drawing app — the reading conditions are worse than anywhere else that
+ * palette is used, and Firefox pushes it further (its text-shadow rendering is
+ * lighter, so a translucent ink like `palette.desc` all but disappears over a
+ * dark world). The message line itself now uses the solid `utility` ink for the
+ * same reason.
+ */
+const toastScrim = computed(() =>
+	customProps.value.palette.isDark
+		? "rgba(0,0,0,0.55)"
+		: "rgba(255,255,255,0.68)",
+);
+
 const wrapperClass = computed(() => {
 	if (isCustomized.value) return "border-black/10";
 	return "bg-zinc-900/80 backdrop-blur-xl border-white/10";
 });
 
+/**
+ * No `translateZ(0)`.
+ *
+ * That hack promotes the toast to its own compositing layer, and Gecko drops
+ * subpixel antialiasing on composited layers — which is exactly the reported
+ * "fatter, blurrier, brighter" text on Firefox, and why it looks fine on the
+ * Chromium WebViews. `isolation: isolate` gives the stacking context the world
+ * and effect layers actually need, without promoting anything.
+ */
 const wrapperStyle = computed<CSSProperties>(() => {
 	if (isCustomized.value) {
 		return {
 			background: customProps.value.theme.cardBg,
 			borderColor: customProps.value.theme.cardBorderColor,
-			transform: "translateZ(0)",
 			isolation: "isolate",
 		};
 	}
-	return { transform: "translateZ(0)" };
+	return {};
 });
+
+/**
+ * One tight shadow, no glow. The palette's second layer is an 8px halo that
+ * reads as a bright fuzz around every glyph once the ink is solid white —
+ * Firefox renders that halo heavier still.
+ */
+const toastTextShadow = computed(() =>
+	customProps.value.palette.isDark
+		? "0 1px 2px rgba(0,0,0,0.9)"
+		: "0 1px 2px rgba(255,255,255,0.9)",
+);
 
 const borderColor = computed(() => {
 	if (props.toast.tabId?.startsWith("lobby")) return "bg-cyan-400";

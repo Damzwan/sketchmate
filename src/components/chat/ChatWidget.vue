@@ -11,17 +11,19 @@
       ></div>
     </Transition>
 
-    <Transition name="sheet" appear>
+    <Transition name="sheet" appear @after-leave="onSheetAfterLeave">
       <div
+        ref="sheetEl"
         v-show="isVisible && isExpanded"
         class="sheet-wrapper fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top,0px)] z-[9999] flex flex-col overflow-hidden overscroll-none rounded-t-[2.5rem] shadow-2xl"
         :class="{
           'is-dragging': isDragging,
           'is-active': isExpanded,
+          'is-closing': isClosing,
         }"
         :style="{
           ...chatWidgetSurfaceStyle,
-          paddingBottom: keyboardInset + 'px',
+          paddingBottom: displayedKeyboardInset + 'px',
           ...(sheetOffset > 0 ? { transform: `translate3d(0, ${sheetOffset}px, 0)` } : {})
         }"
       >
@@ -47,7 +49,10 @@
           />
 
           <div class="relative flex-1 min-h-0">
-            <img
+<img
+              width="1"
+              height="1"
+              loading="lazy"
               v-if="chatBackgroundVisible"
               :src="chatCustomization.backgroundImageUrl"
               alt=""
@@ -127,46 +132,27 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, useBackButton, useIonRouter } from "@ionic/vue";
+import { IonIcon, useBackButton } from "@ionic/vue";
 import { mdiChevronDown } from "@mdi/js";
-import { useThrottleFn } from "@vueuse/core";
 import { storeToRefs } from "pinia";
-import {
-	computed,
-	defineAsyncComponent,
-	nextTick,
-	onBeforeUnmount,
-	ref,
-	watch,
-} from "vue";
+import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
 import { useEscapeKey } from "@/composables/general/useEscapeKey";
 import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
-import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import {
-	hydrateChatCustomization,
-	resolveFontEffectClass,
-	resolveFontFamily,
-	resolveReadableCustomizationPalette,
-	resolveTheme,
-} from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/sync/session.store";
-import { masterAnimation } from "@/helper/animation.helper";
 import { svg } from "@/helper/general.helper";
-import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { useAuthStore } from "@/store/auth.store";
-import { useChatStore } from "@/store/chat.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useParentalStore } from "@/store/parental.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
-import { FRONTEND_ROUTES } from "@/types/router.types";
 import ChatInputFooter from "./ChatInputFooter.vue";
 import ChatTabsHeader from "./ChatTabsHeader.vue";
 import ChatToolbar from "./ChatToolbar.vue";
 import LobbyInvitePopover from "./LobbyInvitePopover.vue";
 import RelationshipInfoModal from "./RelationshipInfoModal.vue";
+import { useChatWidgetAppearance } from "./useChatWidgetAppearance";
+import { useChatWidgetMessages } from "./useChatWidgetMessages";
+import { useChatWidgetSheet } from "./useChatWidgetSheet";
 
 // These are the two largest pane subtrees and neither is needed until the chat
 // sheet opens. Keeping them in separate chunks removes message rendering and
@@ -188,131 +174,42 @@ const {
 	relationshipInfoOpen,
 	customizationOpen,
 } = storeToRefs(chatWidget);
-const { messagesByChat } = storeToRefs(useChatStore());
-const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
-const { invitations } = storeToRefs(useDrawSyncer());
 const { viewProfileMenuOpen } = storeToRefs(useMenuStore());
 
-const messageContainer = ref<HTMLElement | null>(null);
+const sheetEl = ref<HTMLElement | null>(null);
 const invitePopoverOpen = ref(false);
 const inviteEvent = ref<Event | null>(null);
 const { openUserActions } = useUserContextSheet();
-const chatStore = useChatStore();
-const friendStore = useFriendStore();
-const subscriptionStore = useSubscriptionStore();
-const router = useIonRouter();
-
-const chatCustomization = computed(() =>
-	hydrateChatCustomization((authStore.user as any)?.chat_customization),
-);
-const chatTheme = computed(() => resolveTheme(chatCustomization.value.themeId));
-const chatPalette = computed(() =>
-	resolveReadableCustomizationPalette(chatTheme.value),
-);
-const chatFontFamily = computed(() =>
-	resolveFontFamily(chatCustomization.value.fontId),
-);
-const chatFontEffectClass = computed(() =>
-	resolveFontEffectClass(chatCustomization.value.fontEffectId),
-);
-const chatWidgetSurfaceStyle = computed(() => ({
-	background: chatTheme.value.cardBg,
-	borderColor: chatTheme.value.cardBorderColor,
-	fontFamily: chatFontFamily.value,
-	"--chat-widget-name": chatPalette.value.name,
-	"--chat-widget-desc": chatPalette.value.desc,
-	"--chat-widget-utility": chatPalette.value.utility,
-	"--chat-widget-scrim": chatPalette.value.scrim,
-	"--chat-widget-border": chatPalette.value.controlBorder,
-	"--chat-widget-control-bg": chatPalette.value.controlBg,
-	"--chat-widget-accent": chatTheme.value.accentColor,
-}));
-const chatBackgroundVisible = computed(
-	() =>
-		subscriptionStore.isPro &&
-		activeTab.value !== "overview" &&
-		!!chatCustomization.value.backgroundImageUrl,
-);
-
-const isFetchingHistory = ref(false);
-const { scrollToBottom, captureScrollState, restoreScrollState } =
-	useScrollAnchor(messageContainer);
-
-const isAtBottom = ref(true);
-const showNewMessageBadge = ref(false);
-const contentMounted = ref(isExpanded.value);
-// `defineAsyncComponent` alone still starts loading when Vue first renders the
-// component. Gate the render as well so chat customization stays off the chat
-// opening path until the palette is actually requested.
-const customizationLoaded = ref(customizationOpen.value);
-watch(customizationOpen, (open) => {
-	if (open) customizationLoaded.value = true;
-});
-const lowEnd =
-	typeof document !== "undefined" &&
-	document.documentElement.classList.contains("low-end");
-const CLOSED_CONTENT_TTL_MS = lowEnd ? 3_000 : 20_000;
-let contentReleaseTimer: ReturnType<typeof setTimeout> | null = null;
-
-const sheetOffset = ref(0);
-const isDragging = ref(false);
-let dragStartY = 0;
-let dragStartTime = 0;
-
-const clearContentReleaseTimer = () => {
-	if (!contentReleaseTimer) return;
-	clearTimeout(contentReleaseTimer);
-	contentReleaseTimer = null;
-};
-
-watch(
-	isExpanded,
-	(expanded) => {
-		clearContentReleaseTimer();
-		if (expanded) {
-			contentMounted.value = true;
-			sheetOffset.value = 0;
-			onWillPresent();
-			return;
-		}
-		contentReleaseTimer = setTimeout(() => {
-			contentMounted.value = false;
-			contentReleaseTimer = null;
-		}, CLOSED_CONTENT_TTL_MS);
-	},
-	{ immediate: true },
-);
-
-const onDragStart = (event: PointerEvent) => {
-	dragStartY = event.clientY;
-	dragStartTime = performance.now();
-	isDragging.value = true;
-	(event.currentTarget as HTMLElement)?.setPointerCapture(event.pointerId);
-};
-
-const onDragMove = (event: PointerEvent) => {
-	if (!isDragging.value) return;
-	sheetOffset.value = Math.max(0, event.clientY - dragStartY);
-};
-
-const onDragEnd = (event: PointerEvent) => {
-	if (!isDragging.value) return;
-	isDragging.value = false;
-	const handle = event.currentTarget as HTMLElement | null;
-	if (handle?.hasPointerCapture(event.pointerId))
-		handle.releasePointerCapture(event.pointerId);
-
-	const distance = sheetOffset.value;
-	const velocity = distance / Math.max(1, performance.now() - dragStartTime);
-	if (distance > 150 || velocity > 0.5) {
-		chatWidget.closePanel();
-		setTimeout(() => {
-			sheetOffset.value = 0;
-		}, 250);
-	} else {
-		sheetOffset.value = 0;
-	}
-};
+const {
+	messageContainer,
+	isFetchingHistory,
+	showNewMessageBadge,
+	activeConversation,
+	activePartner,
+	currentMessages,
+	onScroll,
+	forceScrollToBottom,
+	onMessageSent,
+	handleLoadMore,
+	joinSession,
+	onInspectProfile,
+} = useChatWidgetMessages(activeTab, isExpanded);
+const {
+	chatCustomization,
+	chatPalette,
+	chatFontEffectClass,
+	chatWidgetSurfaceStyle,
+	chatBackgroundVisible,
+} = useChatWidgetAppearance(activeTab);
+const {
+	contentMounted,
+	customizationLoaded,
+	sheetOffset,
+	isDragging,
+	onDragStart,
+	onDragMove,
+	onDragEnd,
+} = useChatWidgetSheet(isExpanded, customizationOpen, onWillPresent);
 
 const hasPresentedIonicOverlay = () =>
 	!!document.querySelector(
@@ -360,136 +257,9 @@ useEscapeKey(() => chatWidget.closePanel(), {
 		!hasPresentedIonicOverlay(),
 });
 
-// scrollHeight/scrollTop/clientHeight are all layout-forcing reads. Unthrottled
-// that's a synchronous reflow on every scroll frame, over a DOM the size of the
-// whole thread. 100ms is far below the "am I at the bottom" decision's real
-// resolution, so nothing observable is lost.
-const onScroll = useThrottleFn(
-	(e: Event) => {
-		const el = e.target as HTMLElement;
-		isAtBottom.value =
-			Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 100;
-		if (isAtBottom.value) showNewMessageBadge.value = false;
-	},
-	100,
-	true,
-);
-
-const forceScrollToBottom = () => {
-	scrollToBottom(true);
-	showNewMessageBadge.value = false;
-};
-
-const onMessageSent = async () => {
-	await nextTick();
-	forceScrollToBottom();
-};
-
-// Resolved here rather than passed down, because the info sheet is mounted
-// outside the chat panel and can't reach the footer's own `currentChat`.
-const activeConversation = computed(() => {
-	if (activeTab.value === "overview" || activeTab.value === "lobby")
-		return null;
-	return (
-		[...chatStore.activeChats, ...friendStore.pendingRequests].find(
-			(c) => c._id === activeTab.value,
-		) ?? null
-	);
-});
-
-const activePartner = computed(
-	() =>
-		activeConversation.value?.participants?.find(
-			(p: any) => p._id !== authStore.user?._id,
-		) ?? null,
-);
-
-const currentMessages = computed(() => {
-	return activeTab.value === "lobby"
-		? lobbyChatMessages.value
-		: messagesByChat.value[activeTab.value] || [];
-});
-
-watch(
-	() => currentMessages.value.length,
-	(newLen, oldLen) => {
-		if (newLen > oldLen) {
-			nextTick(() => {
-				if (isAtBottom.value) {
-					// The only moment trimming is invisible: pinned to the bottom
-					// means the dropped rows sit far above the viewport, so no
-					// scroll anchor shifts. Trim before scrolling so the scroll
-					// lands on the final height, not one about to change.
-					chatStore.trimOldMessages(activeTab.value);
-					scrollToBottom(true);
-				} else {
-					const lastMsg = currentMessages.value[
-						currentMessages.value.length - 1
-					] as any;
-					const isMe =
-						lastMsg.sender_id === authStore.user?._id ||
-						lastMsg.member?._id === authStore.user?._id;
-					if (!isMe) showNewMessageBadge.value = true;
-				}
-			});
-		}
-	},
-);
-
-watch(
-	[activeTab, isExpanded],
-	async ([tab, expanded], [prevTab]) => {
-		if (!expanded) return;
-		if (tab == "lobby" || tab == "overview") return;
-		const tabChanged = tab !== prevTab;
-
-		if (tabChanged) {
-			showNewMessageBadge.value = false;
-			await chatStore.switchToConversation(tab);
-			scrollToBottom(true);
-		} else {
-			chatStore.clearUnreads(tab);
-		}
-	},
-	{ immediate: true },
-);
-
-// Stable identity so ChatMessageFlow (and every bubble under it) isn't handed a
-// new prop on each render of this component — see the note in ChatMessageFlow.
-const onInspectProfile = (_ev: Event, info: any) => openUserActions(info);
-
 const openLobbyInvitePopover = (ev: Event) => {
 	inviteEvent.value = ev;
 	invitePopoverOpen.value = true;
-};
-
-function joinSession(roomId: string) {
-	invitations.value = invitations.value.filter((inv) => inv.roomId !== roomId);
-	chatWidget.closePanel();
-	router.push(FRONTEND_ROUTES.draw, masterAnimation);
-	setTimeout(() => {
-		socketJoinRoom({ roomId: roomId, intent: "join" });
-	}, 200);
-}
-
-const handleLoadMore = async () => {
-	if (isFetchingHistory.value) return;
-	const el = messageContainer.value;
-	if (!el || el.scrollTop > 200 || !currentMessages.value.length) return;
-	if (chatStore.hasMoreMessagesByChat[activeTab.value] === false) return;
-
-	isFetchingHistory.value = true;
-	const snapshot = captureScrollState();
-
-	try {
-		await chatStore.loadMessages(activeTab.value, false);
-		await nextTick();
-		if (snapshot) restoreScrollState(snapshot);
-	} finally {
-		setTimeout(() => {
-			isFetchingHistory.value = false;
-		}, 200);
-	}
 };
 
 function onWillPresent() {
@@ -505,7 +275,7 @@ function onWillPresent() {
 	} else if (tab === "overview" && isLobby) {
 		chatWidget.activeTab = "lobby";
 	}
-	scrollToBottom(true);
+	forceScrollToBottom();
 	// Families policy: the online-safety reminder for child accounts now lives
 	// in the parental store, which shows it once per 30 days across every
 	// exchange surface (chat, mate adding, drawing sends, shared rooms) rather
@@ -522,14 +292,47 @@ const { keyboardInset } = useKeyboardInset({
 	onWillShow: () => forceScrollToBottom(),
 });
 
+// Closing while the composer is focused makes the keyboard inset collapse at
+// the same time as the sheet translates down. That changes the sheet's internal
+// height mid-transition and reads as a flicker/jump, especially on Android.
+// Freeze the last inset for the short leave animation, and keep the layer on the
+// compositor until it is fully off-screen.
+const isClosing = ref(false);
+const closingKeyboardInset = ref(0);
+const displayedKeyboardInset = computed(() =>
+	isClosing.value ? closingKeyboardInset.value : keyboardInset.value,
+);
+
+watch(isExpanded, (expanded) => {
+	if (expanded) {
+		isClosing.value = false;
+		closingKeyboardInset.value = 0;
+		return;
+	}
+
+	closingKeyboardInset.value = keyboardInset.value;
+	isClosing.value = true;
+	const activeElement = document.activeElement;
+	if (
+		activeElement instanceof HTMLElement &&
+		sheetEl.value?.contains(activeElement)
+	) {
+		activeElement.blur();
+	}
+});
+
+function onSheetAfterLeave() {
+	if (isExpanded.value) return;
+	isClosing.value = false;
+	closingKeyboardInset.value = 0;
+	sheetOffset.value = 0;
+	isDragging.value = false;
+}
+
 // Re-pin to the bottom once the viewport has actually settled as well. The
 // `willShow` hint fires before the resize, so on its own it scrolls to a
 // bottom that is about to move.
 watch(keyboardInset, () => nextTick(() => forceScrollToBottom()));
-
-onBeforeUnmount(() => {
-	clearContentReleaseTimer();
-});
 </script>
 
 <style scoped>
@@ -540,9 +343,11 @@ onBeforeUnmount(() => {
   transform: translate3d(0, 0, 0);
   transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   max-width: 520px;
-  margin: auto;;
+  margin: auto;
+  backface-visibility: hidden;
 }
 .sheet-wrapper.is-active,
+.sheet-wrapper.is-closing,
 .sheet-wrapper.is-dragging {
   will-change: transform;
 }

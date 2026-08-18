@@ -1,6 +1,6 @@
 <template>
   <ion-modal :is-open="isShopOpen" @didDismiss="closeShop" class="full-screen-modal">
-    <ion-content class="--bg-canvas relative cabin-sketch-regular" ref="contentEl">
+    <ion-content class="--bg-canvas relative cabin-sketch-regular">
 
       <!-- ─── Header with left back button ─── -->
       <div
@@ -238,28 +238,12 @@ import {
 	mdiCrown,
 	mdiTreasureChestOutline,
 } from "@mdi/js";
-import { Purchases } from "@revenuecat/purchases-capacitor";
 import { chevronBackOutline } from "ionicons/icons";
-import { storeToRefs } from "pinia";
-import { computed, nextTick, provide, ref, watch } from "vue";
-import bigbossImage from "@/assets/bigboss.jpg";
+import { computed, provide, ref } from "vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import {
-	CATALOG,
-	CATALOG_BY_ID,
-	HIGHLIGHT_IDS,
-	type ItemCategory,
-	type ShopSku,
-} from "@/config/catalog.config";
+import type { ItemCategory, ShopSku } from "@/config/catalog.config";
 import { svg } from "@/helper/general.helper";
-import { isNative } from "@/helper/platform.helper";
-import { updateProfile } from "@/service/api/user.api";
-import { useToast } from "@/service/toast.service";
 import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useInventoryStore } from "@/store/inventory.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 import ShopCardBrush from "./ShopCardBrush.vue";
 import ShopCardDecoration from "./ShopCardDecoration.vue";
 import ShopCardEffect from "./ShopCardEffect.vue";
@@ -272,6 +256,7 @@ import ShopGrantPreview from "./ShopGrantPreview.vue";
 import ShopHero from "./ShopHero.vue";
 import ShopPreviewModal from "./ShopPreviewModal.vue";
 import ShopSupportNote from "./ShopSupportNote.vue";
+import { useShopPageController } from "./useShopPageController";
 
 // Shop cards animate (foreground) while browsing — but the moment a preview
 // modal opens, freeze the whole grid behind it so ALL the GPU/CPU goes to the
@@ -281,114 +266,6 @@ const previewSku = ref<ShopSku | null>(null);
 provide(
 	AMBIENT_FOREGROUND,
 	computed(() => !previewSku.value),
-);
-
-const menuStore = useMenuStore();
-const subStore = useSubscriptionStore();
-const inventoryStore = useInventoryStore();
-const userStore = useAuthStore();
-const { toast } = useToast();
-
-const { isShopOpen, shopScrollTarget, shopEquipTarget } =
-	storeToRefs(menuStore);
-const user = computed(() => userStore.user);
-const isLoading = ref(true);
-// Shop content waits on ALL of: RC prices, subscription status resolved, and
-// inventory hydrated — else it flashes upsell/unowned to an owner before load.
-const ready = computed(
-	() => !isLoading.value && !subStore.isLoading && inventoryStore.hydrated,
-);
-const skusWithPrices = ref<
-	Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
->({});
-const contentEl = ref<any>(null);
-const highlightedId = ref<string | null>(null);
-const collectionOpen = ref(false);
-
-function withPrice(sku: ShopSku) {
-	return skusWithPrices.value[sku.id] || sku;
-}
-
-const CHAT_CATEGORIES = new Set<ItemCategory>(["theme", "font", "font_effect"]);
-const isChatCompatibleSku = (sku: ShopSku) =>
-	sku.kind === "bundle"
-		? sku.grants.every((grant) =>
-				CHAT_CATEGORIES.has(grant.split(".")[0] as ItemCategory),
-			)
-		: CHAT_CATEGORIES.has(sku.category);
-const visibleCatalog = computed(() =>
-	shopEquipTarget.value === "chat"
-		? CATALOG.filter(isChatCompatibleSku)
-		: CATALOG,
-);
-
-const featuredPacks = computed(() =>
-	visibleCatalog.value
-		.filter((s) => s.kind === "bundle" && s.featured)
-		.map(withPrice),
-);
-
-const highlights = computed(() =>
-	HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
-		.filter(
-			(sku): sku is ShopSku =>
-				!!sku && (shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku)),
-		)
-		.map(withPrice),
-);
-
-// Numeric price for a sku id, preferring RevenueCat's real price, falling back
-// to parsing the formatted priceString (web/dev). null = unknown.
-function priceOf(id: string): number | null {
-	const priced = skusWithPrices.value[id] as any;
-	if (!priced) return null;
-	const rc = priced.rcPackage?.product?.price;
-	if (typeof rc === "number" && rc > 0) return rc;
-	if (priced.priceString) {
-		const n = Number(String(priced.priceString).replace(/[^0-9.]/g, ""));
-		if (Number.isFinite(n) && n > 0) return n;
-	}
-	return null;
-}
-
-// A single sku's id equals its lone grant id, so a bundle's grants map straight
-// to buyable singles. Only return a % when EVERY grant has a known price, so we
-// never show a misleading discount.
-function bundleSavingsPct(pack: ShopSku): number {
-	const bundle = priceOf(pack.id);
-	if (!bundle) return 0;
-	let separate = 0;
-	for (const g of pack.grants) {
-		const p = priceOf(g);
-		if (!p) return 0;
-		separate += p;
-	}
-	if (separate <= bundle) return 0;
-	return Math.round((1 - bundle / separate) * 100);
-}
-
-// Browse-all by default, then filter down. 'all' shows every single item so
-// users can just scroll; the rest narrow to one category. Grouped by feel:
-// card looks first, then text, then tools.
-type CategoryFilter = ItemCategory | "all";
-const ALL_CATEGORIES: { id: CategoryFilter; label: string }[] = [
-	{ id: "all", label: "All" },
-	{ id: "theme", label: "Themes" },
-	{ id: "world", label: "Worlds" },
-	{ id: "effect", label: "Effects" },
-	{ id: "decoration", label: "Decor" },
-	{ id: "font", label: "Fonts" },
-	{ id: "font_effect", label: "Text" },
-	{ id: "brush", label: "Brushes" },
-];
-const categories = computed(() =>
-	shopEquipTarget.value === "chat"
-		? ALL_CATEGORIES.filter(
-				(category) =>
-					category.id === "all" ||
-					CHAT_CATEGORIES.has(category.id as ItemCategory),
-			)
-		: ALL_CATEGORIES,
 );
 
 const cardComponents: Partial<Record<ItemCategory, any>> = {
@@ -401,177 +278,32 @@ const cardComponents: Partial<Record<ItemCategory, any>> = {
 	font_effect: ShopCardFontEffect,
 };
 const cardFor = (cat: ItemCategory) => cardComponents[cat] || ShopCardTheme;
-
-// The single item feed. Bundles live in their own section, so this is singles
-// only — either all of them ('all') or one category.
-const activeCategory = ref<CategoryFilter>("all");
-
-// Fisher-Yates. 'all' shows a shuffled mix so the shelf feels browseable
-// instead of grouped in obvious category blocks. Shuffled ONCE per session so
-// the order is stable (doesn't jump when prices finish loading / user filters).
-const shuffle = <T>(arr: T[]): T[] => {
-	const a = [...arr];
-	for (let i = a.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[a[i], a[j]] = [a[j], a[i]];
-	}
-	return a;
-};
-const shuffledSingleIds = shuffle(
-	CATALOG.filter((s) => s.kind === "single").map((s) => s.id),
-);
-
-const activeItems = computed(() => {
-	if (activeCategory.value === "all")
-		return shuffledSingleIds
-			.map((id) => CATALOG_BY_ID[id])
-			.filter(
-				(sku) => shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku),
-			)
-			.map(withPrice);
-	return visibleCatalog.value
-		.filter((s) => s.kind === "single" && s.category === activeCategory.value)
-		.map(withPrice);
-});
-
-const ownedSkus = computed(() =>
-	CATALOG.filter((s) => s.kind === "single" && inventoryStore.owned.has(s.id)),
-);
-
-// Ownership is decided entirely by the inventory store (which knows the
-// Lifetime / Pro / locked-category rules). A bundle is owned only when every
-// grant inside it is.
-const isItemOwned = (skuId: string): boolean => {
-	const sku = CATALOG_BY_ID[skuId];
-	if (!sku) return false;
-	if (sku.kind === "bundle")
-		return sku.grants.every((g) => inventoryStore.isOwned(g));
-	return inventoryStore.isOwned(sku.id);
-};
-
-const closeShop = () => {
-	isShopOpen.value = false;
-	highlightedId.value = null;
-	shopEquipTarget.value = "profile";
-};
-
-const loadOfferings = async () => {
-	if (!isNative()) {
-		skusWithPrices.value = Object.fromEntries(
-			CATALOG.map((s) => [
-				s.id,
-				{ ...s, priceString: s.kind === "bundle" ? "$4.99" : "$1.99" },
-			]),
-		);
-		isLoading.value = false;
-		return;
-	}
-	try {
-		isLoading.value = true;
-		const offerings = await Purchases.getOfferings();
-		const shopPackages = offerings.all["shop_items"]?.availablePackages || [];
-		const priced: Record<
-			string,
-			ShopSku & { priceString?: string; rcPackage?: any }
-		> = {};
-		for (const sku of CATALOG) {
-			const pkg = shopPackages.find(
-				(p) => p.product.identifier === sku.rcProductId,
-			);
-			priced[sku.id] = {
-				...sku,
-				priceString: pkg?.product.priceString,
-				rcPackage: pkg,
-			};
-		}
-		skusWithPrices.value = priced;
-	} catch (e) {
-		toast("Could not load shop prices", { color: "danger" });
-	} finally {
-		isLoading.value = false;
-	}
-};
-
-const purchaseItem = async (sku: ShopSku) => {
-	const ok = await subStore.purchaseSku(sku.id);
-	if (ok) highlightedId.value = null;
-};
-
-// Equip an owned item/bundle: fold its grant fields into the user's
-// customization (a bundle sets a whole head-to-toe look at once), persist, and
-// close the preview. Optimistic with rollback on failure.
-const equipSku = async (patch: Record<string, any>) => {
-	const u = user.value;
-	if (!u || !patch || Object.keys(patch).length === 0) {
-		previewSku.value = null;
-		return;
-	}
-	const target = shopEquipTarget.value;
-	const supportedPatch =
-		target === "chat"
-			? Object.fromEntries(
-					Object.entries(patch).filter(([key]) =>
-						["themeId", "fontId", "fontEffectId"].includes(key),
-					),
-				)
-			: patch;
-	if (Object.keys(supportedPatch).length === 0) {
-		toast("That item is for profiles or drawing tools.");
-		return;
-	}
-	const field = target === "chat" ? "chat_customization" : "customization";
-	const prev = { ...((u as any)[field] ?? {}) };
-	const next = { ...prev, ...supportedPatch };
-	(u as any)[field] = next;
-	previewSku.value = null;
-	try {
-		await updateProfile({ [field]: next } as any);
-		toast(target === "chat" ? "Equipped to Chat! ✨" : "Equipped! ✨", {
-			color: "success",
-		});
-	} catch (e) {
-		(u as any)[field] = prev;
-		toast("Couldn't equip that. Please try again.", { color: "danger" });
-	}
-};
-
-watch(
+const {
+	subStore,
 	isShopOpen,
-	async (open) => {
-		if (!open) return;
-		if (
-			shopEquipTarget.value === "chat" &&
-			activeCategory.value !== "all" &&
-			!CHAT_CATEGORIES.has(activeCategory.value as ItemCategory)
-		) {
-			activeCategory.value = "all";
-		}
-		if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
-		if (shopScrollTarget.value) {
-			const targetItem = shopScrollTarget.value;
-			const targetSku =
-				CATALOG_BY_ID[targetItem] ??
-				CATALOG.find((s) => s.grants.includes(targetItem));
-			if (targetSku) {
-				if (targetSku.category !== "pack")
-					activeCategory.value = targetSku.category;
-				highlightedId.value = targetSku.id;
-				await nextTick();
-				setTimeout(() => {
-					const el = document.querySelector(
-						`[data-shop-id="${targetSku.id}"]`,
-					) as HTMLElement | null;
-					el?.scrollIntoView({ behavior: "smooth", block: "center" });
-				}, 150);
-				setTimeout(() => {
-					highlightedId.value = null;
-				}, 4000);
-			}
-			shopScrollTarget.value = null;
-		}
-	},
-	{ immediate: true },
-);
+	shopScrollTarget,
+	shopEquipTarget,
+	user,
+	isLoading,
+	ready,
+	skusWithPrices,
+	highlightedId,
+	collectionOpen,
+	withPrice,
+	visibleCatalog,
+	featuredPacks,
+	highlights,
+	bundleSavingsPct,
+	categories,
+	activeCategory,
+	activeItems,
+	ownedSkus,
+	isItemOwned,
+	closeShop,
+	loadOfferings,
+	purchaseItem,
+	equipSku,
+} = useShopPageController(previewSku);
 </script>
 
 <style scoped>

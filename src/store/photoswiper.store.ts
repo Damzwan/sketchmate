@@ -2,20 +2,28 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
 export interface SwiperConfig {
-	type?: "post" | "inbox";
+	type?: "post" | "inbox" | "competition";
 	onSeen?: (item: any) => void;
 	onDelete?: (item: any) => void;
 	onReply?: (item: any) => void;
+	onVote?: (item: any) => void;
 	userLookup?: (userId: string) => any; // Function to resolve user details (name, avatar)
 	canDelete?: (item: any, user: any) => boolean; // Custom delete logic
 	// Per-item, like canDelete — a plain boolean can't express "this collection
 	// supports remixing but THIS post has it switched off", which is exactly the
 	// case for posts with `enable_remix === false`.
 	canReply?: boolean | ((item: any, user: any) => boolean);
+	canVote?: boolean | ((item: any, user: any) => boolean);
 	imageResolver?: (item: any) => string;
 	thumbnailResolver?: (item: any) => string;
 	onComment?: (item: any, message: string) => Promise<void>;
 	onReact?: (item: any, type: string) => Promise<void>;
+	/**
+	 * Bookmark toggle. Only wired for post collections — the footer hides the
+	 * control everywhere else, so an unset handler is a state the UI never
+	 * reaches rather than a silent no-op.
+	 */
+	onSave?: (item: any) => Promise<void>;
 }
 
 export const usePhotoSwiper = defineStore("photoswiper", () => {

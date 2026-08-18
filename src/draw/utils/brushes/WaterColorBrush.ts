@@ -9,13 +9,13 @@ import {
 	decodeWatercolorTrace,
 	encodeWatercolorTrace,
 	normalizeWatercolorPoints,
-	simplifyWatercolorPoints,
+	thinLegacyWatercolorTrace,
 	toWatercolorTrace,
 	traceWatercolorPath,
 	type WatercolorPathCommand,
 	type WatercolorPoint,
 	type WatercolorTrace,
-	watercolorSimplifyTolerance,
+	watercolorSampleSpacing,
 	watercolorTraceToJSON,
 } from "@/draw/utils/brushes/watercolorGeometry";
 import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
@@ -24,47 +24,43 @@ import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
 // THE OPTIMIZED WATERCOLOR BRUSH
 // ==========================================
 /**
- * Raw points held back before being simplified into the frozen prefix.
+ * A watercolour stroke is APPEND-ONLY.
  *
- * Simplification has to happen DURING the stroke, not only at commit: the
- * preview and the committed stroke must be the same geometry, or releasing the
- * pointer visibly changes the shape. Freezing in small chunks keeps the
- * per-move cost bounded (Douglas-Peucker over at most this many points) while
- * everything behind the chunk is already final.
+ * Every sample the brush accepts is final: nothing already on screen is ever
+ * re-derived, re-simplified or re-fitted while the pointer is down, so the
+ * ribbon behind the finger cannot move. The thinning that keeps a stroke light
+ * happens at INPUT time instead — see `watercolorSampleSpacing`, which explains
+ * why Douglas-Peucker is the wrong tool for this brush at any tolerance.
+ *
+ * That property has to hold end to end: preview, commit and reload all build
+ * from the same accepted samples through the same functions, so releasing the
+ * pointer and re-opening the drawing cannot change the shape either.
  */
-export const SIMPLIFY_CHUNK = 24;
 
 /** The preview draws in world space, so it needs no path offset. */
 const ORIGIN = { x: 0, y: 0 };
 
 export class WaterColorBrush extends BaseBrush {
 	protected declare _basePoints: Point[];
-	/** Simplified and final — never revisited. */
-	private _frozen: WatercolorPoint[] = [];
-	/** Raw points since the last freeze; `_tail[0]` is the frozen anchor. */
-	private _tail: WatercolorPoint[] = [];
-
-	public decimate = 0.3;
-
-	private get _tolerance(): number {
-		return watercolorSimplifyTolerance(this.width);
-	}
+	/** Accepted samples. Append-only for the lifetime of the stroke. */
+	private _points: WatercolorPoint[] = [];
 
 	/**
-	 * The points the stroke actually consists of: the frozen prefix plus the
-	 * simplified tail. This is what the preview draws AND what gets committed,
-	 * so the two cannot disagree by more than the last unfrozen chunk.
+	 * Set per stroke from the brush width. BaseBrush's own `decimate` is a
+	 * constant; the right spacing here depends on how wide the wiggle is.
 	 */
+	public decimate = watercolorSampleSpacing(10);
+
 	private _strokePoints(): WatercolorPoint[] {
-		if (this._tail.length <= 1) return this._frozen;
-		const tail = simplifyWatercolorPoints(this._tail, this._tolerance);
-		return this._frozen.concat(tail.slice(1));
+		return this._points;
 	}
 
 	onMouseDown(pointer: Point) {
 		this._basePoints = [];
-		this._frozen = [];
-		this._tail = [];
+		this._points = [];
+		// Locked in for the whole stroke: changing width mid-stroke is not a thing,
+		// and re-reading it per move would let a spacing change re-space the tail.
+		this.decimate = watercolorSampleSpacing(this.width);
 
 		this._addPoint(pointer);
 		this._render();
@@ -94,14 +90,9 @@ export class WaterColorBrush extends BaseBrush {
 			return false;
 		}
 
-		// Simplify ONCE, then use the same points for the geometry and the stored
-		// trace — otherwise a reload rebuilds from denser points and the stroke
-		// silently changes shape between sessions.
-		//
-		// The brush captures every 0.3px and each base point becomes three path
-		// commands, so an unsimplified stroke carried thousands of commands it
-		// could not show. CustomPencilBrush has always done this on commit; the
-		// watercolour path just never called the helper that was sitting here.
+		// EXACTLY the samples the preview drew — no commit-time pass of any kind.
+		// The thinning already happened at input, so there is nothing left to drop
+		// that would not also change the shape the user watched appear.
 		const basePoints = this._strokePoints();
 		const pathData = WaterColorStroke.buildPathData(
 			basePoints as Point[],
@@ -120,7 +111,7 @@ export class WaterColorBrush extends BaseBrush {
 				opacity: baseOpacity * 0.45,
 				globalCompositeOperation: "source-over",
 				interactive: false,
-				compressedTrace: encodeWatercolorTrace(this._basePoints),
+				compressedTrace: encodeWatercolorTrace(basePoints),
 			});
 
 			// Shadow attachment block completely removed here.
@@ -147,23 +138,7 @@ export class WaterColorBrush extends BaseBrush {
 		}
 
 		this._basePoints.push(point);
-		const plain = { x: point.x, y: point.y };
-		if (this._tail.length === 0 && this._frozen.length === 0) {
-			this._frozen.push(plain);
-			this._tail.push(plain);
-			return true;
-		}
-		this._tail.push(plain);
-
-		// Freeze the chunk once it is long enough to be worth simplifying, keeping
-		// its last point as the anchor of the next one so the two joins seamlessly.
-		if (this._tail.length > SIMPLIFY_CHUNK) {
-			const simplified = simplifyWatercolorPoints(this._tail, this._tolerance);
-			for (let i = 1; i < simplified.length; i++) {
-				this._frozen.push(simplified[i]);
-			}
-			this._tail = [this._tail[this._tail.length - 1]];
-		}
+		this._points.push({ x: point.x, y: point.y });
 		return true;
 	}
 
@@ -203,8 +178,11 @@ export class WaterColorBrush extends BaseBrush {
 // THE OPTIMIZED WATERCOLOR STROKE
 // ==========================================
 export class WaterColorStroke extends Path {
-	static type = "WaterColorStroke";
-	static cacheProperties = [...Path.cacheProperties, "compressedTrace"];
+	static override type = "WaterColorStroke";
+	static override cacheProperties = [
+		...Path.cacheProperties,
+		"compressedTrace",
+	];
 
 	/**
 	 * Float32Array, not `number[]` — half the bytes, and this is the most
@@ -246,7 +224,7 @@ export class WaterColorStroke extends Path {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// Never write the expanded path back into `object`. drawload.helper stashes
 		// that exact source blob as __bakeJSON; mutating it made the compact trace
 		// carry a second, huge SVG path through structured clone and into the
@@ -258,13 +236,15 @@ export class WaterColorStroke extends Path {
 			const points = trace
 				? decodeWatercolorTrace(trace)
 				: normalizeWatercolorPoints(object.basePoints);
-			// Simplify on the way IN as well. Drawings made before the brush did
-			// this carry their original sub-pixel sampling, and they are exactly
-			// the heavy canvases worth fixing — this lightens them on load without
-			// rewriting anything on disk. Already-simplified traces are a no-op:
-			// there is nothing left within tolerance to drop.
+			// Legacy traces only. Drawings made before input decimation carry a
+			// sample every 0.3px and would rebuild into thousands of commands, so
+			// they get thinned here — nobody is watching those strokes appear, so
+			// re-shaping them costs nothing. A trace already at the brush's sampling
+			// spacing is returned untouched, which is what makes a stroke rebuild
+			// EXACTLY as it was drawn. Douglas-Peucker used to run here instead and
+			// could not tell the two cases apart.
 			path = buildWatercolorPathData(
-				simplifyWatercolorPoints(points, watercolorSimplifyTolerance(width)),
+				thinLegacyWatercolorTrace(points, watercolorSampleSpacing(width)),
 				width,
 			);
 		}

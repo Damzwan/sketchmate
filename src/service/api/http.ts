@@ -1,6 +1,21 @@
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
+import type { Capability } from "@/types/server.types";
+
+interface ApiErrorPayload {
+	error?: string;
+	message?: string;
+	capability?: Capability;
+	restriction?: {
+		level: number;
+		name: string;
+		description: string;
+		reason?: string;
+		expires_at?: string;
+		blocked_capabilities?: Capability[];
+	};
+}
 
 const BASE_URL = import.meta.env.VITE_BACKEND as string;
 
@@ -30,9 +45,19 @@ export async function request<T>(
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		const errorData = JSON.parse(errorText);
+		let errorData: ApiErrorPayload = {};
+		try {
+			errorData = JSON.parse(errorText);
+		} catch {
+			// Koa can return plain-text validation errors. Preserve the useful
+			// server message instead of masking it with a JSON parse exception.
+		}
 
-		if (errorData.error === "capability_blocked") {
+		if (
+			errorData.error === "capability_blocked" &&
+			errorData.capability &&
+			errorData.restriction
+		) {
 			const modStore = useModerationStore();
 			const menuStore = useMenuStore();
 
@@ -45,7 +70,10 @@ export async function request<T>(
 		}
 
 		throw new Error(
-			errorText || `Request failed with status ${response.status}`,
+			errorData.message ||
+				errorData.error ||
+				errorText ||
+				`Request failed with status ${response.status}`,
 		);
 	}
 

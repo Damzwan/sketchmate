@@ -36,6 +36,12 @@
           <p class="pl-2 text-base">Camera</p>
         </ion-item>
 
+        <ion-item color="tertiary" :button="true" @click="openReferenceMenu" :detail="true">
+          <ion-icon :icon="svg(mdiImageSearchOutline)" />
+          <p class="pl-2 text-base">References</p>
+          <p v-if="referenceCount" class="pl-2 text-sm opacity-60">{{ referenceCount }}</p>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="onTextClick" :detail="true">
           <ion-icon :icon="svg(mdiFormatText)" />
           <p class="pl-2 text-base">Text</p>
@@ -96,12 +102,10 @@ import {
 	mdiFormatText,
 	mdiImage,
 	mdiImagePlusOutline,
+	mdiImageSearchOutline,
 	mdiPaletteOutline,
-	mdiPanoramaVariantOutline,
 	mdiSelectionDrag,
 	mdiSelectionRemove,
-	mdiShapeOutline,
-	mdiStickerCircleOutline,
 	mdiStickerEmoji,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
@@ -111,11 +115,12 @@ import ImageCropper from "@/components/draw/ImageCropper.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { createSketchFromDataURL } from "@/draw/document/export";
+import { useDrawingReferenceStore } from "@/draw/references/reference.store";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { svg } from "@/helper/general.helper";
 import { compressImg } from "@/helper/image.helper";
+import { ensurePwaElements } from "@/helper/pwaElements.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
@@ -124,6 +129,9 @@ const claimArea = useClaimArea();
 const { roomId } = storeToRefs(useDrawSyncer());
 const inLobby = computed(() => !!roomId.value);
 const myAreaCount = computed(() => claimArea.myAreas.length);
+const referenceCount = computed(
+	() => useDrawingReferenceStore().references.length,
+);
 
 function onClaimArea() {
 	closePopover();
@@ -157,25 +165,14 @@ watch(shapesMenuOpen, () => {
 	}
 });
 
-function openStickerMenu() {
-	openMenu(Menu.StickerEmblemSaved);
-	stickersEmblemsSavedSelectedTab.value = "sticker";
-	closePopover();
-}
-
-function openEmblemMenu() {
-	openMenu(Menu.StickerEmblemSaved);
-	stickersEmblemsSavedSelectedTab.value = "emblem";
-	closePopover();
-}
-
-function openShapesMenu(e: any) {
-	openMenu(Menu.Shapes, e);
-}
-
 function openSavedMenu() {
 	openMenu(Menu.StickerEmblemSaved);
 	stickersEmblemsSavedSelectedTab.value = "saved";
+	closePopover();
+}
+
+function openReferenceMenu() {
+	openMenu(Menu.Reference);
 	closePopover();
 }
 
@@ -239,6 +236,7 @@ async function onImgClick() {
 
 async function onCameraClick() {
 	await closePopover(); // weird location but it does not work otherwise haha
+	await ensurePwaElements();
 
 	const image = await Camera.getPhoto({
 		quality: 100,

@@ -11,6 +11,56 @@ function createCanvasStub() {
 }
 
 describe("DrawEventManager", () => {
+	it("executes actions before a canvas is attached", async () => {
+		const manager = createDrawEventManager();
+		const action = vi.fn();
+
+		await manager.actionWithoutEvents(action);
+
+		expect(action).toHaveBeenCalledOnce();
+		expect(manager.isSuspended()).toBe(false);
+	});
+
+	it("ignores late registration and removal after teardown", () => {
+		const canvas = createCanvasStub();
+		const manager = createDrawEventManager();
+		const event = {
+			on: "object:added",
+			handler: vi.fn(),
+		} satisfies FabricEvent;
+
+		manager.init(canvas);
+		manager.addEventsOfService("objects", [event]);
+		manager.destroy();
+
+		expect(() => manager.removeEventsOfService("objects")).not.toThrow();
+		expect(() => manager.addEventsOfService("late", [event])).not.toThrow();
+		expect(() =>
+			manager.switchToolEvents({ events: [event] } as any),
+		).not.toThrow();
+		expect(canvas.on).toHaveBeenCalledTimes(1);
+	});
+
+	it("replaces an already registered service without leaking handlers", () => {
+		const canvas = createCanvasStub();
+		const manager = createDrawEventManager();
+		const first = {
+			on: "object:added",
+			handler: vi.fn(),
+		} satisfies FabricEvent;
+		const second = {
+			on: "object:removed",
+			handler: vi.fn(),
+		} satisfies FabricEvent;
+
+		manager.init(canvas);
+		manager.addEventsOfService("objects", [first]);
+		manager.addEventsOfService("objects", [second]);
+
+		expect(canvas.off).toHaveBeenCalledWith(first.on, first.handler);
+		expect(canvas.on).toHaveBeenCalledWith(second.on, second.handler);
+	});
+
 	it("switches tool events without Pinia", () => {
 		const canvas = createCanvasStub();
 		const manager = createDrawEventManager();
@@ -73,5 +123,29 @@ describe("DrawEventManager", () => {
 			permanentEvent.on,
 			permanentEvent.handler,
 		);
+	});
+
+	it("does not reattach events when an async action settles after teardown", async () => {
+		const canvas = createCanvasStub();
+		const manager = createDrawEventManager();
+		const event = {
+			on: "object:added",
+			handler: vi.fn(),
+		} satisfies FabricEvent;
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		manager.init(canvas);
+		manager.addEventsOfService("objects", [event]);
+		const action = manager.actionWithoutEvents(() => pending);
+		manager.destroy();
+		release();
+		await action;
+
+		// Initial attach only; the disposed canvas is never resurrected.
+		expect(canvas.on).toHaveBeenCalledTimes(1);
+		expect(manager.isSuspended()).toBe(false);
 	});
 });

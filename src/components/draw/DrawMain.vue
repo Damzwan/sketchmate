@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full h-full overflow-hidden" :style="{ backgroundColor }">
+  <div class="draw-runtime relative w-full h-full overflow-hidden" :style="{ backgroundColor }">
 
     <div
       class="absolute inset-0 z-0 flex transition-opacity duration-300"
@@ -15,6 +15,12 @@
 
       <ClaimAreaOverlay v-if="roomId" />
     </div>
+
+    <InstrumentOverlay />
+
+    <ReferenceOverlay />
+
+    <EyedropperOverlay v-if="colorPickerMode" />
 
     <Toolbars :draw-mode="currentMode" @start-benchmark="openPerformanceCapture" />
 
@@ -48,14 +54,18 @@ import { useRoute, useRouter } from "vue-router";
 import ClaimAreaOverlay from "@/components/draw/ClaimAreaOverlay.vue";
 import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
 import DrawStatusIndicator from "@/components/draw/DrawStatusIndicator.vue";
+import EyedropperOverlay from "@/components/draw/EyedropperOverlay.vue";
+import InstrumentOverlay from "@/components/draw/instruments/InstrumentOverlay.vue";
 import MultiplayerAvatars from "@/components/draw/MultiplayerAvatars.vue";
 import DrawMenus from "@/components/draw/menus/DrawMenus.vue";
+import ReferenceOverlay from "@/components/draw/references/ReferenceOverlay.vue";
 // Components
 import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
 // Stores
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useShareService } from "@/draw/sharing/shareService.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 // Services & Sockets
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
@@ -76,6 +86,7 @@ const { backgroundColor } = storeToRefs(drawStore);
 
 const drawSyncer = useDrawSyncer();
 const { disconnectedRoomId, isLoadingCanvas, roomId } = storeToRefs(drawSyncer);
+const { colorPickerMode } = storeToRefs(useDrawUIStore());
 
 // ─── 1. CLEAN PARAMETER RESOLUTION ──────────────────────────────
 const sessionStore = useSessionStore();
@@ -137,6 +148,14 @@ onMounted(() => {
 	// Consume and clear 'type' parameter
 	if (type.value === "balloon") {
 		shareService.preSelected = "balloon";
+		delete newQuery.type;
+		routeNeedsUpdate = true;
+
+		if (sessionStore.queryParams?.has("type")) {
+			sessionStore.queryParams.delete("type");
+		}
+	} else if (type.value === "competition") {
+		shareService.preSelected = "competition";
 		delete newQuery.type;
 		routeNeedsUpdate = true;
 

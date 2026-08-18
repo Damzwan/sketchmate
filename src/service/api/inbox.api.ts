@@ -1,7 +1,10 @@
+import type { PresignedUploadBundle } from "@/draw/sharing/shareDrawings";
 import { request } from "@/service/api/http";
 import {
 	ENDPOINTS,
+	type GetInboxCommentsRes,
 	type GetInboxRes,
+	type InboxComment,
 	type InboxItem,
 	type Mate,
 	type RemoveFromInboxParams,
@@ -17,7 +20,14 @@ export interface PublishInboxItemParams {
 	aspect_ratio: number;
 }
 
-export async function getInbox(params: any): Promise<GetInboxRes> {
+export interface GetInboxParams {
+	user_id: string;
+	limit: number;
+	/** ISO date of the oldest item already held; omitted on the first page. */
+	lastDate?: string;
+}
+
+export async function getInbox(params: GetInboxParams): Promise<GetInboxRes> {
 	const query: Record<string, string> = {
 		user_id: params.user_id,
 		limit: params.limit.toString(),
@@ -72,8 +82,8 @@ export async function seeInboxItem(params: SeeInboxParams): Promise<void> {
 	);
 }
 
-export async function getInboxUploadUrls(): Promise<any> {
-	return request<any>(`${ENDPOINTS.inbox}/upload-urls`, {
+export async function getInboxUploadUrls(): Promise<PresignedUploadBundle> {
+	return request<PresignedUploadBundle>(`${ENDPOINTS.inbox}/upload-urls`, {
 		method: "POST",
 	});
 }
@@ -90,8 +100,8 @@ export async function publishInboxItem(
 export async function commentOnInbox(
 	inboxId: string,
 	params: { message: string; followers: string[] },
-) {
-	return request(`${ENDPOINTS.inbox}/${inboxId}/comment`, {
+): Promise<InboxComment> {
+	return request<InboxComment>(`${ENDPOINTS.inbox}/${inboxId}/comment`, {
 		method: "POST",
 		body: JSON.stringify(params),
 	});
@@ -101,14 +111,14 @@ export async function getInboxComments(
 	inboxId: string,
 	limit: number = 20,
 	beforeDate?: string,
-): Promise<any> {
+): Promise<GetInboxCommentsRes> {
 	const query = new URLSearchParams({ limit: limit.toString() });
 
 	if (beforeDate) {
 		query.append("beforeDate", beforeDate);
 	}
 
-	return request<any>(
+	return request<GetInboxCommentsRes>(
 		`${ENDPOINTS.inbox}/${inboxId}/comments?${query.toString()}`,
 		{
 			method: "GET",

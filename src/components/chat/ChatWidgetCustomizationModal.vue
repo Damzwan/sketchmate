@@ -38,7 +38,11 @@
           @click="openBackgroundPicker"
         >
           <template #preview>
-            <img
+<img
+              width="40"
+              height="32"
+              loading="lazy"
+              decoding="async"
               v-if="draft.backgroundImageUrl"
               :src="draft.backgroundImageUrl"
               alt=""

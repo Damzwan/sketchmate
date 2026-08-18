@@ -10,6 +10,7 @@ import {
 	activeLayerId,
 	getLayers,
 	isLayerHidden,
+	layerOpacity,
 	resetLayerRegistry,
 } from "@/draw/layers/layerRegistry";
 
@@ -86,7 +87,7 @@ function object(id: string, layerId: string) {
 }
 
 function layer(id: string, order: number) {
-	return { id, name: id, order, visible: true, locked: false };
+	return { id, name: id, order, visible: true, locked: false, opacity: 1 };
 }
 
 describe("layers store", () => {
@@ -137,6 +138,7 @@ describe("layers store", () => {
 			order: i,
 			visible: true,
 			locked: false,
+			opacity: 1,
 		}));
 
 		isPro = false;
@@ -145,6 +147,94 @@ describe("layers store", () => {
 		// Their work opens intact; only CREATING more is gated.
 		expect(layers.layers).toHaveLength(MAX_SOLO_LAYERS);
 		expect(layers.canAddLayer).toBe(false);
+	});
+
+	it("recovers layers a writer dropped from the document", () => {
+		const layers = useLayersStore();
+		// What a cropped send used to produce: objects that remember their layer,
+		// a document that forgot the layer set entirely.
+		layers.init({
+			isLobby: false,
+			persisted: null,
+			objectLayerIds: ["base", "ink", "colour"],
+		});
+
+		// Recovered in document order, bottom to top, and every id is now known to
+		// the registry — so nothing folds onto the base layer any more. The
+		// placeholder base layer is NOT kept: nothing in the drawing lives on it,
+		// and a fourth empty layer would put a free account over its own limit.
+		expect(layers.layers.map((l) => l.id)).toEqual(["base", "ink", "colour"]);
+		expect(getLayers().map((l) => l.id)).toEqual(["base", "ink", "colour"]);
+	});
+
+	it("keeps the base layer when objects still live on it", () => {
+		const layers = useLayersStore();
+		// A drawing that predates layers, added to after they existed: the old
+		// strokes carry no layerId (reported as BASE_LAYER_ID), the new ones do.
+		layers.init({
+			isLobby: false,
+			persisted: null,
+			objectLayerIds: [BASE_LAYER_ID, "ink"],
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual([BASE_LAYER_ID, "ink"]);
+	});
+
+	it("adds nothing when the objects reference no unknown layer", () => {
+		const layers = useLayersStore();
+		const persisted = [
+			{
+				id: "a",
+				name: "A",
+				order: 0,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
+			{
+				id: "b",
+				name: "B",
+				order: 1,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
+		];
+
+		layers.init({
+			isLobby: false,
+			persisted,
+			// A legacy object with no layerId shows up as BASE_LAYER_ID, which is
+			// where an unknown id already ranks — synthesizing it would only add an
+			// empty duplicate to the sheet.
+			objectLayerIds: ["a", "b", BASE_LAYER_ID],
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual(["a", "b"]);
+	});
+
+	it("never recovers past the hard cap", () => {
+		const layers = useLayersStore();
+		layers.init({
+			isLobby: false,
+			persisted: null,
+			objectLayerIds: Array.from({ length: 40 }, (_, i) => `orphan-${i}`),
+		});
+
+		expect(layers.layers).toHaveLength(MAX_SOLO_LAYERS);
+	});
+
+	it("keeps a public lobby on its fixed set", () => {
+		const layers = useLayersStore();
+		layers.init({
+			isLobby: true,
+			isPublicLobby: true,
+			objectLayerIds: ["stranger"],
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual(
+			FIXED_ROOM_LAYERS.map((l) => l.id),
+		);
 	});
 
 	it("moves the live selection to the active layer", () => {
@@ -347,6 +437,7 @@ describe("layers store", () => {
 				order: 0,
 				visible: true,
 				locked: false,
+				opacity: 1,
 			},
 		]);
 	});
@@ -356,20 +447,49 @@ describe("layers store", () => {
 		layers.init({
 			isLobby: false,
 			persisted: [
-				{ id: "a", name: "Sky", order: 0, visible: false, locked: true },
+				{
+					id: "a",
+					name: "Sky",
+					order: 0,
+					visible: false,
+					locked: true,
+					opacity: 1,
+				},
 				{
 					id: "a",
 					name: "duplicate id",
 					order: 5,
 					visible: true,
 					locked: false,
+					opacity: 1,
 				},
-				{ id: "b", name: "Ground", order: 1, visible: true, locked: false },
+				{
+					id: "b",
+					name: "Ground",
+					order: 1,
+					visible: true,
+					locked: false,
+					opacity: 1,
+				},
 			] as any,
 		});
 		expect(layers.layers).toEqual([
-			{ id: "a", name: "Sky", order: 0, visible: true, locked: false },
-			{ id: "b", name: "Ground", order: 1, visible: true, locked: false },
+			{
+				id: "a",
+				name: "Sky",
+				order: 0,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
+			{
+				id: "b",
+				name: "Ground",
+				order: 1,
+				visible: true,
+				locked: false,
+				opacity: 1,
+			},
 		]);
 	});
 
@@ -459,9 +579,86 @@ describe("layers store", () => {
 			order: 1,
 			visible: true,
 			locked: false,
+			opacity: 1,
 		});
 		expect(getLayers().map((l) => l.id)).toEqual([BASE_LAYER_ID, middle, top]);
 		// Re-inserting BELOW an existing layer restacks the board.
 		expect(invalidated.at(-1)).toBeNull();
+	});
+
+	describe("layer opacity", () => {
+		it("starts fully opaque and reaches the render registry", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+
+			layers.setOpacity(BASE_LAYER_ID, 0.4);
+			expect(layerOpacity(BASE_LAYER_ID)).toBeCloseTo(0.4);
+		});
+
+		it("invalidates only that layer, never the whole cache", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			const second = layers.addLayer("Second")!;
+			invalidated.length = 0;
+
+			layers.setOpacity(second, 0.5);
+			expect(invalidated).toEqual([second]);
+		});
+
+		it("clamps out-of-range values instead of trusting them", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			layers.setOpacity(BASE_LAYER_ID, 5);
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+			layers.setOpacity(BASE_LAYER_ID, -2);
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(0);
+			layers.setOpacity(BASE_LAYER_ID, Number.NaN);
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+		});
+
+		it("records ONE undo step for a whole slider drag", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			recorded.length = 0;
+
+			// A drag: several live updates, then one commit carrying the value the
+			// gesture STARTED from.
+			layers.setOpacity(BASE_LAYER_ID, 0.8);
+			layers.setOpacity(BASE_LAYER_ID, 0.6);
+			layers.commitOpacity(BASE_LAYER_ID, 1, 0.35);
+
+			expect(recorded).toHaveLength(1);
+			expect(recorded[0].params).toMatchObject({
+				layerId: BASE_LAYER_ID,
+				previousOpacity: 1,
+				opacity: 0.35,
+			});
+			expect(layerOpacity(BASE_LAYER_ID)).toBeCloseTo(0.35);
+		});
+
+		it("survives a save/load round trip, unlike visibility", () => {
+			const layers = useLayersStore();
+			layers.init({ isLobby: false });
+			layers.setOpacity(BASE_LAYER_ID, 0.25);
+			layers.setVisible(BASE_LAYER_ID, false);
+
+			const persisted = layers.serialize();
+			expect(persisted?.[0]).toMatchObject({ opacity: 0.25, visible: true });
+
+			layers.init({ isLobby: false, persisted });
+			expect(layerOpacity(BASE_LAYER_ID)).toBeCloseTo(0.25);
+			// A drawing must never reopen with content silently missing.
+			expect(isLayerHidden(BASE_LAYER_ID)).toBe(false);
+		});
+
+		it("defaults documents written before opacity existed to opaque", () => {
+			const layers = useLayersStore();
+			layers.init({
+				isLobby: false,
+				persisted: [{ id: BASE_LAYER_ID, name: "Layer 1", order: 0 } as any],
+			});
+			expect(layerOpacity(BASE_LAYER_ID)).toBe(1);
+		});
 	});
 });

@@ -12,6 +12,12 @@ built the way it is, where it hurts today, and what to do next.
 > limitations" and "Roadmap" sections below **predate the tileBakery worker
 > landing**; the perf doc supersedes them on worker status.
 
+> **Fabric.js dependency decision (2026-08-08):** see
+> [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). The
+> recommendation is to keep this tile architecture, contain Fabric behind an
+> adapter, and move to canonical compact records plus native per-type renderers.
+> It explicitly rejects a big-bang rewrite and an ad-hoc Fabric source fork.
+
 ---
 
 ## Table of contents
@@ -244,33 +250,46 @@ configured `overviewPx²` remains a hard pixel budget (768² on low-end mobile,
 2. The **base layer** under every not-yet-baked tile, so the viewport is never
    blank and never flashes white.
 
-It is kept *correct* (not merely approximate) by **localized patching**:
-`patchRect(rect)` clears that sub-region and redraws exactly the objects there
-from the index — so add / remove / move / erase / undo all stay consistent with
-zero drift. A full `rebuildIfNeeded()` (O(all objects), low-res, yielded) only
-runs when coverage grows or the bitmap is globally dirty. Dense patches are
-subdivided and drained in 3–4 ms slices on low-end devices; gestures abort or
-defer overview work so it does not compete with input.
-`patchRect` refuses regions beyond the profile's `overviewPatchMax` and sends
-them through that incremental subdivision path instead of janking one frame.
+It is kept *correct* (not merely approximate) by **localized patching**. Empty
+old footprints clear synchronously. Any patch containing objects is rendered
+into one reusable, budget-capped scratch canvas, yields between Fabric objects
+(and between children of large plain groups), then commits with one clear and
+one `drawImage`. The live overview therefore never exposes a half-rendered
+patch, and `overviewPatch` is job wall time rather than one main-thread block.
+Dense or oversized patches are subdivided and drained asynchronously; gestures
+abort or defer the work so it does not compete with input. On low-end Android
+the scratch surface is capped at 192² RGBA pixels (~144 KB).
+
+A full `rebuildIfNeeded()` (O(all objects), low-res) follows the same yielded
+object/group loop and only runs when coverage grows or the bitmap is globally
+dirty. Synchronous eraser stamps are cost-gated; expensive ones mark the
+overview dirty and take this yielded rebuild path.
 
 ### LiveLayer — in-flight objects
 
-[`liveLayer.ts`](../src/draw/liveLayer.ts) is a small, bounded (`liveMax`, 64/32)
-set of objects rendered **directly** over the committed tiles every frame in world
-space, viewport-culled. Used for:
+[`liveLayer.ts`](../src/draw/rendering/liveLayer.ts) is a small, normally bounded
+(`liveMax`, 64/32) set of objects rendered **directly** over the committed tiles
+every frame in world space, viewport-culled. Additive handoff entries may exceed
+the soft cap rather than sacrifice correctness, and drain as their overview jobs
+commit. Used for:
 
 - The stroke you are actively drawing.
 - A newly-added object during its bake window (sharp vector until the tile lands).
 - Remote drags (smooth per-event while the destructive rebuild coalesces).
 
-Items carry a TTL (`NORMAL_TTL_MS` 5 s, `ERASE_TTL_MS` 1.5 s) so a missed
-demotion can never leave the layer permanently full. `gcExpired()` returns expired
-normal rects so their overview patch (deferred at add time) can be folded in.
+Normal and erase items carry a TTL (`NORMAL_TTL_MS` 5 s, `ERASE_TTL_MS` 1.5 s)
+so a missed demotion cannot leave them permanently live. Additive items do not
+expire: they retain the only cross-tier copy until their tracked overview patch
+actually commits, including across gesture abort/retry.
 
-**Demotion** (`demoteSettled` in RenderEngine): once a live object's region is fully
-baked, remove it from the live layer and fold its rect into the overview — one
-extra frame ensures the semi-transparent stroke isn't drawn twice (live + tile).
+**Demotion** (`demoteSettled` in RenderEngine): an additive overview handoff does
+not even start until every affected tile in the current fine tier is fresh. This
+prevents a low-resolution overview copy from appearing under a whole live stroke
+while one high-zoom tile is still missing. The live copy remains through queued,
+running, aborted, and retried overview work, then is removed in the same task that
+commits the atomic overview patch. If the user already zoomed to the overview
+tier, any incomplete origin-tier footprint is discarded at commit so it cannot
+later mix pre-stroke tiles with the updated overview.
 
 ---
 
@@ -643,9 +662,10 @@ reach the engine through the same seams as local edits.
    place except via the explicit stamp paths, which bump the gen.
 3. **Freshness is gen equality.** `builtGen === gen.get(key)`. A rebuild that
    `await`s must re-check the gen before storing, or it stores a stale bitmap.
-4. **Semi-transparent strokes must not be drawn twice.** A live overlay's overview
-   patch is deferred until demote; demote happens only after the tile is baked.
-   Breaking this doubles opacity (0.45 → 0.70) until the next pan/zoom.
+4. **Semi-transparent strokes must not be drawn twice.** An additive handoff starts
+   only after its fine-tier footprint is ready, and removes the live copy in the
+   same task that commits the atomic overview update. Breaking this doubles opacity
+   (0.45 → 0.70) until the next pan/zoom.
 5. **All-or-nothing stamping.** Only stamp a region when *every* covered tile is
    stampable; a partial stamp leaves stale tiles with no live fallback → flicker.
 6. **The loading gate suppresses paints** during a room join until the overview is

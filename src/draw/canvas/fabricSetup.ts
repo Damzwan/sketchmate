@@ -1,7 +1,7 @@
 import {
+	ActiveSelection,
 	Canvas,
 	type CanvasOptions,
-	classRegistry,
 	config,
 	FabricObject,
 	InteractiveFabricObject,
@@ -14,17 +14,7 @@ import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { BACKGROUND } from "@/draw/config/canvas.config";
 import { getRenderDpr } from "@/draw/config/renderQuality.config";
 import { activeLayerId } from "@/draw/layers/layerRegistry";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { registerBrushClasses } from "@/draw/utils/brushes/registry";
 import { useAuthStore } from "@/store/auth.store";
 import { uuidv4 } from "@/utils/uuid";
 
@@ -49,20 +39,6 @@ const customProperties = [
 	"flattened",
 ];
 
-const drawableClasses = [
-	[OptimizedEraserStroke, "OptimizedEraserStroke"],
-	[PixelStroke, "PixelStroke"],
-	[CharcoalStroke, "CharcoalStroke"],
-	[WaterColorStroke, "WaterColorStroke"],
-	[CalligraphyStroke, "CalligraphyStroke"],
-	[BucketFillPath, "BucketFillPath"],
-	[OptimizedPencilStroke, "OptimizedPencilStroke"],
-	[NeonStroke, NeonStroke.type],
-	[SprayStroke, SprayStroke.type],
-	[CircleStroke, CircleStroke.type],
-	[CrayonStroke, CrayonStroke.type],
-] as const;
-
 let configured = false;
 
 export function applyRenderDpr(): void {
@@ -75,10 +51,11 @@ export function configureFabric(): void {
 	configured = true;
 
 	disableObjectCaching();
-	registerDrawableClasses();
+	registerBrushClasses();
 	installObjectMetadata();
 	installZoomCalculation();
 	installControlRenderer();
+	installSelectionBorderPolicy();
 	applyInteractionDefaults();
 }
 
@@ -107,12 +84,6 @@ function disableObjectCaching(): void {
 	FabricObject.prototype.objectCaching = false;
 	IText.prototype.editable = false;
 	FabricObject.customProperties = customProperties;
-}
-
-function registerDrawableClasses(): void {
-	for (const [drawableClass, name] of drawableClasses) {
-		classRegistry.setClass(drawableClass, name);
-	}
 }
 
 function installObjectMetadata(): void {
@@ -207,14 +178,75 @@ function installControlRenderer(): void {
 	};
 }
 
+/**
+ * Members above which a multi-selection shows ONLY its own bounding box.
+ *
+ * Fabric draws a border around EVERY member of an `ActiveSelection` on top of
+ * the selection's own box. For two or three objects that is useful — it says
+ * exactly what is selected. For thirty it is a thicket of rectangles over the
+ * user's artwork, and the one box that actually matters is lost in it.
+ *
+ * 8 is the point where naming the individual members stops being the useful
+ * information and "this region is selected" starts being it.
+ */
+export const SELECTION_MEMBER_BORDER_LIMIT = 8;
+
+/**
+ * Draw one box instead of N for a large selection.
+ *
+ * Fabric already provides the seam: `ActiveSelection._renderControls` takes a
+ * `childrenOverride` it merges into the per-member style. But suppressing the
+ * borders that way still walks every member and still pays
+ * `calcTransformMatrix` + `qrDecompose` per member — and this runs on EVERY
+ * composited frame while a selection exists (see `rerenderActiveObjectControls`,
+ * wired into `afterComposite`). On a large selection that is per-frame matrix
+ * math for borders nobody is going to see.
+ *
+ * So the large case skips the member loop entirely and renders just the
+ * selection's own box, which is what `super._renderControls` does — here
+ * resolved explicitly through `InteractiveFabricObject.prototype`, the same
+ * function `super` reaches, and the one `installControlRenderer` replaced.
+ * Looked up per call rather than captured, so install order does not matter.
+ */
+export function installSelectionBorderPolicy(): void {
+	const withMembers = ActiveSelection.prototype._renderControls;
+
+	ActiveSelection.prototype._renderControls = function (
+		this: any,
+		ctx: CanvasRenderingContext2D,
+		styleOverride?: any,
+		childrenOverride?: any,
+	) {
+		const members = this._objects?.length ?? 0;
+		if (members <= SELECTION_MEMBER_BORDER_LIMIT) {
+			return withMembers.call(this, ctx, styleOverride, childrenOverride);
+		}
+		ctx.save();
+		ctx.globalAlpha = this.isMoving ? this.borderOpacityWhenMoving : 1;
+		InteractiveFabricObject.prototype._renderControls.call(
+			this,
+			ctx,
+			styleOverride,
+		);
+		ctx.restore();
+	};
+}
+
 function applyInteractionDefaults(): void {
-	const primaryColor = getComputedStyle(document.documentElement)
-		.getPropertyValue("--ion-color-primary")
-		.trim();
+	// Secondary, not primary: the handles sit on top of the user's own artwork,
+	// where the muted primary was hard to pick out. The brand red reads as UI
+	// chrome at a glance and never gets mistaken for part of the drawing.
+	const styles = getComputedStyle(document.documentElement);
+	const controlColor = styles.getPropertyValue("--ion-color-secondary").trim();
+	const controlBorderColor =
+		styles.getPropertyValue("--ion-color-secondary-shade").trim() ||
+		controlColor;
 
 	Object.assign(InteractiveFabricObject.ownDefaults, {
 		transparentCorners: false,
-		cornerColor: primaryColor,
+		cornerColor: controlColor,
+		cornerStrokeColor: controlBorderColor,
+		borderColor: controlColor,
 		cornerStyle: "circle",
 		cornerSize: 30,
 		originX: "center",

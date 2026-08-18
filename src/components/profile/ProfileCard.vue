@@ -4,7 +4,7 @@
     :style="cardStyle"
   >
     <div v-if="!disableAmbient" class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
-      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" :static-mode="staticWorld" />
+      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :dark="theme.isDark" :font="resolvedFontFamily" :static-mode="staticWorld" />
       <ProfileEffect :effect-id="effectiveCustomization.effectId" :static-effect="staticWorld" />
     </div>
 
@@ -43,7 +43,6 @@
 
       <div class="flex flex-col items-center relative mt-2">
         <div
-          ref="doodleZoneRef"
           class="js-doodle-zone relative w-full flex flex-col items-center py-6 transition-[transform,background-color]"
           :class="allowSketchEdit ? 'cursor-pointer rounded-[2rem] border-2 border-dashed hover:bg-black/[0.03] active:scale-[0.99]' : ''"
           :style="allowSketchEdit ? { borderColor: theme.cardBorderColor } : {}"
@@ -159,6 +158,21 @@
           </button>
         </div>
 
+        <!-- Competition wins. Only shown once there is one — an empty trophy
+             row reads as a taunt, not a stat. -->
+        <div
+          v-if="competitionWins > 0"
+          class="w-full mt-4 flex justify-center"
+        >
+          <span
+            class="px-3 py-1.5 rounded-full text-xs font-black tracking-wide border transition-colors duration-500"
+            :style="{ borderColor: theme.cardBorderColor, color: theme.accentColor }"
+          >
+            <ion-icon :icon="svg(mdiTrophyOutline)" class="align-middle mr-1" />
+            {{ competitionWins }} competition {{ competitionWins === 1 ? "win" : "wins" }}
+          </span>
+        </div>
+
         <div
           v-if="effectiveCustomization.signaturePath || allowSketchEdit"
           class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500 relative"
@@ -246,8 +260,9 @@ import {
 	mdiCog,
 	mdiDraw,
 	mdiPalette,
+	mdiTrophyOutline,
 } from "@mdi/js";
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
@@ -262,7 +277,6 @@ import {
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
 
@@ -306,8 +320,6 @@ defineEmits([
 	"edit-signature",
 ]);
 
-const doodleZoneRef = ref<HTMLElement | null>(null);
-
 const displayStats = computed(() => props.showStats ?? !props.isPreview);
 
 const effectiveCustomization = computed(() =>
@@ -325,11 +337,8 @@ const fontEffectClass = computed(() =>
 );
 
 // Contrast resolution handling logic
-const activeWorld = computed(() =>
-	resolveWorld(effectiveCustomization.value.worldId),
-);
 const readablePalette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const isDarkContext = computed(() => readablePalette.value.isDark);
 const activeColors = computed(() => readablePalette.value);
@@ -360,6 +369,12 @@ const cardStyle = computed(() => ({
 
 const getStatCount = (key: "mates" | "followers" | "following") =>
 	props.user.stats?.[key] || 0;
+
+// Public payloads flatten it to `competition_wins`; the logged-in user object
+// keeps the nested shape. Read both rather than making every caller normalise.
+const competitionWins = computed(
+	() => props.user?.competition_wins ?? props.user?.competition?.wins ?? 0,
+);
 const signatureStrokeWidth = computed(() =>
 	calculateSignatureStroke(effectiveCustomization.value.signatureViewBox),
 );

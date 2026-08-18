@@ -3,10 +3,14 @@ import { defineStore } from "pinia";
 import { type Ref, ref, watch } from "vue";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { BASE_BRUSH_SIZE, BLACK } from "@/draw/config/canvas.config";
+import { brushDisplayName, brushItemId } from "@/draw/config/paidBrushes";
 import { penBrushMapping } from "@/draw/config/tools.config";
+import { useBrushTrial } from "@/draw/tools/brushTrial.store";
 import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
 import { BrushType, type ToolService } from "@/draw/tools/tool.types";
 import { hexWithOpacity, percentToAlphaHex } from "@/draw/utils/color.utils";
+import { useToast } from "@/service/toast.service";
+import { useInventoryStore } from "@/store/inventory.store";
 
 interface Pen extends ToolService {
 	brushSize: Ref<number>;
@@ -31,10 +35,35 @@ export const usePen = defineStore("pen", (): Pen => {
 	const density = ref(20);
 	const dotWidth = ref(1);
 
+	function chargeTrialStroke() {
+		const itemId = brushItemId(brushType.value);
+
+		if (!itemId || useInventoryStore().isOwned(itemId)) return;
+
+		const trial = useBrushTrial();
+		const left = trial.consume(itemId);
+		if (left > 0) return;
+
+		// Let them KEEP the stroke they just drew — removing it would read as a
+		// bug — then hand back the pencil so the next one is not a surprise.
+		const name = brushDisplayName(brushType.value);
+		brushType.value = BrushType.Pencil;
+		// Hand the reason to the pen menu, which then opens on the unlock CTA
+		// rather than leaving the user to work out why the pencil came back.
+		trial.noteLockedOut(itemId);
+		useToast().toast(`${name} trial used up — tap it again to unlock`, {
+			color: "warning",
+		});
+	}
+
 	const events: FabricEvent[] = [
 		{
 			on: "mouse:down",
 			handler: updatePenCursor,
+		},
+		{
+			on: "path:created",
+			handler: chargeTrialStroke,
 		},
 		{
 			on: "zoomChanged",

@@ -20,6 +20,7 @@ export enum Menu {
 	ChatMenuOpen,
 	ViewProfileMenu,
 	Bucket,
+	Smudge,
 	ConnectionMenu,
 	ModerationMenu,
 	SharePostMenu,
@@ -28,6 +29,7 @@ export enum Menu {
 	TextEditMenu,
 	Shop,
 	UpgradeOnline,
+	Reference,
 }
 
 export type StickersEmblemsSavedTabOptions = "sticker" | "emblem" | "saved";

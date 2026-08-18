@@ -17,9 +17,10 @@ android {
         applicationId "ninja.sketchmate.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 140
-        versionName "0.4.4"
-        testInstrumentationRunner "androi dx.test.runner.AndroidJUnitRunner"
+        versionCode 143
+        versionName "0.4.5"
+        resourceConfigurations += ['en']
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
@@ -45,6 +46,14 @@ repositories {
     flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
+}
+
+// RevenueCat documents Amazon IAP as an optional store dependency. This app is
+// distributed through Google Play and never configures `useAmazon`, so exclude
+// the Amazon SDK pulled in by Hybrid Common from every app configuration.
+configurations.configureEach {
+    exclude group: 'com.revenuecat.purchases', module: 'purchases-store-amazon'
+    exclude group: 'com.amazon.device', module: 'amazon-appstore-sdk'
 }
 
 dependencies {

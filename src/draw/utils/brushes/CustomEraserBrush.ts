@@ -19,9 +19,11 @@ import { createYielder } from "@/draw/scheduling/yielder";
 import {
 	allowedCompactionPixels,
 	canRetainCompactedStrokes,
+	MAX_BAKED_MASK_PIXELS,
 	measureEraserCompactionUsage,
 	pruneExpiredRetainedClipStrokes,
 } from "@/draw/tools/eraserCompactionBudget";
+import { cacheBakedImageSource } from "@/draw/utils/brushes/bakedImageSource";
 import {
 	stripType,
 	toObjectWithoutPath,
@@ -455,7 +457,7 @@ export class CustomEraserBrush extends PencilBrush {
 	 * When set to `true` the brush will create a visual effect of undoing erasing
 	 */
 	inverted = false;
-	decimate = 1.5;
+	override decimate = 1.5;
 	effectContext: CanvasRenderingContext2D;
 
 	/**
@@ -514,12 +516,10 @@ export class CustomEraserBrush extends PencilBrush {
 
 	private eventEmitter: EventTarget;
 	private active = false;
-	private _disposer?: VoidFunction;
 
 	private _afterRenderHandler?: (opts: {
 		ctx: CanvasRenderingContext2D;
 	}) => void;
-	private _isPrimaryPointerActive = false;
 
 	constructor(canvas: fabric.Canvas) {
 		super(canvas);
@@ -578,7 +578,9 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override
 	 */
-	_setBrushStyles(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
+	override _setBrushStyles(
+		ctx: CanvasRenderingContext2D = this.canvas.contextTop,
+	) {
 		super._setBrushStyles(ctx);
 		ctx.strokeStyle = "black";
 	}
@@ -587,14 +589,16 @@ export class CustomEraserBrush extends PencilBrush {
 	 * @override strictly speaking the eraser needs a full render only if it has opacity set.
 	 * However since {@link PencilBrush} is designed for subclassing that is what we have to work with.
 	 */
-	needsFullRender(): boolean {
+	override needsFullRender(): boolean {
 		return true;
 	}
 
 	/**
 	 * @override erase
 	 */
-	_render(ctx: CanvasRenderingContext2D = this.canvas.getTopContext()): void {
+	override _render(
+		ctx: CanvasRenderingContext2D = this.canvas.getTopContext(),
+	): void {
 		super._render(ctx);
 		if (isLayerHidden(activeLayerId())) return;
 
@@ -643,7 +647,7 @@ export class CustomEraserBrush extends PencilBrush {
 	 * @override {@link drawEffect}
 	 */
 
-	onMouseDown(
+	override onMouseDown(
 		pointer: fabric.Point,
 		context: fabric.TEvent<fabric.TPointerEvent>,
 	): void {
@@ -696,7 +700,7 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override run if active
 	 */
-	onMouseMove(
+	override onMouseMove(
 		pointer: fabric.Point,
 		context: fabric.TEvent<fabric.TPointerEvent>,
 	): void {
@@ -713,7 +717,7 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override run if active, dispose of {@link drawEffect} listener
 	 */
-	onMouseUp(context: fabric.TEvent<fabric.TPointerEvent>): boolean {
+	override onMouseUp(context: fabric.TEvent<fabric.TPointerEvent>): boolean {
 		const ev = context?.e;
 		if (!isPrimaryPointer(ev)) return false;
 
@@ -736,7 +740,9 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override {@link fabric.PencilBrush} logic
 	 */
-	convertPointsToSVGPath(points: fabric.Point[]): fabric.util.TSimplePathData {
+	override convertPointsToSVGPath(
+		points: fabric.Point[],
+	): fabric.util.TSimplePathData {
 		return super.convertPointsToSVGPath(
 			this.decimate ? this.decimatePoints(points, this.decimate) : points,
 		);
@@ -745,7 +751,7 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override
 	 */
-	createPath(pathData: fabric.util.TSimplePathData) {
+	override createPath(pathData: fabric.util.TSimplePathData) {
 		// We instantiate our synced class directly instead of using super.createPath()
 		const path = new OptimizedEraserStroke(pathData, {
 			fill: null,
@@ -976,12 +982,12 @@ export class CustomEraserBrush extends PencilBrush {
 		}
 
 		// Retina resolution, capped so a giant object can't allocate a huge buffer.
+		// The cap is device-scaled — see MAX_BAKED_MASK_PIXELS.
 		let multiplier = this.canvas.getRetinaScaling?.() || 1;
-		const MAX_BAKE_PX = 4_194_304; // ~4MP per object
 		const area = uw * uh * multiplier * multiplier;
 		const allowedPixels = allowedCompactionPixels(
 			usage.bakedPixels,
-			Math.min(area, MAX_BAKE_PX),
+			Math.min(area, MAX_BAKED_MASK_PIXELS),
 		);
 		if (allowedPixels < 1) {
 			clones.forEach((clone) => (clone as any).dispose?.());
@@ -1023,9 +1029,16 @@ export class CustomEraserBrush extends PencilBrush {
 		// element is a canvas — so serialization produces the identical data URL
 		// on its own, from the canvas, whether or not `src` is set. Nothing in the
 		// RENDER path reads `src` (only toObject/toString do), so dropping the
-		// eager encode changes no pixels and no persisted output; it just moves
-		// the cost to the moment something actually serializes, which is already
-		// a yielded/background path (save, sync).
+		// eager encode changes no pixels and no persisted output.
+		//
+		// But "the serializer is a yielded path" does NOT make the encode safe: a
+		// yielder splits BETWEEN objects and this is one object, so the encode is
+		// an atomic multi-hundred-ms block wherever it lands — and it landed on
+		// EVERY save, sync and history snapshot, not once. `cacheBakedImageSource`
+		// keeps the deferral and adds the two things that were missing: the encode
+		// happens at most once per baked canvas, and it is warmed asynchronously
+		// (`toBlob`, off-thread) so the serializer normally finds it already done.
+		cacheBakedImageSource(baked, el);
 		(object as any).__hasImageClip = true;
 
 		// Swap ONLY the baked (oldest) children for the single union image; the
@@ -1054,7 +1067,7 @@ export class CustomEraserBrush extends PencilBrush {
 	/**
 	 * @override handle events
 	 */
-	_finalizeAndAddPath(): void {
+	override _finalizeAndAddPath(): void {
 		const points = this["_points"];
 
 		if (points.length < 2) {
@@ -1111,7 +1124,7 @@ export class CustomEraserBrush extends PencilBrush {
 }
 
 export class OptimizedEraserStroke extends TracedPath {
-	static type = "OptimizedEraserStroke";
+	static override type = "OptimizedEraserStroke";
 
 	constructor(path: string | any[] | TracedPath, options: any) {
 		const sharedSource =
@@ -1134,7 +1147,7 @@ export class OptimizedEraserStroke extends TracedPath {
 	 * widened here rather than suppressed. Suppressing it left the whole class
 	 * unassignable to `TracedPath`/`Path`, which surfaced as errors at every use.
 	 */
-	toObject(additionalProperties: any = []): any {
+	override toObject(additionalProperties: any = []): any {
 		// Preserve the composite operation essential for the masking effect.
 		// Path.toObject deep-copies every segment and it is discarded below —
 		// fromObject rebuilds from `compressedTrace`. See toObjectWithoutPath.
@@ -1184,7 +1197,7 @@ export class OptimizedEraserStroke extends TracedPath {
 		};
 	}
 
-	static async fromObject(object: any) {
+	static override async fromObject(object: any) {
 		// INFLATION: Convert the flat delta array back into an SVG string
 		let path = object.path;
 		if (object.compressedTrace && !path) {

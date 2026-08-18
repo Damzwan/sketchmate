@@ -1,6 +1,7 @@
 import type { PublicLobby } from "@/draw/sync/session.store";
 import {
 	type ChangeUserNameParams,
+	type ChatStatus,
 	type CreateEmblemParams,
 	type CreateSavedParams,
 	type CreateStickerParams,
@@ -15,6 +16,8 @@ import {
 	type Mate,
 	type NetworkUser,
 	type OnLoginEventParams,
+	type PresenceStatus,
+	type PublicUser,
 	type RegisterNotificationParams,
 	type Res,
 	type Saved,
@@ -22,6 +25,7 @@ import {
 	type UnRegisterNotificationParams,
 	type UpdateProfilePayload,
 	type UpdateUserParams,
+	type UserRelationship,
 } from "@/types/server.types";
 import { request } from "./http";
 
@@ -94,9 +98,27 @@ export async function searchUsers(query: string) {
 	return await request<Mate[]>(`/user/search?q=${encodeURIComponent(query)}`);
 }
 
-export async function fetchOnlineFriends() {
-	// Returns hydrated NetworkUser objects for the "Online Now" bar
-	return await request<NetworkUser[]>("/user/online-friends");
+/**
+ * Ids of mates currently connected, for the "Online Now" bar. Bare id strings,
+ * not hydrated users — the endpoint returns `onlineIds` directly. This was
+ * declared as `NetworkUser[]` and the caller cast it away with `as any`; the
+ * ids are resolved through `userCache` on the client instead.
+ */
+export async function fetchOnlineFriends(): Promise<string[]> {
+	return await request<string[]>("/user/online-friends");
+}
+
+export async function updatePresenceStatus(status: PresenceStatus): Promise<{
+	presence_status: PresenceStatus;
+	presence_invisible: boolean;
+}> {
+	return await request<{
+		presence_status: PresenceStatus;
+		presence_invisible: boolean;
+	}>("/user/presence", {
+		method: "PUT",
+		body: JSON.stringify({ status }),
+	});
 }
 
 export async function fetchUserPosts(userId: string, page = 1, limit = 20) {
@@ -105,24 +127,29 @@ export async function fetchUserPosts(userId: string, page = 1, limit = 20) {
 	);
 }
 
-export async function getPartialUsers(ids: string[]): Promise<any[]> {
+export async function getPartialUsers(ids: string[]): Promise<PublicUser[]> {
 	if (!ids.length) return [];
 
 	const queryParams = new URLSearchParams({ _ids: ids.join(",") });
 
-	return await request<any[]>(`/user/public_users?${queryParams.toString()}`, {
-		method: "GET",
-	});
+	return await request<PublicUser[]>(
+		`/user/public_users?${queryParams.toString()}`,
+		{
+			method: "GET",
+		},
+	);
 }
 
-export async function getFullProfile(userId: string): Promise<{
-	profile: any & { relationship?: any; chat_status?: string };
-	posts: any[];
-}> {
-	return await request<{
-		profile: any & { relationship?: any; chat_status?: string };
-		posts: any[];
-	}>(`/user/${userId}/profile`);
+export interface FullProfileRes {
+	profile: PublicUser & {
+		relationship?: UserRelationship;
+		chat_status?: ChatStatus;
+	};
+	posts: FeedPost[];
+}
+
+export async function getFullProfile(userId: string): Promise<FullProfileRes> {
+	return await request<FullProfileRes>(`/user/${userId}/profile`);
 }
 
 export async function createSaved(

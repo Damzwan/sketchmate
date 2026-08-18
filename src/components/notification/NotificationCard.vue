@@ -15,7 +15,11 @@
       <!-- Actor / System Icon Avatars -->
       <div class="shrink-0 relative select-none">
         <div v-if="notification.actors.length > 1" class="flex -space-x-3.5 md:-space-x-4 overflow-visible">
-          <img
+<img
+            width="44"
+            height="44"
+            loading="lazy"
+            decoding="async"
             v-for="(actor, i) in notification.actors.slice(0, 2)"
             :key="actor._id"
             :src="actor.img"
@@ -28,7 +32,11 @@
           />
         </div>
 
-        <img
+<img
+          width="44"
+          height="44"
+          loading="lazy"
+          decoding="async"
           v-else-if="notification.actors[0]"
           :src="notification.actors[0].img"
           class="w-11 h-11 md:w-12 md:h-12 rounded-full object-cover border border-primary/20 shadow-sm transition-all"
@@ -79,7 +87,11 @@
         class="shrink-0 w-14 h-14 md:w-16 md:h-16 rounded-2xl overflow-hidden border p-0.5 bg-white/60 shadow-sm transition-all group-hover:scale-[1.03]"
         :class="notification.read ? 'border-primary/10 opacity-60' : 'border-primary/30'"
       >
-        <img
+<img
+          width="1"
+          height="1"
+          loading="lazy"
+          decoding="async"
           :src="notification.target_preview.thumbnail"
           class="w-full h-full object-cover rounded-xl"
           alt="Target illustration thumbnail"
@@ -93,27 +105,28 @@
 import { IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountPlus,
+	mdiAt,
 	mdiBullhorn,
 	mdiChatOutline,
 	mdiHeart,
 	mdiPencilOutline,
 	mdiShieldAlertOutline,
+	mdiTrophyOutline,
 } from "@mdi/js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { computed } from "vue";
+import { useCompetitionEntryViewer } from "@/composables/competition/useCompetitionEntryViewer";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { masterAnimation } from "@/helper/animation.helper";
+import dayjs from "@/helper/dayjsRelative.helper";
 import { svg } from "@/helper/general.helper";
+import { useCompetitionStore } from "@/store/competition.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { Notification } from "@/types/server.types";
-
-dayjs.extend(relativeTime);
 
 const props = defineProps<{ notification: Notification }>();
 const store = useInAppNotificationStore();
@@ -134,6 +147,12 @@ const typeConfig = computed(() => {
 				color: "var(--ion-color-secondary)",
 				icon: mdiChatOutline,
 				verb: () => "commented on your post",
+			};
+		case "post_mention":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon: mdiAt,
+				verb: () => "gave you a shoutout",
 			};
 		case "inbox_comment":
 			return {
@@ -191,6 +210,18 @@ const typeConfig = computed(() => {
 				icon: mdiBullhorn,
 				verb: () => "",
 			};
+		case "competition":
+			return {
+				color: "var(--ion-color-secondary)",
+				icon:
+					props.notification.payload?.kind === "entry_comment"
+						? mdiChatOutline
+						: mdiTrophyOutline,
+				verb: (n: number) =>
+					n === 1
+						? "commented on your competition entry"
+						: `and ${n - 1} others commented on your entry`,
+			};
 		default:
 			return {
 				color: "var(--ion-color-medium)",
@@ -216,6 +247,14 @@ const headline = computed(() => {
 	if (props.notification.type === "announcement") {
 		return props.notification.payload?.title ?? "Announcement";
 	}
+	if (props.notification.type === "competition") {
+		// A comment is a person doing something; everything else on this type is
+		// the system talking, so it leads with its own title.
+		if (props.notification.payload?.kind === "entry_comment") {
+			return props.notification.actors[0]?.name ?? "Someone";
+		}
+		return props.notification.payload?.title ?? "Weekly competition";
+	}
 	return props.notification.actors[0]?.name ?? "Someone";
 });
 
@@ -230,6 +269,12 @@ const body = computed(() => {
 		return props.notification.payload?.body ?? "";
 	}
 	if (props.notification.type === "announcement") {
+		return props.notification.payload?.body ?? "";
+	}
+	if (props.notification.type === "competition") {
+		if (props.notification.payload?.kind === "entry_comment") {
+			return typeConfig.value.verb(props.notification.actor_count);
+		}
 		return props.notification.payload?.body ?? "";
 	}
 	return typeConfig.value.verb(props.notification.actor_count);
@@ -252,6 +297,7 @@ const openSharedInboxItem = async (_id: string) => {
 
 const r = useIonRouter();
 const { openUserActions } = useUserContextSheet();
+const { openEntryById } = useCompetitionEntryViewer();
 
 async function handleTap() {
 	await store.markRead(props.notification._id);
@@ -268,6 +314,30 @@ async function handleTap() {
 			if (n.target_id) openUserActions({ _id: n.target_id });
 			break;
 		case "system":
+			if (n.type === "competition") {
+				const competitionId = n.payload?.competition_id;
+				const entryId = n.payload?.entry_id;
+
+				// A comment opens the drawing it was left on, right here — reading a
+				// reply is not a reason to move the user off the notification list
+				// and strand them on the competition page when they close it.
+				if (n.payload?.kind === "entry_comment" && entryId) {
+					void openEntryById(entryId, true);
+					break;
+				}
+
+				// Submissions closing is a state change on the page, not a podium.
+				if (n.payload?.kind === "submissions_closed") {
+					r.push(FRONTEND_ROUTES.competition, masterAnimation);
+					break;
+				}
+
+				// Results and wins land on the competition page with the winners
+				// modal over it, so closing the modal leaves the user on the week
+				// rather than back here with nothing to do next.
+				void useCompetitionStore().openResults(competitionId);
+				break;
+			}
 			if (
 				n.type === "moderation_strike" ||
 				n.type === "moderation_lifted" ||

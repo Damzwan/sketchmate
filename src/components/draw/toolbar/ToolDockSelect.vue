@@ -109,12 +109,6 @@ const isText = computed(
 		selectedObjectsRef.value.length === 1 &&
 		selectedObjectsRef.value[0].type === ObjectType.text,
 );
-const isImg = computed(
-	() =>
-		selectedObjectsRef.value.length === 1 &&
-		selectedObjectsRef.value[0].type === ObjectType.image,
-);
-
 const fontFamily = computed(() =>
 	selectedObjectsRef.value[0]
 		? ((selectedObjectsRef.value as any)[0]["fontFamily"] as string)

@@ -1,4 +1,10 @@
 import type { FabricObject } from "fabric";
+import {
+	IS_LOW_END_DEVICE,
+	IS_MOBILE_DEVICE,
+} from "@/draw/config/renderQuality.config";
+import { layerOpacity } from "@/draw/layers/layerRegistry";
+import { shouldTimeRenderObject } from "@/draw/rendering/renderMetrics";
 
 /**
  * Prepare one object (and, recursively, a group's children) to be rasterized
@@ -98,6 +104,27 @@ function unwindUndo(from: number): void {
 	undoCount = from;
 }
 
+/**
+ * The tier every `bakeScaling` call reports, as module state.
+ *
+ * `getTotalObjectScaling` used to be assigned as a fresh arrow capturing
+ * `tierScale`, which means ONE CLOSURE PER NODE PER TILE. A dense board hands a
+ * single tile a few thousand objects and a bake pass covers ~40 tiles, so that
+ * was tens of thousands of closures (plus their captured environments) per pass
+ * — the same steady-state garbage the undo journal was rewritten to avoid, on
+ * the device class least able to absorb it.
+ *
+ * Safe as module state precisely because it is only ever read INSIDE the
+ * synchronous window between a `prepareForBake` and its unwind: fabric calls
+ * `getTotalObjectScaling` from `render()`, and no bake path awaits between the
+ * two. Concurrent bake lanes share one tier per pass anyway.
+ */
+let bakeTierScale = 1;
+
+function bakeScaling(this: any) {
+	return this.getObjectScaling().scalarMultiply(bakeTierScale);
+}
+
 function prepareForBake(
 	o: any,
 	tierScale: number,
@@ -106,10 +133,9 @@ function prepareForBake(
 	const prevCaching = o.objectCaching;
 	const prevScaling = o.getTotalObjectScaling;
 
+	bakeTierScale = tierScale;
 	o.objectCaching = false;
-	o.getTotalObjectScaling = function () {
-		return this.getObjectScaling().scalarMultiply(tierScale);
-	};
+	o.getTotalObjectScaling = bakeScaling;
 
 	recordCachingUndo(o, prevCaching, prevScaling);
 
@@ -171,6 +197,134 @@ function prepareForBake(
 	}
 }
 
+/**
+ * Below this a group is cheap enough that splitting it costs more in ceremony
+ * than the block it would break up. A merge of a handful of shapes renders in
+ * well under a frame; a merge of a whole drawing does not.
+ */
+const SPLITTABLE_GROUP_MIN_CHILDREN = IS_LOW_END_DEVICE
+	? 16
+	: IS_MOBILE_DEVICE
+		? 32
+		: 48;
+
+export interface RenderYielder {
+	shouldYield(): boolean;
+	yield(): Promise<void>;
+}
+
+/**
+ * Can this object's render be broken into pieces the caller can yield between?
+ *
+ * Only a plain container qualifies. A clipPath (an erased group) or a
+ * force-cached object has to rasterize as ONE unit through fabric's own cache
+ * path, and reproducing that here would be reimplementing fabric.
+ */
+export function isSplittableForBake(obj: FabricObject): boolean {
+	const o = obj as any;
+	return (
+		Array.isArray(o._objects) &&
+		o._objects.length >= SPLITTABLE_GROUP_MIN_CHILDREN &&
+		!o.clipPath &&
+		// Top level only. `transform()` picks own-vs-full matrix from the PARENT's
+		// `_transformDone`, so applying it by hand for a nested group would need to
+		// reproduce that state too. A merged group inside a group falls back to the
+		// sync path, which is correct, just not interruptible.
+		!o.group &&
+		typeof o.transform === "function" &&
+		typeof o.needsItsOwnCache === "function" &&
+		!o.needsItsOwnCache()
+	);
+}
+
+/**
+ * Yielding counterpart of `isolatedTileRenderer` for MERGED art.
+ *
+ * A merged drawing is one Group, and `group.render()` is a single synchronous
+ * call that rasterizes every child. The bake loop yields between OBJECTS, so a
+ * group holding a whole drawing is one indivisible block on the main thread —
+ * exactly the object the local fallback is most likely to be handed, and the
+ * longest frame in the app.
+ *
+ * This performs the render fabric would (`Object.render` → `Group.drawObject`)
+ * with the child loop opened up, so the caller can yield between batches.
+ *
+ * Deliberately reuses `isolatedTileRenderer` per child rather than preparing the
+ * whole subtree up front. Each child call is self-contained and SYNCHRONOUS: it
+ * prepares, renders and fully restores before returning, so no scene mutation is
+ * ever left applied across an await where a concurrent bake lane could observe
+ * (or clobber) it. That property is what makes this safe to make async at all.
+ */
+export const renderSplitForBake = async (
+	ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+	obj: FabricObject,
+	tierScale: number,
+	clipRect: { x: number; y: number; w: number; h: number } | undefined,
+	yielder: RenderYielder,
+	isAborted?: () => boolean,
+	onObjectRendered?: (ms: number, obj: FabricObject) => void,
+): Promise<void> => {
+	const group = obj as any;
+	const children: any[] = group._objects;
+
+	const origVisible = group.visible;
+	const origIsOnScreen = group.isOnScreen;
+	const origTransformDone = group._transformDone;
+	group.visible = true;
+	group.isOnScreen = () => true;
+
+	ctx.save();
+	try {
+		// The state fabric's own `render` establishes around `drawObject`.
+		group._setupCompositeOperation?.(ctx);
+		group.transform(ctx);
+		// What `Group.render` sets before delegating: it tells each child's
+		// `transform()` to use its OWN matrix, because the group's is already on the
+		// context. Without it every child re-applies the group matrix on top of it.
+		group._transformDone = true;
+		group._setOpacity?.(ctx);
+		group._setShadow?.(ctx);
+		group._renderBackground?.(ctx);
+
+		for (let i = 0; i < children.length; i++) {
+			const child = children[i];
+			if (!child) continue;
+			// Same cull as the sync path, and for the same reason: the group is ONE
+			// index entry, so every tile it overlaps is handed all of its children.
+			if (clipRect) {
+				try {
+					child.setCoords();
+					if (!intersects(clipRect, child.getBoundingRect())) continue;
+				} catch {
+					/* un-measurable child: render it */
+				}
+			}
+			const timed = !onObjectRendered || shouldTimeRenderObject();
+			const renderStartedAt = timed ? performance.now() : 0;
+			isolatedTileRenderer(
+				ctx as CanvasRenderingContext2D,
+				child,
+				tierScale,
+				clipRect,
+			);
+			if (timed) onObjectRendered?.(performance.now() - renderStartedAt, child);
+			if ((i & 15) === 15 || yielder.shouldYield()) {
+				await yielder.yield();
+				// A stale tile is dropped by the caller's generation check, so leaving
+				// the group half-drawn here is safe — it is never stored.
+				if (isAborted?.()) return;
+			}
+		}
+	} catch (err) {
+		console.warn("[TileRenderer] Split draw failed:", err);
+	} finally {
+		ctx.restore();
+		group._transformDone = origTransformDone;
+		group.visible = origVisible;
+		group.isOnScreen = origIsOnScreen;
+	}
+};
+
 export const isolatedTileRenderer = (
 	ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
 	obj: FabricObject,
@@ -185,6 +339,15 @@ export const isolatedTileRenderer = (
 	// permanent visible=true corrupts object state and can leak content that is
 	// meant to stay hidden (e.g. private/claimed areas).
 	obj.visible = true;
+
+	// LAYER OPACITY, applied here rather than in `prepareForBake` because that
+	// one recurses into groups and clip paths: multiplying at every level would
+	// compound the fade once per nesting depth. One multiply, on the top-level
+	// object, exactly like the visibility override above — and restored the same
+	// way, or the object's own opacity would drift on every bake.
+	const origOpacity = obj.opacity;
+	const fade = layerOpacity((obj as any).layerId);
+	if (fade < 1) obj.opacity = (origOpacity ?? 1) * fade;
 
 	// Do NOT force obj.dirty / clipPath.dirty here. Objects with a ClippingGroup
 	// are force-cached by fabric (needsItsOwnCache); forcing dirty made every
@@ -210,6 +373,7 @@ export const isolatedTileRenderer = (
 		// entries nobody will unwind.
 		unwindUndo(undoMark);
 		obj.visible = origVisible;
+		obj.opacity = origOpacity;
 		obj.isOnScreen = origIsOnScreen;
 		console.warn("[TileRenderer] Prepare failed:", err);
 		return;
@@ -225,6 +389,7 @@ export const isolatedTileRenderer = (
 
 		// Restore original states so baking never permanently mutates the object.
 		obj.visible = origVisible;
+		obj.opacity = origOpacity;
 		obj.isOnScreen = origIsOnScreen;
 		unwindUndo(undoMark);
 	}

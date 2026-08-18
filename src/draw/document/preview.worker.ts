@@ -1,17 +1,7 @@
 import { ClippingGroup } from "@erase2d/fabric";
 import { classRegistry, util } from "fabric";
 import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { registerBrushClasses } from "@/draw/utils/brushes/registry";
 
 interface PreviewStart {
 	type: "start";
@@ -22,8 +12,23 @@ interface PreviewStart {
 	bounds?: { x: number; y: number; w: number; h: number } | null;
 }
 
+/**
+ * The whole job in one message: a Blob crosses the worker boundary by
+ * reference, so the document that IndexedDB is about to store is handed over
+ * for the price of a single postMessage — no per-object structured clone on the
+ * main thread, which is what the batched `append` protocol below costs.
+ */
+interface PreviewDocument {
+	type: "document";
+	blob: Blob;
+	maxSize: number;
+	quality: number;
+	bounds?: { x: number; y: number; w: number; h: number } | null;
+}
+
 type PreviewMessage =
 	| PreviewStart
+	| PreviewDocument
 	| { type: "append"; objects: any[] }
 	| { type: "render" };
 
@@ -108,20 +113,7 @@ if (typeof document === "undefined") {
 	(globalThis as any).window = globalThis;
 }
 
-const brushes = [
-	[OptimizedEraserStroke, "OptimizedEraserStroke"],
-	[PixelStroke, "PixelStroke"],
-	[CharcoalStroke, "CharcoalStroke"],
-	[WaterColorStroke, "WaterColorStroke"],
-	[CalligraphyStroke, "CalligraphyStroke"],
-	[BucketFillPath, "BucketFillPath"],
-	[OptimizedPencilStroke, "OptimizedPencilStroke"],
-	[CircleStroke, CircleStroke.type],
-	[SprayStroke, SprayStroke.type],
-	[NeonStroke, NeonStroke.type],
-	[CrayonStroke, CrayonStroke.type],
-] as const;
-brushes.forEach(([type, name]) => classRegistry.setClass(type as any, name));
+registerBrushClasses();
 classRegistry.setClass(ClippingGroup as any);
 
 let fontsReady: Promise<void> | null = null;
@@ -319,6 +311,28 @@ let request: PreviewStart | null = null;
 const sources: any[] = [];
 
 self.onmessage = async (event: MessageEvent<PreviewMessage>) => {
+	if (event.data.type === "document") {
+		const message = event.data;
+		try {
+			const json = JSON.parse(await message.blob.text());
+			const blob = await renderPreview(
+				{
+					type: "start",
+					background: json?.background,
+					maxSize: message.maxSize,
+					quality: message.quality,
+					bounds: message.bounds,
+				},
+				json?.objects ?? [],
+			);
+			self.postMessage({ blob });
+		} catch (error) {
+			self.postMessage({
+				error: error instanceof Error ? error.message : "Preview worker failed",
+			});
+		}
+		return;
+	}
 	if (event.data.type === "start") {
 		request = event.data;
 		sources.length = 0;

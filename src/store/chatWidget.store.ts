@@ -1,12 +1,13 @@
-import { defineStore } from "pinia";
+import { defineStore, storeToRefs } from "pinia";
 import { ref } from "vue";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { useChatStore } from "./chat.store";
 
 export type ChatHead = { id: string; type: "chat" | "user" };
 
 export const useChatWidgetStore = defineStore("chatWidget", () => {
 	const isVisible = ref(true);
-	const isExpanded = ref(false);
+	const { chatPanelOpen: isExpanded } = storeToRefs(useOverlayRuntimeStore());
 	const activeTab = ref<"overview" | "lobby" | string>("overview");
 	const activeChatHeads = ref<ChatHead[]>([]);
 

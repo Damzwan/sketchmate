@@ -25,7 +25,6 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
-import { useDrawStore } from "@/draw/session/draw.store";
 import { useShareService } from "@/draw/sharing/shareService.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useBucket } from "@/draw/tools/bucket.store";

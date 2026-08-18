@@ -35,17 +35,7 @@ import {
 	SceneRevisionGate,
 	type WorkerTiming,
 } from "@/draw/rendering/bakery/protocol";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { registerBrushClasses } from "@/draw/utils/brushes/registry";
 
 // --- fonts -------------------------------------------------------------------
 // A worker has no CSS, so text used to be refused per-tile (wrong metrics in a
@@ -170,20 +160,7 @@ if (typeof document === "undefined") {
 	(globalThis as any).window = globalThis;
 }
 
-const brushes = [
-	[OptimizedEraserStroke, "OptimizedEraserStroke"],
-	[PixelStroke, "PixelStroke"],
-	[CharcoalStroke, "CharcoalStroke"],
-	[WaterColorStroke, "WaterColorStroke"],
-	[CalligraphyStroke, "CalligraphyStroke"],
-	[BucketFillPath, "BucketFillPath"],
-	[OptimizedPencilStroke, "OptimizedPencilStroke"],
-	[CircleStroke, CircleStroke.type],
-	[SprayStroke, SprayStroke.type],
-	[NeonStroke, NeonStroke.type],
-	[CrayonStroke, CrayonStroke.type],
-] as const;
-brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name));
+registerBrushClasses();
 
 // Register the eraser's clip class (type 'clipping'). It self-registers via a
 // module side-effect on the MAIN thread (CustomEraserBrush imports it), but the
@@ -771,6 +748,41 @@ function yieldToWorkerTasks(): Promise<void> {
 const RASTER_SLICE_MS = 8;
 
 // --- rasterizer --------------------------------------------------------------
+
+/**
+ * Rasterize on the CPU instead of the GPU. Set from the client's `config`
+ * message — the worker has no `window`, so it cannot resolve the device class
+ * that decides this (see config/rasterMode.config.ts).
+ *
+ * Context attributes bind on the FIRST `getContext` for a canvas, so a change
+ * only takes effect on a canvas allocated afterwards. Both factories below
+ * therefore drop their cached canvas when the mode changes; in practice the
+ * config message arrives before the first bake and nothing is discarded.
+ */
+let softwareRaster = false;
+
+/**
+ * Layers that are not fully opaque, mirrored from the client's `config`
+ * message. Empty in the common case, so the render loop pays one `size` check.
+ */
+let layerFades = new Map<string, number>();
+
+function layerFadeFor(layerId: unknown): number {
+	if (layerFades.size === 0) return 1;
+	return layerFades.get(typeof layerId === "string" ? layerId : "l0") ?? 1;
+}
+
+function rasterAttrs(): CanvasRenderingContext2DSettings {
+	return { willReadFrequently: softwareRaster };
+}
+
+function setWorkerSoftwareRaster(on: boolean): void {
+	if (softwareRaster === on) return;
+	softwareRaster = on;
+	renderCanvas = null;
+	overviewCanvas = null;
+}
+
 let renderCanvas: OffscreenCanvas | null = null;
 
 function getRenderCanvas(size: number): OffscreenCanvas {
@@ -780,6 +792,7 @@ function getRenderCanvas(size: number): OffscreenCanvas {
 		renderCanvas.height !== size
 	) {
 		renderCanvas = new OffscreenCanvas(size, size);
+		renderCanvas.getContext("2d", rasterAttrs());
 	}
 	return renderCanvas;
 }
@@ -795,6 +808,7 @@ function getOverviewCanvas(width: number, height: number): OffscreenCanvas {
 		overviewCanvas.height !== height
 	) {
 		overviewCanvas = new OffscreenCanvas(width, height);
+		overviewCanvas.getContext("2d", rasterAttrs());
 	}
 	return overviewCanvas;
 }
@@ -901,6 +915,11 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 		obj.visible = true;
 		obj.canvas = null;
 		obj.objectCaching = false;
+		// Mirror of the main renderer's layer fade (fabricTileRenderer). Applied
+		// on the top-level object only, so nesting never compounds it. The mirror
+		// object is the worker's own copy, so nothing needs restoring.
+		const fade = layerFadeFor((obj as any).layerId);
+		if (fade < 1) obj.opacity = (obj.opacity ?? 1) * fade;
 		obj.dirty = true;
 		if (obj.clipPath) obj.clipPath.dirty = true;
 		applyTierScaling(obj, scale, q);
@@ -1040,6 +1059,11 @@ async function overview(
 		obj.visible = true;
 		obj.canvas = null;
 		obj.objectCaching = false;
+		// Mirror of the main renderer's layer fade (fabricTileRenderer). Applied
+		// on the top-level object only, so nesting never compounds it. The mirror
+		// object is the worker's own copy, so nothing needs restoring.
+		const fade = layerFadeFor((obj as any).layerId);
+		if (fade < 1) obj.opacity = (obj.opacity ?? 1) * fade;
 		obj.dirty = true;
 		if (obj.clipPath) obj.clipPath.dirty = true;
 		applyTierScaling(obj, Math.max(sx, sy));
@@ -1151,6 +1175,16 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 							: Math.max(768, Math.floor(LIVE_MAX / 4));
 					if (typeof msg.jsonMaxBytes === "number" && msg.jsonMaxBytes > 0) {
 						JSON_MAX_BYTES = msg.jsonMaxBytes;
+					}
+					if (typeof msg.softwareRaster === "boolean") {
+						setWorkerSoftwareRaster(msg.softwareRaster);
+					}
+					if (msg.layerOpacity) {
+						layerFades = new Map(
+							Object.entries(msg.layerOpacity).filter(
+								([, value]) => typeof value === "number" && value < 1,
+							),
+						);
 					}
 					shrinkTo(LIVE_MAX);
 					shrinkJsonToBytes(JSON_MAX_BYTES);

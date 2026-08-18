@@ -2,7 +2,7 @@
   <div class="w-full h-full bg-background">
     <div class="w-full h-4/5 flex justify-center items-center">
       <div class="flex justify-center items-center flex-col">
-        <img :src="offline" alt="offline image" class="h-[350px] aspect-square" />
+<img width="350" height="350" loading="lazy" decoding="async" :src="offline" alt="offline image" class="h-[350px] aspect-square" />
         <div class="text-2xl text-black text-center">You are offline</div>
         <div class="text-base text-black pt-1 text-center">Connect to the internet and try again</div>
 

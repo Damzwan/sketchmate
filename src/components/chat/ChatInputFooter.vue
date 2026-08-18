@@ -107,7 +107,6 @@
 <script setup lang="ts">
 import {
 	actionSheetController,
-	alertController,
 	IonButton,
 	IonIcon,
 	IonInput,
@@ -123,6 +122,7 @@ import {
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref } from "vue";
+import { useConfirm } from "@/composables/useConfirm";
 import {
 	needsDecision,
 	resolveRelationship,
@@ -139,9 +139,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
-import { useMenuStore } from "@/store/menu.store";
 import { useParentalStore } from "@/store/parental.store";
-import { Menu } from "@/types/menu.types";
 import ChatRelationshipBanner from "./ChatRelationshipBanner.vue";
 
 const emit = defineEmits(["sent", "open-invite-popover"]);
@@ -151,8 +149,8 @@ const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
 const friendStore = useFriendStore();
 const drawSyncer = useDrawSyncer();
-const menuStore = useMenuStore();
 const router = useIonRouter();
+const { confirm } = useConfirm();
 
 const { activeTab } = storeToRefs(chatWidget);
 const { roomId } = storeToRefs(drawSyncer);
@@ -235,23 +233,14 @@ const openPrivateInviteSheet = async () => {
 };
 
 const confirmNewSession = async (friendId: string, name: string) => {
-	const alert = await alertController.create({
+	const shouldStart = await confirm({
 		header: "Start New Session?",
 		subHeader: "This will leave your current lobby.",
 		message: `You are about to start a private drawing session with ${name}.`,
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Confirm",
-				handler: () => {
-					leaveRoom();
-					setTimeout(() => startDrawingTogether(friendId), 100);
-				},
-			},
-		],
 	});
-	await alert.present();
+	if (!shouldStart) return;
+	leaveRoom();
+	setTimeout(() => startDrawingTogether(friendId), 100);
 };
 
 const startDrawingTogether = async (friendId: string) => {

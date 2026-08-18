@@ -65,7 +65,6 @@ import { IonButton, IonIcon, IonModal, useIonRouter } from "@ionic/vue";
 import { mdiPauseOctagonOutline } from "@mdi/js";
 import dayjs from "dayjs";
 import { storeToRefs } from "pinia";
-import { useRouter } from "vue-router";
 import { masterAnimation } from "@/helper/animation.helper";
 import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";

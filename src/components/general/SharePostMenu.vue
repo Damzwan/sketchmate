@@ -28,7 +28,7 @@
            class="flex items-center justify-between mb-4 bg-white/40 border border-white p-2 pr-3 rounded-2xl shrink-0 shadow-sm">
         <div class="flex items-center overflow-hidden flex-1">
           <div class="w-12 h-12 rounded-xl overflow-hidden bg-black/5 shrink-0">
-            <img :src="previewThumbnail" class="w-full h-full object-cover" />
+<img width="1" height="1" loading="lazy" decoding="async" :src="previewThumbnail" class="w-full h-full object-cover" />
           </div>
           <div class="ml-3 flex flex-col min-w-0 pr-2">
             <p class="text-sm text-black/80 italic truncate">
@@ -51,7 +51,6 @@
       </div>
 
       <div
-        ref="scrollContainer"
         @touchmove.stop
         class="flex-1 overflow-y-auto overscroll-contain px-1 space-y-3 hide-scrollbar pb-4 scroll-mask"
       >
@@ -146,7 +145,6 @@ const minChatVersion = "0.4.0";
 const loading = ref(false);
 const isSending = ref(false);
 const selectedFriendIds = ref<string[]>([]);
-const scrollContainer = ref<HTMLElement | null>(null);
 let matesFetchedThisSession = false;
 
 // --- Preview adapters (post vs inbox) ---

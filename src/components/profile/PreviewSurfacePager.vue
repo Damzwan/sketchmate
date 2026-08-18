@@ -127,20 +127,12 @@
 
 <script setup lang="ts">
 import { IonIcon, IonModal } from "@ionic/vue";
-import {
-	mdiArrowExpand,
-	mdiCardAccountDetailsOutline,
-	mdiChatOutline,
-	mdiClose,
-	mdiImageOutline,
-} from "@mdi/js";
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
-import exampleImg from "@/assets/example.webp";
+import { mdiArrowExpand, mdiClose } from "@mdi/js";
 import AmbientScope from "@/components/general/AmbientScope.vue";
 import PreviewSurface from "@/components/profile/PreviewSurface.vue";
 import type { Customization } from "@/config/profile_options.config";
 import { svg } from "@/helper/general.helper";
-import { useAmbientPause } from "@/store/ambientPause.store";
+import { usePreviewSurfacePager } from "./usePreviewSurfacePager";
 
 const props = withDefaults(
 	defineProps<{
@@ -182,227 +174,24 @@ const props = withDefaults(
 	},
 );
 
-// CSS custom props drive pane sizing so the same pager serves a compact picker
-// and a big shop preview without duplicate markup.
-const pagerVars = computed(() => ({
-	"--pane-w": props.paneWidth,
-	"--post-img-max-h": props.postImgMaxHeight,
-}));
-
-type Mode = "card" | "post" | "chat";
-const tabs: { id: Mode; label: string; icon: string }[] = [
-	{ id: "card", label: "Card", icon: mdiCardAccountDetailsOutline },
-	{ id: "post", label: "Post", icon: mdiImageOutline },
-	{ id: "chat", label: "Chat", icon: mdiChatOutline },
-];
-const mode = ref<Mode>("card");
-
-// Fullscreen zoom overlay for the active surface (opt-in via `zoomable`).
-// Its own surface state — switching chips inside the overlay must NOT move the
-// pager underneath (that desyncs when the overlay closes). Seeded from the
-// pager's mode on open, then independent.
-const zoomOpen = ref(false);
-const zoomMode = ref<Mode>("card");
-const openZoom = () => {
-	zoomMode.value = mode.value;
-	zoomOpen.value = true;
-};
-
-// A manual ambient hold while zoomed freezes every background world regardless
-// of host context (the customization sheets don't engage the menu-tracked
-// pause the shop does). Balanced release on close/unmount so the hold can't leak.
-const ambient = useAmbientPause();
-let holding = false;
-watch(zoomOpen, (open) => {
-	if (open && !holding) {
-		holding = true;
-		ambient.hold();
-	} else if (!open && holding) {
-		holding = false;
-		ambient.release();
-	}
-});
-
-const zooms = computed<Record<Mode, number>>(() => ({
-	card: props.cardZoom,
-	post: props.postZoom,
-	chat: props.chatZoom,
-}));
-
-// Add this to your PreviewPager.vue script
-const mockToast = computed<any>(() => {
-	const u = props.user ?? {};
-	return {
-		tabId: "preview-toast",
-		subtitle: u.name ?? "You",
-		title: "Lobby",
-		text: "You hopped into the room!",
-		img: u.img,
-		isTrial: false,
-		isRequest: false,
-		isJoin: true,
-		customization: props.customization,
-	};
-});
-
-// zoom scales layout using transforms, so width 100%/z re-fills the pane at any scale level.
-const zoomStyle = (id: Mode) => {
-	const z = zooms.value[id] || 1;
-	return {
-		transform: `scale(${z})`,
-		transformOrigin: "top center",
-		width: `calc(100% / ${z})`,
-	};
-};
-
-// Panes mount on first approach (active ± 1 neighbour, so the edge-peek and a
-// swipe-in are never blank) and stay mounted after — no remount pop-in when
-// swiping back. AmbientScope handles freezing; mounting is the only lazy part.
-const visited = reactive(new Set<Mode>());
-const markVisited = (id: Mode) => {
-	const idx = tabs.findIndex((t) => t.id === id);
-	visited.add(id);
-	if (tabs[idx - 1]) visited.add(tabs[idx - 1].id);
-	if (tabs[idx + 1]) visited.add(tabs[idx + 1].id);
-};
-
-const pagerRef = ref<HTMLElement | null>(null);
-let pagerRaf = 0;
-
-const scrollToPane = (idx: number, smooth = true) => {
-	const el = pagerRef.value;
-	const child = el?.children[idx] as HTMLElement | undefined;
-	if (!el || !child) return;
-	el.scrollTo({
-		left: child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2,
-		behavior: smooth ? "smooth" : "auto",
-	});
-};
-
-const setMode = (id: Mode, scroll = true) => {
-	if (mode.value !== id) {
-		mode.value = id;
-		markVisited(id);
-	}
-	if (scroll) scrollToPane(tabs.findIndex((t) => t.id === id));
-};
-
-// Tapping a PEEKED (non-active) pane navigates to it instead of interacting
-// with its content — capture phase so inner buttons never fire. The active
-// pane's clicks pass through untouched.
-const onPaneClick = (id: Mode, e: Event) => {
-	if (mode.value === id) return;
-	e.stopPropagation();
-	e.preventDefault();
-	setMode(id);
-};
-
-// Track swipes: whichever pane's center is nearest the pager's center is the
-// active mode. rAF-throttled — scroll events fire far faster than paints.
-const onPagerScroll = () => {
-	if (pagerRaf) return;
-	pagerRaf = requestAnimationFrame(() => {
-		pagerRaf = 0;
-		const el = pagerRef.value;
-		if (!el) return;
-		const center = el.scrollLeft + el.clientWidth / 2;
-		let best = 0;
-		let bestDist = Infinity;
-		for (let i = 0; i < el.children.length; i++) {
-			const child = el.children[i] as HTMLElement;
-			const d = Math.abs(child.offsetLeft + child.offsetWidth / 2 - center);
-			if (d < bestDist) {
-				bestDist = d;
-				best = i;
-			}
-		}
-		const id = tabs[best]?.id;
-		if (id && id !== mode.value) setMode(id, false);
-	});
-};
-
-// Host opened → reset to Card, mount ONLY the card, and pull the neighbor in
-// after the open transition settles — mounting a second world+effect surface
-// mid-transition is exactly when the modal animation stutters. Host closed →
-// unmount every pane so a customization view with six of these costs nothing.
-let neighborTimer = 0;
-watch(
-	() => props.active,
-	async (active) => {
-		window.clearTimeout(neighborTimer);
-		if (active) {
-			mode.value = "card";
-			visited.clear();
-			visited.add("card");
-			await nextTick();
-			scrollToPane(0, false);
-			neighborTimer = window.setTimeout(() => markVisited(mode.value), 450);
-		} else {
-			zoomOpen.value = false;
-			visited.clear();
-		}
-	},
-	{ immediate: true },
-);
-
-onBeforeUnmount(() => {
-	if (pagerRaf) cancelAnimationFrame(pagerRaf);
-	window.clearTimeout(neighborTimer);
-	if (holding) {
-		holding = false;
-		ambient.release();
-	}
-});
-
-// ── Mock surfaces wearing the previewed look ────────────────────────────────
-const mockPost = computed<any>(() => {
-	const u = props.user ?? {};
-	return {
-		_id: "preview-post",
-		author_id: u._id ?? "preview-me",
-		author: {
-			_id: u._id ?? "preview-me",
-			name: u.name ?? "You",
-			img: u.img,
-			avatar: u.img,
-			customization: props.customization,
-		},
-		image_url: exampleImg,
-		drawing_url: exampleImg,
-		description: u.description || "Fresh from the canvas ✨",
-		createdAt: new Date().toISOString(),
-		reaction_counts: { love: 12, fire: 4 },
-		user_reaction: null,
-		comment_count: 0,
-		comments: [],
-		views: 128,
-		enable_comments: true,
-		enable_remix: true,
-	};
-});
-
-// A synthetic active conversation row wearing the previewed look. currentUserId
-// is "preview-me", so the OTHER participant carries the customization.
-const mockChat = computed<any>(() => {
-	const u = props.user ?? {};
-	return {
-		_id: "preview-chat",
-		participants: [
-			{ _id: "preview-me", name: "You" },
-			{
-				_id: "preview-partner",
-				name: u.name ?? "You",
-				img: u.img,
-				customization: props.customization,
-			},
-		],
-		status: "active",
-		initiator_id: "preview-me",
-		last_message: { type: "text", content: "This is how your chats look 🎨" },
-		unread_counts: { "preview-me": 2 },
-		updatedAt: new Date().toISOString(),
-	};
-});
+const {
+	pagerVars,
+	tabs,
+	mode,
+	zoomOpen,
+	zoomMode,
+	openZoom,
+	zooms,
+	zoomStyle,
+	visited,
+	pagerRef,
+	setMode,
+	onPaneClick,
+	onPagerScroll,
+	mockToast,
+	mockPost,
+	mockChat,
+} = usePreviewSurfacePager(props);
 </script>
 
 <style scoped>

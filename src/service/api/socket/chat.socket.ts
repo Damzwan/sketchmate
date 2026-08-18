@@ -14,6 +14,7 @@ import type {
 	BaseMessage,
 	ChatStatus,
 	PopulatedConversation,
+	PresenceStatus,
 } from "@/types/server.types";
 
 /**
@@ -28,8 +29,26 @@ export function registerChatHandlers(socket: Socket) {
 	const userCache = useUserCacheStore();
 
 	socket.on(
+		"presence:updated",
+		(payload: {
+			presence_invisible: boolean;
+			presence_status?: PresenceStatus;
+		}) => {
+			if (authStore.user) {
+				authStore.user.presence_invisible = payload.presence_invisible;
+				authStore.user.presence_status =
+					payload.presence_status ??
+					(payload.presence_invisible ? "invisible" : "online");
+				if (authStore.user.presence_status === "busy") {
+					chatStore.clearPrivateNotifications();
+				}
+			}
+		},
+	);
+
+	socket.on(
 		"friend:online",
-		(data: { user_id: string; status: string; last_seen_version?: number }) => {
+		(data: { user_id: string; status: string; last_seen_version?: string }) => {
 			friendStore.setFriendOnlineStatus(data.user_id, true);
 
 			const cachedUser = userCache.getUser(data.user_id);

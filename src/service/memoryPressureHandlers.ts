@@ -10,40 +10,56 @@
 // `draw/diagnostics/drawMemoryPressure.ts`, where it can release GPU-backed
 // caches without this module having to import Fabric.
 
+import { getActivePinia } from "pinia";
 import {
 	installMemoryPressureBridge,
 	type MemoryPressureLevel,
 	onMemoryPressure,
 } from "@/service/memoryPressure";
-import { useChatStore } from "@/store/chat.store";
-import { useInboxStore } from "@/store/inbox.store";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { usePostStore } from "@/store/post.store";
 
 /** Cache ceilings under pressure, well below the steady-state limits. */
 const CHAT_CONVERSATIONS_UNDER_PRESSURE = 2;
 const POST_CACHE_UNDER_PRESSURE = 10;
 const INBOX_ITEMS_UNDER_PRESSURE = 40;
 
+/**
+ * Memory pressure must never instantiate a dormant feature store just to ask
+ * it to release an empty cache. Looking up Pinia's live store map also keeps
+ * chat/feed/gallery modules off the cold-start dependency graph.
+ */
+function existingStore<T>(id: string): T | undefined {
+	return getActivePinia()?._s.get(id) as T | undefined;
+}
+
 function shedViewCaches() {
 	// The swiper retains the whole collection it was opened with plus every
 	// decoded slide. Closed, it is pure dead weight.
-	const swiper = usePhotoSwiper();
-	if (!swiper.open) swiper.releaseRetainedContent();
+	const swiper = existingStore<{
+		open: boolean;
+		releaseRetainedContent: () => void;
+	}>("photoswiper");
+	if (swiper && !swiper.open) swiper.releaseRetainedContent();
 
-	usePostStore().prunePostCache(POST_CACHE_UNDER_PRESSURE);
+	existingStore<{ prunePostCache: (keep: number) => void }>(
+		"post",
+	)?.prunePostCache(POST_CACHE_UNDER_PRESSURE);
 }
 
 function shedDormantConversations() {
 	// Keeps the conversation the user has open; drops the rest, which re-fetch
 	// on next open exactly as they do after the normal LRU eviction.
-	useChatStore().pruneMessageCaches(CHAT_CONVERSATIONS_UNDER_PRESSURE);
+	existingStore<{ pruneMessageCaches: (keep: number) => void }>(
+		"chat",
+	)?.pruneMessageCaches(CHAT_CONVERSATIONS_UNDER_PRESSURE);
 }
 
 function shedInboxTail() {
 	// Trimming the tail is safe: pagination refills it from the `lastDate`
 	// cursor. `allLoaded` must be cleared or the list would refuse to page back.
-	const inbox = useInboxStore();
+	const inbox = existingStore<{ inbox: unknown[]; allLoaded: boolean }>(
+		"inbox",
+	);
+	if (!inbox) return;
 	if (inbox.inbox.length <= INBOX_ITEMS_UNDER_PRESSURE) return;
 	inbox.inbox = inbox.inbox.slice(0, INBOX_ITEMS_UNDER_PRESSURE);
 	inbox.allLoaded = false;

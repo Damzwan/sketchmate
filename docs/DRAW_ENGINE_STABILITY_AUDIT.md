@@ -5,6 +5,11 @@
 **Scope:** `src/draw/**`, with the saved-drawing import path investigated first  
 **Status:** First corrective pass implemented; device profiling and the remaining roadmap are open
 
+> **Architecture follow-up (2026-08-08):** see
+> [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md). It agrees
+> that tiling should stay, but makes the chunked record model a staged path for
+> removing Fabric from settled/off-screen objects and common worker render paths.
+
 ## Executive conclusion
 
 The tile-based renderer is directionally appropriate for SketchMate. An infinite,
@@ -118,9 +123,11 @@ transforms, runs layout, and later reverses the operation. This is not interrupt
 and scales poorly into thousands of objects.
 
 Import placement now computes bounds in yielded slices and applies one equivalent
-uniform affine transform directly to each detached object. Imports are rejected
-above 200 objects (or the payload byte ceiling), and every supported import is
-wrapped in `ActiveSelection` only after placement and commit so it remains selected.
+uniform affine transform directly to each detached object. Imports over the live
+object/payload ceiling are flattened to bounded images instead of being hydrated as
+an unbounded vector scene. Supported vector imports are grouped only after placement
+and commit, and that final selected subset now obeys the device-tier ActiveSelection
+cap described in DRAW-12.
 
 #### DRAW-03 — O(N²) z assignment during append
 
@@ -319,19 +326,23 @@ canvas immediately after transferring `ImageData`; reuse buffers where practical
 and add peak-byte metrics. Consider a lower-resolution retry with barrier dilation
 before allocating the 2,048² level on constrained devices.
 
-### DRAW-12 — Selection and lasso can still construct unbounded ActiveSelections
+### DRAW-12 — ✅ Lasso ActiveSelection is now bounded; proxy selection remains open
 
 **Severity:** P1  
 **Effort:** S–L  
 **Pull level:** 2
 
-Saved import is now capped, but lasso can select every intersecting object and then
-synchronously construct an `ActiveSelection`. Selection prewarming adds a transform
-bitmap and may re-render many children.
+Lasso, Fabric's rectangular selector, additive multi-select and saved-import
+selection now apply one device-tier cap before constructing an `ActiveSelection`:
+64 severe, 128 low-end, 256 mobile, 512 desktop. When a bulk selection exceeds the
+limit it keeps the topmost objects in canvas stacking order and warns the user.
+Saved import still commits every object; only the selected subset is capped.
+Selection prewarming is therefore bounded by the same limit.
 
-**Action:** Apply a safe mobile selection cap immediately. Longer term, represent a
-large selection as an ID set + aggregate transform proxy, applying the final matrix
-to members in yielded slices rather than grouping every Fabric object.
+**Remaining action:** Longer term, represent a large selection as an ID set +
+aggregate transform proxy, applying the final matrix to members in yielded slices
+rather than grouping every Fabric object. That would remove the UX cap without
+returning to unbounded synchronous Fabric grouping.
 
 ### DRAW-13 — Import/load complexity ignores decoded pixels and several deep graphs
 

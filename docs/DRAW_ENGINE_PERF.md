@@ -1,5 +1,128 @@
 # Draw engine — ANR / crash remediation plan
 
+## 0.4.4 field pass — 2026-08-15
+
+Build 141 (0.4.4) sits at **0.44 % ANR / 0.30 % crash**. The Play Console
+clusters are still input-dispatch timeouts with "Unresponsive GPU" and native
+lock contention, but the top frame has **changed vendor**:
+
+```
+[libIMGegl.so] KEGLGetDrawableParameters
+```
+
+`libIMGegl.so` identifies Imagination's EGL implementation rather than
+Qualcomm's. That is useful cohort evidence, but it does **not** identify one GPU
+model, RAM tier, or root cause by itself. The supporting frames
+(`__futex_wait_ex`, `art::ConditionVariable::WaitHoldingLocks`) are wait sites,
+not attribution: the complete main/RenderThread stacks and lock owner in each
+Play trace decide what actually stalled.
+
+### The correction that reorders the plan
+
+The GPU-tagged clusters are consistent with this failure chain:
+
+```
+tile pipeline GL  →  RenderThread stalls in libIMGegl
+                  →  UI thread blocks in nSyncAndDrawFrame (futex)
+                  →  input not dispatched within 5 s  →  ANR
+```
+
+Android explicitly documents GPU hangs as one way rendering can block long
+enough to cause an input-dispatch ANR. That makes reducing fill rate, surface
+count and texture churn a justified priority. It does **not** make every row the
+same incident: the System WebView and "No focused window" clusters must remain
+separate hypotheses until their full traces, device breakdown and WebView
+versions are compared.
+
+### What shipped in this pass
+
+| # | Change | Where |
+| --- | --- | --- |
+| L5 | **Device profile: GPU family + native RAM/WebView signals.** `WEBGL_debug_renderer_info` supplies the renderer string; MainActivity forwards `isLowRamDevice()`, advertised/physical RAM and the active WebView provider/version. The WebGL probe now reuses a persisted renderer instead of creating and losing another EGL context on every boot. Values are learned for the next launch because render constants resolve synchronously at canvas construction. | [`service/deviceProfile.ts`](../src/service/deviceProfile.ts), `MainActivity.java` |
+| L3 | **Render DPR 1.0 on the severe cohort.** F4 took the cap from raw DPR to 1.5 and stopped. 1.5 is still 2.25x the pixels of 1.0 in every full-surface clear, tile bake and canvas backing store, and this hardware is fill-rate bound. `severelyConstrained` also moved out of `drawMemoryProfile` so the budget and the resolution read one predicate. | [`config/renderQuality.config.ts`](../src/draw/config/renderQuality.config.ts) |
+| L2 | **CPU raster remains an explicit experiment, not an automatic mitigation.** Chromium prefers a CPU-backed 2D canvas for `willReadFrequently: true`, but with the bakery off that moves every tile bake onto the UI thread and the result still needs a GPU upload at composite time. Production therefore defaults to GPU; `?drawRaster=cpu` or the support storage override is available only for measured cohort tests. | [`config/rasterMode.config.ts`](../src/draw/config/rasterMode.config.ts), [`rendering/rasterSurface.ts`](../src/draw/rendering/rasterSurface.ts) |
+| L4 | **Session-scoped quality governor.** Sustained main-thread blocking sheds tile headroom now and persists a demotion for the next launch. Metrics reset on every draw mount, historical buffered long tasks are excluded, and severe tasks are counted directly rather than inferred from a cumulative maximum. Resolution is deliberately not changed mid-session because that would resize every surface and invalidate tiles during pressure. Demotions expire after 30 days. | [`diagnostics/renderPressureGovernor.ts`](../src/draw/diagnostics/renderPressureGovernor.ts), [`rendering/renderMetrics.ts`](../src/draw/rendering/renderMetrics.ts), [`config/qualityDemotion.ts`](../src/draw/config/qualityDemotion.ts) |
+| L6 | **Drag layers release their pixels.** The two transform layers were `display: none` between grabs but kept full-size accelerated canvases — up to ~5 MB each — for the whole session. Zeroed on an 8 s idle timer, on memory pressure, and when a stale layer's canvas is replaced. | [`transform/transformController.ts`](../src/draw/transform/transformController.ts) |
+| L7 | **Splash watchdog.** `launchAutoHide: false` + hide-on-`router.isReady()` + a 10 s auth bail could hold a full-screen native view over a window with no focus, well past the 5 s ANR threshold. That is a plausible contributor to the `No focused window` row, not proof of it. Splash lifetime is now bounded at 4 s regardless of the router. | [`helper/general.helper.ts`](../src/helper/general.helper.ts) |
+| L8 | **One low-end predicate.** `main.ts` stamped `low-end` from `cores <= 4` while the engine also demoted on memory, GPU and low-RAM: an 8-core low-memory phone could keep the full decorative effects. A `min-end` class drops blur and, inside the draw route, infinite CSS animations on the severe cohort. Canvas/tool input remains enabled. | [`main.ts`](../src/main.ts), [`theme/main.css`](../src/theme/main.css) |
+| L9 | **Remove avoidable window overdraw.** The opaque WebView no longer sits over a retained window background drawable; the drawable is set to `null` after creation rather than replaced by a transparent drawable. | `MainActivity.java` |
+| L10 | **Bound ActiveSelection materialization.** Lasso, rectangular selection, additive multi-select and saved-import selection share a 64/128/256/512 member ceiling by device tier. Over-limit bulk selections keep the topmost objects and warn; saved import still adds every object, it just does not synchronously group all of them. | [`config/selectionBudget.ts`](../src/draw/config/selectionBudget.ts), [`tools/lassoTool.ts`](../src/draw/tools/lassoTool.ts), [`canvas/fabricInteractions.ts`](../src/draw/canvas/fabricInteractions.ts), [`tools/select.store.ts`](../src/draw/tools/select.store.ts), [`objects/objectActions.ts`](../src/draw/objects/objectActions.ts) |
+| L11 | **Incremental opaque crayon preview.** The crayon brush now gives Fabric its seeded pattern source and uses Fabric's incremental segment rendering for opaque/no-shadow strokes. It only requests a full redraw where alpha or shadow makes that necessary, eliminating the prior O(points²) preview path. | [`utils/brushes/CrayonBrush.ts`](../src/draw/utils/brushes/CrayonBrush.ts) |
+| L12 | **Legacy-load centering no longer groups the whole scene.** The Fabric 5.5.2 migration used a scene-sized `ActiveSelection` merely to translate all children to the viewport center. Bounds and equivalent per-object translations now run in yielded slices, removing another uninterruptible load-time atom. | [`objects/savedObjectPlacement.ts`](../src/draw/objects/savedObjectPlacement.ts), [`document/document.store.ts`](../src/draw/document/document.store.ts) |
+
+### Telemetry — the join that was missing
+
+Play Console names its ANR clusters after the driver that stalled
+(`libIMGegl.so`, `libGLESv2_adreno`, `libgsl`) and nothing we recorded
+identified the GPU, so the two data sets could not be joined at all. Now tagged:
+`draw.gpu`, `draw.gpuClass`, `draw.lowRam`, `draw.totalMemMB`,
+`draw.webViewPackage`, `draw.webViewVersion`, `draw.raster`, `draw.severe`,
+`draw.qualityDemotion`. `draw.gpu` is normally populated from the second launch
+onwards.
+
+**Read these before tuning anything above.** The DPR-1.0 cohort has no field
+data yet. There is no automatic CPU-raster cohort; `draw.raster: cpu` means an
+explicit support experiment.
+
+### The worker flip stays deferred — and what it now waits on
+
+`getDrawRenderBackend()` still returns `"main"`
+([`renderBackend.config.ts:47`](../src/draw/config/renderBackend.config.ts#L47)),
+so production defaults to main-thread baking and the `tileBakery.worker.ts` path
+remains dark unless an explicit support query/stored override selects it. That
+is a deliberate hold: the measured overhead of the worker round trip (serialize,
+structured clone, mirror upserts) has not paid for itself on the devices that
+matter.
+
+The switches remain orthogonal in code: the backend says which thread bakes and
+`rasterMode.config` says which processor Chromium should prefer. Neither switch
+is a production recommendation today. The worker stays off by request, and CPU
+raster stays opt-in because running it on the UI thread could trade a GPU stall
+for a JavaScript/input stall. Any future test must compare p95/p99 input delay,
+long-task severity, tile bake time, memory pressure and Play vitals by device/GPU
+cohort—not just average frame time.
+
+---
+
+## Field incidents follow-up — 2026-08-13
+
+A Sentry ANR at `2026-08-13T14:35:18.953Z` contained breadcrumbs but no native
+thread dump. It occurred during a long drawing session with no tap near the ANR;
+the last visible action was an undo roughly 75 seconds earlier. The Google
+`ModuleInstall.API` error in the same trail is not causal: it occurred on draw
+mount and the app remained responsive for several minutes afterward.
+
+**Correction:** the native filesystem recovery mirror did not exist in the
+version installed for this event, so it is ruled out as the cause. Its timing
+looked similar but cannot be causal. The later mirror pacing/chunking work remains
+a preventative optimization for the next release, not the fix for this ANR.
+
+A second event at `20:29:41` supplies the missing direction: Scudo aborted while
+`libGLESv2_adreno` was deallocating graphics memory on Android's HWUI render
+thread. The session held 57.43 MB of tile surfaces (64.89 MB peak, effectively
+the full 65.17 MB limit), reached 266 tile entries, repeatedly used undo/fill,
+and crossed two `TRIM_MEMORY_UI_HIDDEN` background/foreground transitions. Scudo
+`invalid chunk state` usually means a double free or deallocation race. This is
+the known Adreno texture-lifecycle cohort described below, and is also a better
+shared explanation for the earlier GPU-shaped ANR.
+
+Mitigation added after this field report:
+
+- `TRIM_MEMORY_UI_HIDDEN` now immediately releases reconstructable tile and
+  canvas-pool resources instead of retaining them for the 20-second browser
+  visibility grace period. The overview stays resident, so return paints a soft
+  but complete board while visible tiles rebuild.
+- The bounded hot tile set now stays canvas-backed across idle bake passes.
+  Repeated undo/stroke operations no longer demote all but one hot canvas into a
+  new bitmap and then promote/close it again on the next edit.
+- Sentry breadcrumbs record graphics release/restore and their trigger, allowing
+  subsequent native events to prove whether the lifecycle purge ran.
+
+> **Architecture follow-up (2026-08-08):**
+> [`DRAW_ENGINE_FABRIC_DECISION.md`](./DRAW_ENGINE_FABRIC_DECISION.md) evaluates
+> replacing Fabric itself. Its recommendation keeps the tile/overview/compositor
+> work in this document and migrates object ownership/rendering incrementally.
+
 Companion to [`DRAW_ENGINE.md`](./DRAW_ENGINE.md). That doc says *how the engine
 works*. This one says **why 0.4.3 still ANRs and crashes on Android, what to fix,
 and in what order.**
@@ -19,8 +142,8 @@ and in what order.**
 
 ## TL;DR
 
-The worker offload landed and it is the right architecture, but **three things
-keep the main thread and the GPU on the hook**:
+The worker implementation landed but remains disabled in production. If it is
+reconsidered later, **three things keep the main thread and GPU on the hook**:
 
 1. **The bake path still does unbounded synchronous serialization on the main
    thread.** `bakeryBakeTile` calls `flush()` per tile, which drains the *global*
@@ -35,9 +158,10 @@ keep the main thread and the GPU on the hook**:
    wholesale** and falls back to the main-thread renderer. On a real board that
    is most tiles. The worker is helping much less than it looks like it is.
 
-Separately, the crash signatures are **GPU-driver**, not JS: `libGLESv2_adreno`
-/ `libgsl` SIGSEGV + "Unresponsive GPU" is tile-texture churn and uncapped DPR
-fill rate, not a slow `for` loop.
+Separately, `libGLESv2_adreno` / `libgsl` SIGSEGV plus "Unresponsive GPU"
+implicates the native graphics path. Texture churn, memory pressure and fill
+rate are credible local contributors, but a library name alone cannot separate
+an app workload problem from a driver defect or earlier memory corruption.
 
 And `minifyEnabled false` in `android/app/build.gradle` is the vitals warning —
 one line, unrelated to the ANRs, free to fix.
@@ -46,17 +170,18 @@ one line, unrelated to the ANRs, free to fix.
 
 ## Reading the 0.4.3 signatures
 
-| Signature | What it actually means | Suspected driver here |
+| Signature | What the evidence supports | Local hypothesis to test |
 | --- | --- | --- |
-| `__futex_wait_ex` + Input dispatching timed out + **Unresponsive GPU** + Native lock contention (×5, ~40% of ANR volume) | The UI thread is blocked waiting on a lock held by the render/GPU thread. The GPU work queue is backed up. | Tile bitmap create/destroy churn → texture allocation storms; full-canvas clear+fill at uncapped DPR every frame. |
-| `MessageQueue.nativePollOnce` + Input dispatching timed out | Classic "JS/main thread busy, no message pumped in time". | The synchronous `flush()` / `toJSON()` inside the bake loop; main-thread fallback bakes after the bakery shuts itself down. |
-| `art::ConditionVariable::WaitHoldingLocks` + Unresponsive GPU | Java thread parked on a native lock, GPU again. | Same as row 1. |
-| `libGLESv2_adreno.so` SIGSEGV / SIGABRT, `libgsl.so` SIGSEGV | Qualcomm GPU driver + its graphics-memory allocator faulting. Almost always texture/buffer allocation churn or exhaustion. | Tile `ImageBitmap` lifecycle: every bake pass replaces ~40 bitmaps, each a fresh GPU texture on first `drawImage`. |
-| `libwebviewchromium.so` SIGTRAP (17 users, 14%) | A Chromium `CHECK()` fired — most commonly OOM or fatal GPU context loss. | Memory ceiling: tile budget + overview + fabric lower/upper canvases + drag layer, all at full DPR. |
+| `__futex_wait_ex` + Input dispatching timed out + **Unresponsive GPU** + Native lock contention | The sampled thread is waiting; the complete trace must show the lock owner. The GPU annotation makes a render-path stall plausible. | Tile bitmap create/destroy churn and full-surface work may be increasing driver pressure. |
+| `MessageQueue.nativePollOnce` + Input dispatching timed out | This frame frequently means the sampled main thread was idle by the time the trace was captured; it is not proof that JS was busy. | Correlate the ANR timestamp with long-task breadcrumbs and earlier main-thread frames before blaming serialization. |
+| `art::ConditionVariable::WaitHoldingLocks` + Unresponsive GPU | A runtime thread is parked on a condition variable. The complete thread set must identify the dependency chain. | Compare with the RenderThread stack and GPU annotation rather than grouping on this frame alone. |
+| `libGLESv2_adreno.so` SIGSEGV / SIGABRT, `libgsl.so` SIGSEGV | A fatal fault/abort occurred in or surfaced through Qualcomm's native graphics stack. | Tile `ImageBitmap` lifecycle and near-ceiling graphics memory may reproduce it; driver/version clustering can distinguish workload from vendor defect. |
+| `libwebviewchromium.so` SIGTRAP | Chromium deliberately trapped or crashed; the abort message and preceding frames are required to know why. | Compare WebView version, memory-pressure breadcrumbs and draw phase. Do not label OOM/context loss without that evidence. |
 | `ActivityThread.throwRemoteServiceException` | System killed a foreground service / bad notification. | Not draw engine. Track separately. |
 
-The pattern is unambiguous: **more of this is GPU/memory than is JS.** Fixing
-only the JS side will move the `nativePollOnce` ANR and leave the rest.
+The current evidence justifies prioritizing GPU/memory reduction while keeping
+main-thread work bounded. It does not justify merging every cluster: each
+signature needs its full trace and cohort dimensions before it is marked fixed.
 
 ---
 
@@ -2330,6 +2455,46 @@ metrics transport and Android release/device validation below.
 
 ---
 
+## 2026-08-12 Sentry stall follow-up
+
+Three production messages prompted a re-audit: 3,522 ms near `overviewPatch`,
+3,223 ms near `localBake`, and 888,541 ms near `localBake`.
+
+The 888,541 ms report fired 132 ms after a screen-off/background interval ended;
+the 3,522 ms report fired 90 ms after a roughly 31-minute background interval.
+Both were suspended WebView timers waking after resume, not continuous
+main-thread blocks. The 3,223 ms sample had no adjacent lifecycle transition and
+remains a credible stall, but the old `localBake` marker measured the wall time
+of a job that intentionally yielded across frames, so it did not identify the
+blocking atom.
+
+The shipped follow-up changes the contract:
+
+- The stall timer tracks both document visibility and Capacitor app state,
+  resets its clock across suspension, and ignores the two-second resume seam.
+  A completed phase older than one timer tick is reported as `unknown` rather
+  than being presented as causal.
+- Yielded job phases (`localBake`, `overviewPatch`, `overviewBuild`) remain useful
+  latency totals but no longer overwrite the last synchronous phase marker.
+  Local object render, bitmap transfer, cache commit, overview object render,
+  and overview commit are timed independently.
+- A localized overview repair never loops over Fabric objects synchronously.
+  It builds in a reusable low-end 192² scratch budget, yields between objects,
+  and commits atomically. Large plain groups are rendered child-by-child with
+  device-aware split thresholds (16 children on low-end devices).
+- The same group split is used by local tile bakes and full overview builds.
+  Complex eraser overview stamps are cost-gated and fall back to the yielded
+  rebuild.
+- Sentry's persisted draw context includes the slowest indivisible render's
+  structural shape (object type, path commands, group children, clip children,
+  caching flags), without object ids or drawing content.
+
+This removes the known unbounded multi-object `overviewPatch` block and makes
+the remaining single Fabric render atom measurable. It does not prove a zero
+ANR rate: clipped/force-cached Fabric objects cannot safely be subdivided without
+changing their rendering semantics, and native GPU/WebView stalls remain a
+separate class that must be validated on physical low-end Android hardware.
+
 ## Instrumentation
 
 We currently cannot tell which of F1–F5 dominates on the devices that crash.
@@ -2386,3 +2551,77 @@ a remote flag and A/B-ing against the ANR rate rather than assuming.
 
 *Keep this in sync with the findings as they are fixed — strike through what
 lands, and move the confirmed-by-telemetry items out of "suspected".*
+
+---
+
+## Twenty-second review — the per-object constants on dense boards
+
+Not a new stall: a sweep for work that is **proportional to scene size but pays
+for nothing**, which is what turns "large + dense" from slow into unusable. The
+worst-nightmare shape (thousands of objects inside a few hundred world units)
+was measured with a headless index probe: one 512px tile query there returns
+**1,600–3,200 objects**, and a bake pass runs ~40 of them, so every constant in
+these loops is multiplied by ~64,000 per pass.
+
+Measured on desktop, dense 6k-object cluster, per bake pass:
+
+| Stage | Cost |
+| --- | --- |
+| raw quadtree queries (40 tiles) | 4.1 ms |
+| + resolving ids to objects | +1.5 ms |
+| + stamping the layer rank | +2.2 ms |
+| + z-sorting each tile's hits | +3.0 ms |
+
+~11 ms of pure bookkeeping before a pixel is drawn — call it 65 ms on a low-end
+phone, on every pass. Fixed:
+
+- **`getTotalObjectScaling` allocated a closure per node per tile.** Tens of
+  thousands of closures per bake pass — the same steady-state garbage the undo
+  journal was rewritten to avoid (M6). Now one shared function reading a module
+  tier, which is safe because the value is only read inside the synchronous
+  window between `prepareForBake` and its unwind.
+- **The layer rank was recomputed per object per query.** A `Map` lookup and a
+  megamorphic write to answer a constant. Single-layer documents (nearly all of
+  them) now write the constant directly; multi-layer keeps the paranoid path.
+- **The bounds cache signature built an ~90-character string per measurement.**
+  Number→string is one of the most expensive conversions in JS and the result
+  was compared once and dropped. A 32-bit hash is **3.4x faster** (327 ns →
+  96 ns) and allocates nothing. It is a change detector, so a collision costs a
+  stale bounds cache until the next edit, not correctness.
+- **`ExplicitZIndex.assignOnAdd` scanned the whole stack per add.** The object
+  is appended in every case that matters, so the tail is checked first.
+- **`Quadtree.remove` did `findIndex` by string id then `splice`.** Identity
+  compare and swap-pop instead: node order carries no meaning, and at `maxDepth`
+  a leaf's list is unbounded — which is exactly the dense case.
+
+### `getObjects()` is a full copy of the scene
+
+`canvas.getObjects()` returns `[...this._objects]`. Fine once; wrong per stroke.
+It was being called:
+
+- **once per committed stroke**, in `isRenderTopmost`, to read the last element
+  — a 7,000-slot array allocated and filled to compare one reference;
+- **per shape creation**, twice, for `.at(-1)`;
+- as the base of four `for (obj of selection) stack.indexOf(obj)` loops —
+  **O(selection x scene)** — in multi-delete, layer delete, layer flatten and the
+  fully-consumed-erase sweep. Deleting a 2,000-object layer from a 7,000-object
+  drawing was ~14 million reference compares in one synchronous block.
+
+`canvas/objectStack.ts` now exposes the read-only internal stack and a
+one-pass `stackPositions()` map; all of the above use it.
+
+### Still open (deliberately not changed)
+
+The dominant cost on a dense board is **rasterizing every object of a tile, for
+every tile it overlaps**, and that is inherent to tiling. Two structural options
+worth measuring before picking one:
+
+1. The coarsest TILED tier (0.5) has the same density as the overview bitmap
+   (`targetDensity` 0.5) and re-renders it per tile at full per-object cost,
+   while the overview builds once with a size filter. Raising `overviewTier` by
+   one would delete that whole band of work — but it widens the pure-overview
+   zoom zone, so it needs a real device A/B, not a guess.
+2. Per-tile query results are recomputed and re-sorted on every bake of that
+   tile even when nothing in it changed. A per-tile cache keyed on a scene
+   generation would remove the ~11 ms above entirely; the cost is invalidation
+   complexity, which is where this engine's bugs have historically come from.

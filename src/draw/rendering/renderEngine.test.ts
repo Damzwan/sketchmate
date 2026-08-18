@@ -46,11 +46,11 @@ describe("RenderEngine erase bursts", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("defers and merges overview repairs while erasing", () => {
+	it("defers and merges overview repairs while erasing", async () => {
 		const engine = makeEngine() as any;
 		const patch = vi
-			.spyOn(engine.committed.overview, "patchRect")
-			.mockReturnValue(true);
+			.spyOn(engine.committed.overview, "patchRectYielded")
+			.mockResolvedValue(true);
 		const rebuild = vi.spyOn(engine.committed, "rebuildRectSync");
 		const rects: WorldRect[] = [
 			{ x: 10, y: 10, w: 80, h: 80 },
@@ -70,10 +70,13 @@ describe("RenderEngine erase bursts", () => {
 
 		engine.setErasing(false);
 
+		await vi.waitFor(() => expect(patch).toHaveBeenCalledOnce());
 		expect(patch).toHaveBeenCalledOnce();
 		expect(patch).toHaveBeenCalledWith(
 			{ x: 10, y: 10, w: 120, h: 100 },
 			expect.any(Number),
+			expect.any(Object),
+			expect.any(AbortSignal),
 		);
 		engine.reset();
 	});
@@ -192,6 +195,96 @@ describe("RenderEngine erase bursts", () => {
 
 		expect(markStale).toHaveBeenCalledWith({ x: 20, y: 30, w: 100, h: 80 });
 		expect(markDirty).not.toHaveBeenCalled();
+		engine.reset();
+	});
+
+	it("waits for every high-zoom tile before handing a live stroke to the overview", async () => {
+		const engine = makeEngine() as any;
+		const object = {
+			id: "fresh-stroke",
+			getBoundingRect: () => ({ left: 20, top: 30, width: 100, height: 80 }),
+		};
+		let tilesReady = false;
+		vi.spyOn(engine.committed, "canStampAll").mockImplementation(
+			() => tilesReady,
+		);
+		const dropOtherTiers = vi.spyOn(engine.committed, "dropOtherTiers");
+		let attempts = 0;
+		const patch = vi
+			.spyOn(engine.committed.overview, "patchRectYielded")
+			.mockImplementation(async (...args: any[]) => {
+				attempts++;
+				if (attempts === 1) {
+					// This is what an immediate pinch does: gesture start aborts the
+					// in-flight overview patch before its atomic commit.
+					engine.setGesturing(true);
+					expect(args[3].aborted).toBe(true);
+					return false;
+				}
+				return true;
+			});
+
+		engine.onObjectAdded(object, true);
+
+		expect(dropOtherTiers).toHaveBeenCalledOnce();
+		expect(engine.live.has(object.id)).toBe(true);
+		expect(engine.live.items.get(object.id).mode).toBe("additive");
+		// A multi-tile high-zoom region is all-or-nothing. Starting the overview
+		// patch while one tile is still stale would put low-res ink under the full
+		// live vector and produce the post-stroke blurry halo.
+		expect(engine.demoteSettled()).toBe(0);
+		expect(engine.overviewSplitQueue).toHaveLength(0);
+		expect(patch).not.toHaveBeenCalled();
+
+		tilesReady = true;
+		expect(engine.demoteSettled()).toBe(0);
+		expect(engine.overviewSplitQueue).toHaveLength(1);
+
+		await engine.drainOneOverviewPatch();
+
+		// Abort requeues the exact tracked job and cannot retire the only
+		// cross-tier copy of the stroke.
+		expect(engine.live.has(object.id)).toBe(true);
+		expect(engine.overviewSplitQueue).toHaveLength(1);
+		// At far zoom the overview is still old, so the live bridge must paint.
+		expect(
+			engine.liveItemAlreadyPainted({ x: 20, y: 30, w: 100, h: 80 }, 0.01),
+		).toBe(false);
+
+		engine.setGesturing(false);
+		await engine.drainOneOverviewPatch();
+
+		expect(patch).toHaveBeenCalledTimes(2);
+		// Commit and retirement are one transition: no frame can composite the
+		// updated overview underneath the same translucent live stroke.
+		expect(engine.live.has(object.id)).toBe(false);
+		engine.reset();
+	});
+
+	it("drops an incomplete origin tier when overview zoom commits the handoff", async () => {
+		const engine = makeEngine() as any;
+		const rect = { x: 20, y: 30, w: 100, h: 80 };
+		const object = {
+			id: "zoomed-away-stroke",
+			getBoundingRect: () => ({ left: 20, top: 30, width: 100, height: 80 }),
+		};
+		vi.spyOn(engine.committed, "canStampAll").mockReturnValue(false);
+		const dropTiles = vi.spyOn(engine.committed, "dropTiles");
+		vi.spyOn(engine.committed.overview, "patchRectYielded").mockResolvedValue(
+			true,
+		);
+
+		engine.onObjectAdded(object, true);
+		const originTier = engine.overviewHandoffTier.get(object.id);
+		vi.spyOn(engine.surface, "getVpt").mockReturnValue([
+			0.01, 0, 0, 0.01, 0, 0,
+		]);
+		expect(engine.demoteSettled()).toBe(0);
+		await engine.drainOneOverviewPatch();
+
+		expect(dropTiles).toHaveBeenCalledWith(rect, originTier);
+		expect(engine.live.has(object.id)).toBe(false);
+		expect(engine.overviewHandoffPending.has(object.id)).toBe(false);
 		engine.reset();
 	});
 
@@ -351,5 +444,214 @@ describe("RenderEngine erase bursts", () => {
 
 		expect(cancelRemoteWork).toHaveBeenCalledOnce();
 		engine.reset();
+	});
+});
+
+describe("bake stall latch", () => {
+	beforeEach(() => {
+		vi.stubGlobal(
+			"requestAnimationFrame",
+			vi.fn(() => 1),
+		);
+		vi.stubGlobal("cancelAnimationFrame", vi.fn());
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	/** Composite that always reports the same number of holes — a cache too
+	 *  small to ever satisfy the viewport. */
+	function makeStuckEngine(holes = 4) {
+		const engine = makeEngine({ bakeDebounceMs: 0 }) as any;
+		vi.spyOn(engine.committed, "composite").mockReturnValue({
+			needsBake: holes > 0,
+			nonFresh: holes,
+		});
+		vi.spyOn(engine.committed, "bake").mockResolvedValue(undefined);
+		vi.spyOn(engine.live, "composite").mockImplementation(() => {});
+		vi.spyOn(engine.live, "gcExpired").mockReturnValue([]);
+		return engine;
+	}
+
+	it("stops rescheduling once a pass fails to close any holes", async () => {
+		const engine = makeStuckEngine();
+		const schedule = vi.spyOn(engine, "scheduleBake");
+
+		// Frame 1: holes seen, nothing has been tried yet → schedule a bake.
+		engine.renderNow();
+		expect(schedule).toHaveBeenCalledTimes(1);
+
+		// The pass runs and closes nothing, then requests the frame that judges it.
+		await engine.runBake();
+		engine.renderNow();
+
+		// That frame must NOT arm another pass: same view, same hole count.
+		expect(schedule).toHaveBeenCalledTimes(1);
+
+		// And it must stay quiet — this is the infinite blur/unblur loop.
+		engine.renderNow();
+		engine.renderNow();
+		expect(schedule).toHaveBeenCalledTimes(1);
+	});
+
+	it("re-arms when the viewport moves", async () => {
+		const engine = makeStuckEngine();
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+		const settled = (vi.spyOn(engine, "scheduleBake") as any).mock.calls.length;
+
+		engine.surface.getVpt = () => [1, 0, 0, 1, -400, -300];
+		engine.renderNow();
+
+		expect((engine.scheduleBake as any).mock.calls.length).toBeGreaterThan(
+			settled,
+		);
+	});
+
+	it("re-arms when the scene is edited", async () => {
+		const engine = makeStuckEngine();
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+		const schedule = vi.spyOn(engine, "scheduleBake");
+
+		// Any invalidation bumps the mutation epoch, which is part of the key —
+		// so no invalidation path has to remember to clear the latch.
+		engine.committed.mutationEpoch++;
+		engine.renderNow();
+
+		expect(schedule).toHaveBeenCalled();
+	});
+
+	it("keeps baking while passes ARE making progress", async () => {
+		const engine = makeEngine({ bakeDebounceMs: 0 }) as any;
+		let holes = 6;
+		vi.spyOn(engine.committed, "composite").mockImplementation(() => ({
+			needsBake: holes > 0,
+			nonFresh: holes,
+		}));
+		vi.spyOn(engine.committed, "bake").mockImplementation(async () => {
+			holes -= 2; // each pass closes some
+		});
+		vi.spyOn(engine.live, "composite").mockImplementation(() => {});
+		vi.spyOn(engine.live, "gcExpired").mockReturnValue([]);
+		const schedule = vi.spyOn(engine, "scheduleBake");
+
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+		await engine.runBake();
+		engine.renderNow();
+
+		// Never latched: a partly-filled viewport must keep going.
+		expect(schedule.mock.calls.length).toBeGreaterThan(1);
+	});
+});
+
+describe("transform commit at overview zoom", () => {
+	beforeEach(() => {
+		vi.stubGlobal(
+			"requestAnimationFrame",
+			vi.fn(() => 1),
+		);
+		vi.stubGlobal("cancelAnimationFrame", vi.fn());
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	/** An engine whose active tier IS the overview — i.e. there are no tiles. */
+	function overviewEngine(offset = 0) {
+		const engine = makeEngine() as any;
+		vi.spyOn(engine.committed, "pickActiveTier").mockReturnValue(
+			engine.committed.overviewTier + offset,
+		);
+		return engine;
+	}
+
+	const rect: WorldRect = { x: 0, y: 0, w: 100, h: 100 };
+	const moved = {
+		rect: { x: 50, y: 50, w: 100, h: 100 },
+		bmp: {} as ImageBitmap,
+		m: [1, 0, 0, 1, 50, 50] as const,
+	};
+	const vacated = {
+		rect,
+		bmp: {} as ImageBitmap,
+		m: [1, 0, 0, 1, 0, 0] as const,
+	};
+
+	it("keeps the drag out of the overview at overview zoom", () => {
+		const engine = overviewEngine();
+		const patch = vi.spyOn(engine, "patchOverview");
+		const markDirty = vi.spyOn(engine.committed, "markDirty");
+
+		// Patching here queues a deferred repair that the gesture-end flush turns
+		// into a full rebuild of the board — exactly when the commit needs the
+		// overview clean to stamp into.
+		expect(engine.invalidateUnderTransformCover([rect])).toBe(true);
+		expect(patch).not.toHaveBeenCalled();
+		expect(markDirty).toHaveBeenCalledWith(rect);
+	});
+
+	it("uses the ordinary retain path once there are tiles", () => {
+		const engine = overviewEngine(1);
+		const retain = vi.spyOn(engine, "retainRegionsUntilRebaked");
+
+		expect(engine.invalidateUnderTransformCover([rect])).toBe(false);
+		expect(retain).toHaveBeenCalledWith([rect]);
+	});
+
+	it("stamps both footprints and leaves the overview clean", () => {
+		const engine = overviewEngine();
+		const overview = engine.committed.overview;
+		vi.spyOn(overview, "isDirty").mockReturnValue(false);
+		vi.spyOn(overview, "covers").mockReturnValue(true);
+		const stamp = vi.spyOn(overview, "stampRegion").mockReturnValue(true);
+		const markDirty = vi.spyOn(engine.committed, "markDirty");
+
+		expect(engine.stampTransformIntoOverview(moved, vacated)).toBe(true);
+		// Vacated first, cleared; then the moved bitmap over its new footprint.
+		expect(stamp).toHaveBeenNthCalledWith(
+			1,
+			vacated.rect,
+			vacated.bmp,
+			vacated.m,
+			true,
+		);
+		expect(stamp).toHaveBeenNthCalledWith(2, moved.rect, moved.bmp, moved.m);
+		// Tiles at every tier still hold pre-move pixels; the overview does not.
+		expect(markDirty).toHaveBeenCalledWith(moved.rect);
+		expect(markDirty).toHaveBeenCalledWith(vacated.rect);
+		expect(overview.isDirty()).toBe(false);
+	});
+
+	it("writes nothing when a footprint falls outside the overview mapping", () => {
+		const engine = overviewEngine();
+		const overview = engine.committed.overview;
+		vi.spyOn(overview, "isDirty").mockReturnValue(false);
+		vi.spyOn(overview, "covers").mockImplementation(
+			(...args: unknown[]) => args[0] !== vacated.rect,
+		);
+		const stamp = vi.spyOn(overview, "stampRegion");
+
+		// Half a stamp is a hole in the only picture this zoom has.
+		expect(engine.stampTransformIntoOverview(moved, vacated)).toBe(false);
+		expect(stamp).not.toHaveBeenCalled();
+	});
+
+	it("declines while a rebuild already owns the picture", () => {
+		const engine = overviewEngine();
+		const overview = engine.committed.overview;
+		vi.spyOn(overview, "isDirty").mockReturnValue(true);
+		const stamp = vi.spyOn(overview, "stampRegion");
+
+		expect(engine.stampTransformIntoOverview(moved, vacated)).toBe(false);
+		expect(stamp).not.toHaveBeenCalled();
 	});
 });

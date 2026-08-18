@@ -1,7 +1,6 @@
-import { alertController } from "@ionic/vue";
-import { isInRoom } from "@/draw/sync/syncStatus";
+import { useDrawingRemix } from "@/composables/gallery/useDrawingRemix";
+import { useSavePost } from "@/composables/home/useSavePost";
 import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
-import router from "@/router";
 import { deletePost } from "@/service/api/post.api";
 import { useToast } from "@/service/toast.service";
 import { useMenuStore } from "@/store/menu.store";
@@ -10,15 +9,17 @@ import { usePostStore } from "@/store/post.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { Menu } from "@/types/menu.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { FeedPost } from "@/types/server.types";
 
 export function usePostSwiper() {
 	const swiperStore = usePhotoSwiper();
 	const { toast } = useToast();
 	const postStore = usePostStore();
 	const quotaStore = useQuotaStore();
+	const { openDrawingCopy } = useDrawingRemix();
+	const { toggleSave } = useSavePost();
 
-	function openPostSwiper(posts: any[], index: number) {
+	function openPostSwiper(posts: FeedPost[], index: number) {
 		if (swiperStore.open && useMenuStore().viewProfileMenuOpen) {
 			useMenuStore().closeMenu(Menu.ViewProfileMenu);
 			if (swiperStore.isCommentDrawerOpen) {
@@ -34,38 +35,19 @@ export function usePostSwiper() {
 			// viewer and the feed card can't disagree about a post. (The server
 			// normalises the field with `?? true` on every read path, so legacy
 			// posts arrive as a real boolean rather than undefined.)
-			canReply: (item) => !!item.enable_remix,
+			canReply: (item, currentUser) =>
+				item.author_id === currentUser?._id || !!item.enable_remix,
 			onReply: async (item) => {
-				if (isInRoom()) {
-					toast("Not allowed when in a lobby", { color: "warning" });
-					return;
-				}
-
-				const alert = await alertController.create({
+				await openDrawingCopy({
+					canvasUrl: item.drawing_url || item.drawing,
+					// The swiper is shared with the inbox, where items are not
+					// posts — only stamp lineage when this really is one.
+					originPostId: item.drawing_url ? item._id : undefined,
 					header: "Remix this Drawing?",
 					message:
 						"This will load a copy of this drawing onto your canvas so you can edit and reply to it.",
-					cssClass: "liquid-alert",
-					buttons: [
-						{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-						{
-							text: "Start Remixing",
-							cssClass: "alert-button-confirm",
-							handler: () => {
-								swiperStore.close();
-
-								router.push({
-									path: FRONTEND_ROUTES.draw,
-									query: {
-										canvas_url: item.drawing_url || item.drawing,
-										mode: "solo",
-									},
-								});
-							},
-						},
-					],
+					confirmText: "Start Remixing",
 				});
-				await alert.present();
 			},
 			canDelete: (item, currentUser) => item.author_id === currentUser._id,
 			userLookup: (userId: string) => {
@@ -82,6 +64,12 @@ export function usePostSwiper() {
 				} catch (_e) {
 					toast("Failed to delete post", { color: "danger" });
 				}
+			},
+			onSave: async (item) => {
+				// The swiper's item can be a separate object from the copies in the
+				// feed / profile lists, so pass it explicitly — otherwise the icon
+				// under the user's thumb is the one thing that doesn't update.
+				await toggleSave(item, item);
 			},
 			onReact: async (item, type) => {
 				// Pass the swiper's own item so its footer count updates even when it's

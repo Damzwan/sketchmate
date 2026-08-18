@@ -4,6 +4,7 @@ import {
 	CommittedLayer,
 	type SpatialIndex,
 	type WorldRect,
+	type Yieldable,
 } from "./committedLayer";
 import { tileKey } from "./tiles/tileKey";
 import { NO_HOLE } from "./tiles/tileLayerBase";
@@ -274,6 +275,37 @@ describe("CommittedLayer safety bounds", () => {
 		expect(ctx.drawImage).toHaveBeenCalledOnce(); // full tile, no clip
 		expect(ctx.clip).not.toHaveBeenCalled();
 		expect(result.needsBake).toBe(true);
+	});
+
+	it("invalidates an in-flight new tile when an additive stroke arrives", () => {
+		const layer = makeLayer() as any;
+		const tier = layer.pickActiveTier(1);
+		const key = tileKey(tier, 0, 0);
+		// This is the new-tile race: rebuildTile captured generation zero and added
+		// the key to inFlight, but no bitmap exists in the tile map yet.
+		layer.inFlight.add(key);
+
+		// A large footprint selects markStale's map-walk optimization. It must walk
+		// both stored and in-flight keys or the pre-stroke result can land as fresh.
+		const rect = { x: -10_000, y: -10_000, w: 20_000, h: 20_000 };
+		layer.markStale(rect);
+
+		expect(layer.gen.get(key)).toBe(1);
+		expect(layer.dirtyRects.get(key)).toEqual([rect]);
+
+		// The already-running bake returns with its captured generation zero. It may
+		// be retained as a stale result, but it must not become eligible to suppress
+		// the live cross-tier stroke.
+		layer.store(
+			key,
+			tier,
+			0,
+			0,
+			{ close: vi.fn() } as unknown as ImageBitmap,
+			256 * 256 * 4,
+			0,
+		);
+		expect(layer.canStampAll({ x: 0, y: 0, w: 1, h: 1 }, tier)).toBe(false);
 	});
 
 	it("keeps only visible active-tier tiles sharp during a discrete transition", () => {
@@ -628,5 +660,62 @@ describe("CommittedLayer safety bounds", () => {
 
 		expect(result).toBeNull();
 		expect(close).toHaveBeenCalledOnce();
+	});
+});
+
+describe("bake prefetch ring is dropped when the cache cannot afford it", () => {
+	stubOffscreenCanvas();
+
+	function makeProbe(memoryBudgetMB: number) {
+		const seen = new Set<string>();
+		const index: SpatialIndex<TestObject> = {
+			query: (r) => {
+				seen.add(`${Math.round(r.x)},${Math.round(r.y)}`);
+				return [];
+			},
+		};
+		const layer = new CommittedLayer<TestObject>(index, () => {}, {
+			tileSize: 256,
+			overviewPx: 64,
+			memoryBudgetMB,
+			poolMax: 2,
+		});
+		return { layer, seen };
+	}
+
+	const yielder: Yieldable = {
+		reset: () => {},
+		shouldYield: () => false,
+		yield: async () => {},
+	};
+
+	const bake = (layer: CommittedLayer<TestObject>, edge: number) =>
+		layer.bake(
+			[1, 0, 0, 1, 0, 0],
+			{ w: edge, h: edge },
+			1,
+			() => yielder,
+			new AbortController().signal,
+			null,
+		);
+
+	it("pads a viewport the budget can hold twice over", async () => {
+		const { layer, seen } = makeProbe(512);
+		await bake(layer, 512);
+		// 3x3 visible cells plus a one-cell ring on every side = 5x5.
+		expect(seen.size).toBe(25);
+		expect(seen.size * 2).toBeLessThanOrEqual(layer.tileCapacity());
+	});
+
+	it("drops the ring when two passes would not fit, so a pass cannot evict itself", async () => {
+		// Padding this viewport would need 7x7 = 49 tiles, and two adjacent tiers
+		// must coexist because zooming keeps the previous one resident. Beyond the
+		// budget, a padded pass evicts its own earlier tiles, every composite still
+		// reports holes, and the engine re-bakes forever — the sharp/blurred
+		// oscillation. Give up the prefetch ring instead.
+		const { layer, seen } = makeProbe(16);
+		await bake(layer, 1024);
+		expect(seen.size).toBe(25); // exactly the visible 5x5, no ring
+		expect(seen.size * 2).toBeLessThanOrEqual(layer.tileCapacity());
 	});
 });

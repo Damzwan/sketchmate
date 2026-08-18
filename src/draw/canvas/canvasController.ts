@@ -13,6 +13,7 @@ import {
 	configureFabric,
 	createCanvasOptions,
 } from "@/draw/canvas/fabricSetup";
+import { installInstrumentDrawing } from "@/draw/canvas/instrumentDrawing";
 import { initViewport } from "@/draw/canvas/viewport";
 import { BACKGROUND, CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { loadFonts } from "@/draw/tools/textEditing";
@@ -23,6 +24,11 @@ function createCanvasController() {
 
 	function getCanvas(): Canvas {
 		return c!;
+	}
+
+	/** Lifecycle-safe lookup for work that can race draw-page teardown. */
+	function getCanvasIfReady(): Canvas | null {
+		return c;
 	}
 
 	function destroyCanvas() {
@@ -68,6 +74,7 @@ function createCanvasController() {
 		overrideMouseUp(c);
 		overrideMouseDown(c);
 		overrideHandleSelection(c);
+		installInstrumentDrawing(c);
 		initViewport(c);
 		loadFonts();
 
@@ -95,6 +102,7 @@ function createCanvasController() {
 
 	return {
 		getCanvas,
+		getCanvasIfReady,
 		createCanvas,
 		destroyCanvas,
 		resetCanvas,
